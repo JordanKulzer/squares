@@ -6,6 +6,7 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  SafeAreaView,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import RNPickerSelect from "react-native-picker-select";
@@ -34,11 +35,7 @@ const data = [
   { label: "no", value: false },
 ];
 
-const NewModalSquare: React.FC<ModalProps> = ({
-  visible,
-  onClose,
-  createNewSquare,
-}) => {
+const CreateNewSquareScreen: React.FC<ModalProps> = ({}) => {
   const [inputTitle, setInputTitle] = useState("");
   const [inputSquareAmount, setInputSquareAmount] = useState(null);
   const [evenNumber, setEvenNumber] = useState(null);
@@ -57,14 +54,14 @@ const NewModalSquare: React.FC<ModalProps> = ({
   // setEvenNumber(null);
   // Handle redirect with the values from the inputs
   const handleRedirect = () => {
-    console.log("title: ", inputTitle);
-    console.log("evenNumber: ", evenNumber);
-    createNewSquare(inputTitle, evenNumber); // Pass the values back to the parent
-    onClose(); // Close the modal
+    // console.log("title: ", inputTitle);
+    // console.log("evenNumber: ", evenNumber);
+    // createNewSquare(inputTitle, evenNumber); // Pass the values back to the parent
+    // onClose(); // Close the modal
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Welcome to your new Square!</Text>
@@ -73,14 +70,14 @@ const NewModalSquare: React.FC<ModalProps> = ({
             onChangeText={setInputTitle}
             value={inputTitle}
             placeholder="Enter the name of your new Square"
-            placeholderTextColor="grey"
+            placeholderTextColor="#ffe8d6"
           />
           <TextInput
             style={styles.textInput}
             onChangeText={setInputTitle}
             value={inputTitle}
             placeholder="Enter your username"
-            placeholderTextColor="grey"
+            placeholderTextColor="#ffe8d6"
           />
           <TextInput
             style={styles.textInput}
@@ -88,7 +85,7 @@ const NewModalSquare: React.FC<ModalProps> = ({
             onChangeText={setInputTitle}
             value={inputTitle}
             placeholder="Enter number of players"
-            placeholderTextColor="grey"
+            placeholderTextColor="#ffe8d6"
           />
           <View
             style={[{ flexDirection: "row", justifyContent: "space-between" }]}
@@ -103,7 +100,7 @@ const NewModalSquare: React.FC<ModalProps> = ({
                 onChangeText={setInputTitle}
                 value={inputTitle}
                 placeholder="Team 1"
-                placeholderTextColor="grey"
+                placeholderTextColor="#ffe8d6"
               />
               <TextInput
                 style={styles.textInput}
@@ -111,7 +108,7 @@ const NewModalSquare: React.FC<ModalProps> = ({
                 onChangeText={setInputTitle}
                 value={inputTitle}
                 placeholder="Team 2"
-                placeholderTextColor="grey"
+                placeholderTextColor="#ffe8d6"
               />
             </View>
           </View>
@@ -148,7 +145,7 @@ const NewModalSquare: React.FC<ModalProps> = ({
             }
           />
           <View style={styles.buttonsContainer}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity style={styles.closeButton}>
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -160,43 +157,18 @@ const NewModalSquare: React.FC<ModalProps> = ({
           </View>
         </View>
       </View>
-    </Modal>
+    </SafeAreaView>
   );
 };
 
-export default NewModalSquare;
-
-const pickerSelectStyles = StyleSheet.create({
-  inputIOS: {
-    fontSize: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#000",
-    borderRadius: 4,
-    color: "black",
-    backgroundColor: "white",
-    paddingRight: 30, // To add space for the dropdown icon
-  },
-  inputAndroid: {
-    fontSize: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: "#000",
-    borderRadius: 4,
-    color: "black",
-    backgroundColor: "white",
-    paddingRight: 30, // To add space for the dropdown icon
-  },
-});
+export default CreateNewSquareScreen;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f4f4f4",
+    backgroundColor: "#a5a58d",
   },
   selected: {
     marginTop: 20,
@@ -205,7 +177,7 @@ const styles = StyleSheet.create({
   dropdown: {
     height: 50,
     width: 200,
-    borderColor: "gray",
+    borderColor: "#ffe8d6",
     borderWidth: 0.5,
     borderRadius: 8,
     paddingHorizontal: 8,
@@ -223,15 +195,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   modalOverlay: {
-    flex: 1,
+    // flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    // backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   modalContent: {
     width: 300,
     padding: 20,
-    backgroundColor: "#fff",
+    backgroundColor: "#a5a58d",
     borderRadius: 10,
     alignItems: "center",
   },
@@ -243,7 +215,7 @@ const styles = StyleSheet.create({
   textInput: {
     height: 40,
     width: "100%",
-    borderColor: "#ccc",
+    borderColor: "#ffe8d6",
     borderWidth: 1,
     borderRadius: 5,
     paddingLeft: 10,
@@ -252,7 +224,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
     marginBottom: 10,
-    color: "#333",
+    color: "#ffe8d6",
   },
   picker: {
     width: "100%",

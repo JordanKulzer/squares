@@ -11,14 +11,6 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import NewModalSquare from "../modals/NewSquareModal";
 
-const mySquares = [
-  // 'square1',
-  // 'square2',
-  // 'square3',
-  // 'square4',
-  // 'square5'
-];
-
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
 
@@ -37,32 +29,11 @@ const HomeScreen: React.FC = () => {
   };
 
   const navigateToDetails = () => {
-    navigation.navigate("Details");
+    navigation.navigate("CreateNewSquareScreen");
   };
 
   return (
-    <View>
-      <SafeAreaView>
-        <Text>My Squares:</Text>
-        {mySquares.length === 0 ? (
-          <Text>You have no squares LOSER</Text>
-        ) : (
-          <ScrollView>
-            {mySquares.map((item, index) => (
-              <View
-                key={index}
-                style={{
-                  padding: 20,
-                  borderBottomWidth: 1,
-                  borderColor: "#ccc",
-                }}
-              >
-                <Text>{item}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        )}
-      </SafeAreaView>
+    <View style={[styles.container]}>
       <TouchableOpacity style={styles.button} onPress={openModal}>
         <Text style={[styles.buttonText]}>Create</Text>
         <NewModalSquare
@@ -84,8 +55,14 @@ const HomeScreen: React.FC = () => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#a5a58d",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   button: {
-    backgroundColor: "#4286f4",
+    backgroundColor: "#6b705c",
     paddingVertical: 15,
     paddingHorizontal: 30,
     borderRadius: 8,
@@ -95,9 +72,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     marginVertical: 10,
+    width: "75%",
   },
   buttonText: {
-    color: "#fff",
+    color: "#ffe8d6",
     fontSize: 16,
     fontWeight: "bold",
     textAlign: "center",
