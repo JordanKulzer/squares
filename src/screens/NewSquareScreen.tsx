@@ -1,12 +1,33 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
 
-const NewSquareScreen = ({ route }: { route: { params: { inputTitle: string, inputSquareAmount: null} } }) => {
-  const { inputTitle, inputSquareAmount } = route.params;
+const NewSquareScreen = ({
+  route,
+}: {
+  route: {
+    params: {
+      inputTitle: string;
+      username: string;
+      numPlayers: null;
+      team1: string;
+      team2: string;
+      gridSize: null;
+    };
+  };
+}) => {
+  const { inputTitle, username, numPlayers, team1, team2, gridSize } =
+    route.params;
+  console.log(inputTitle, numPlayers, team1, team2, gridSize);
   // Initial 10x10 grid coordinates, will contain coordinates of selected squares
   const [selectedSquares, setSelectedSquares] = useState([]);
 
-  const squareAmount = inputSquareAmount;
+  const squareAmount = gridSize;
 
   // Function to handle press on a grid square
   const handlePress = (x, y) => {
@@ -14,14 +35,14 @@ const NewSquareScreen = ({ route }: { route: { params: { inputTitle: string, inp
     // Check if the square is already selected
     if (selectedSquares.includes(newSquare)) {
       // If yes, remove it from the array
-      setSelectedSquares(selectedSquares.filter(item => item !== newSquare));
+      setSelectedSquares(selectedSquares.filter((item) => item !== newSquare));
     } else {
       // If no, add it to the array
-      <Text style={styles.squareText}>{inputTitle}</Text>
+      <Text style={styles.squareText}>{inputTitle}</Text>;
       setSelectedSquares([...selectedSquares, newSquare]);
-      <Text style={styles.squareText}>{inputTitle}</Text>
+      <Text style={styles.squareText}>{inputTitle}</Text>;
     }
-    <Text>{inputTitle}</Text>
+    <Text>{inputTitle}</Text>;
   };
 
   // Function to render grid squares
@@ -53,8 +74,10 @@ const NewSquareScreen = ({ route }: { route: { params: { inputTitle: string, inp
   return (
     <View style={styles.container}>
       <Text>{inputTitle}</Text>
+      {/* <ScrollView horizontal={true}> */}
       <View style={styles.gridContainer}>
         {/* Y-Axis labels */}
+        {/* <Text>{team1}</Text> */}
         <View style={styles.yAxisContainer}>
           {Array.from({ length: squareAmount }, (_, index) => (
             <Text key={index} style={styles.axisLabel}>
@@ -66,6 +89,7 @@ const NewSquareScreen = ({ route }: { route: { params: { inputTitle: string, inp
         {/* Grid and X-Axis labels */}
         <View style={styles.gridWithXAxis}>
           {/* X-Axis labels */}
+          {/* <Text>{team2}</Text> */}
           <View style={styles.xAxisRow}>
             {Array.from({ length: squareAmount }, (_, index) => (
               <Text key={index} style={styles.axisLabel}>
@@ -75,14 +99,15 @@ const NewSquareScreen = ({ route }: { route: { params: { inputTitle: string, inp
           </View>
 
           {/* Scrollable grid */}
-          <View style={styles.grid} >
+          <View style={styles.grid}>
             <View>{renderGrid()}</View>
           </View>
         </View>
       </View>
+      {/* </ScrollView> */}
 
-      <Text style={styles.arrayTitle}>Selected Coordinates:</Text>
-      <Text style={styles.selectedArray}>{selectedSquares.join(', ')}</Text>
+      <Text style={styles.arrayTitle}>{username}'s Selected Coordinates:</Text>
+      <Text style={styles.selectedArray}>{selectedSquares.join(", ")}</Text>
     </View>
   );
 };
@@ -90,56 +115,56 @@ const NewSquareScreen = ({ route }: { route: { params: { inputTitle: string, inp
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingTop: 50,
   },
   squareText: {
     fontSize: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   gridContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   yAxisContainer: {
-    justifyContent: 'space-evenly',
-    alignItems: 'center',
+    justifyContent: "space-evenly",
+    alignItems: "center",
     marginRight: 10,
   },
   gridWithXAxis: {
-    flexDirection: 'column',
+    flexDirection: "column",
   },
   xAxisRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-evenly',
+    flexDirection: "row",
+    justifyContent: "space-evenly",
   },
   grid: {
     marginTop: 10,
   },
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   square: {
     width: 30,
     height: 30,
     margin: 2,
-    backgroundColor: '#ddd',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#ddd",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
   },
   selectedSquare: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   axisLabel: {
     fontSize: 12,
     width: 30,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 30, // Center the text vertically
   },
   arrayTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginTop: 20,
   },
   selectedArray: {

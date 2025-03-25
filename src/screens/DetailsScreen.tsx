@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text }  from 'react-native';
+import React from "react";
+import { View, Text } from "react-native";
 
-const DetailsScreen: React.FC = ( { route }) => {
+const DetailsScreen: React.FC = ({ route }) => {
   const { data } = route.params;
   console.log(data);
   return (

@@ -1,23 +1,17 @@
 import React, { useState } from "react";
 import {
-  Modal,
   View,
   Text,
   TextInput,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
+  ModalProps,
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
-import RNPickerSelect from "react-native-picker-select";
+import { useNavigation } from "@react-navigation/native";
 
-interface ModalProps {
-  visible: boolean;
-  onClose: () => void;
-  createNewSquare: (inputTitle: string, inputSquareAmount: number) => void;
-}
-
-const evenNumbers = [
+const gridSizes = [
   { label: "1 x 1", value: 1 },
   { label: "2 x 2", value: 2 },
   { label: "3 x 3", value: 3 },
@@ -32,129 +26,121 @@ const evenNumbers = [
 
 const data = [
   { label: "Yes", value: true },
-  { label: "no", value: false },
+  { label: "No", value: false },
 ];
 
 const CreateNewSquareScreen: React.FC<ModalProps> = ({}) => {
   const [inputTitle, setInputTitle] = useState("");
-  const [inputSquareAmount, setInputSquareAmount] = useState(null);
-  const [evenNumber, setEvenNumber] = useState(null);
+  const [username, setUsername] = useState("");
+  const [numPlayers, setNumPlayers] = useState("");
   const [isFocus, setIsFocus] = useState(false);
-  const [isSelected, setSelection] = useState(false);
   const [selectedValue, setSelectedValue] = useState(null);
-  const [gridSize, setGridSize] = useState("3x3");
+  const [gridSize, setGridSize] = useState(null);
+  const [team1, setTeam1] = useState("");
+  const [team2, setTeam2] = useState("");
+  const navigation = useNavigation();
 
-  const gridSizes = [
-    { label: "3x3", value: "3x3" },
-    { label: "4x4", value: "4x4" },
-    { label: "5x5", value: "5x5" },
-    { label: "6x6", value: "6x6" },
-  ];
+  const createGrid = () => {
+    navigation.navigate("NewSquareScreen", {
+      inputTitle,
+      username,
+      numPlayers,
+      team1,
+      team2,
+      gridSize,
+    });
+  };
 
-  // setEvenNumber(null);
-  // Handle redirect with the values from the inputs
-  const handleRedirect = () => {
-    // console.log("title: ", inputTitle);
-    // console.log("evenNumber: ", evenNumber);
-    // createNewSquare(inputTitle, evenNumber); // Pass the values back to the parent
-    // onClose(); // Close the modal
+  const cancel = () => {
+    navigation.navigate("Home");
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Welcome to your new Square!</Text>
-          <TextInput
-            style={styles.textInput}
-            onChangeText={setInputTitle}
-            value={inputTitle}
-            placeholder="Enter the name of your new Square"
-            placeholderTextColor="#ffe8d6"
-          />
-          <TextInput
-            style={styles.textInput}
-            onChangeText={setInputTitle}
-            value={inputTitle}
-            placeholder="Enter your username"
-            placeholderTextColor="#ffe8d6"
-          />
-          <TextInput
-            style={styles.textInput}
-            keyboardType="numeric"
-            onChangeText={setInputTitle}
-            value={inputTitle}
-            placeholder="Enter number of players"
-            placeholderTextColor="#ffe8d6"
-          />
-          <View
-            style={[{ flexDirection: "row", justifyContent: "space-between" }]}
-          >
-            <Text>Enter teams:</Text>
-            <View
-              style={[{ flexDirection: "column", justifyContent: "center" }]}
-            >
-              <TextInput
-                style={styles.textInput}
-                keyboardType="numeric"
-                onChangeText={setInputTitle}
-                value={inputTitle}
-                placeholder="Team 1"
-                placeholderTextColor="#ffe8d6"
-              />
-              <TextInput
-                style={styles.textInput}
-                keyboardType="numeric"
-                onChangeText={setInputTitle}
-                value={inputTitle}
-                placeholder="Team 2"
-                placeholderTextColor="#ffe8d6"
-              />
-            </View>
+      <View style={styles.modalContent}>
+        <Text style={styles.modalTitle}>Create a New Square!</Text>
+        <TextInput
+          style={styles.textInput}
+          onChangeText={setInputTitle}
+          value={inputTitle}
+          placeholder="Enter the name of your new Square"
+          placeholderTextColor="#ffe8d6"
+        />
+        <TextInput
+          style={styles.textInput}
+          onChangeText={setUsername}
+          value={username}
+          placeholder="Enter your username"
+          placeholderTextColor="#ffe8d6"
+        />
+        <TextInput
+          style={styles.textInput}
+          keyboardType="numeric"
+          onChangeText={setNumPlayers}
+          value={numPlayers}
+          placeholder="Enter number of players"
+          placeholderTextColor="#ffe8d6"
+        />
+        <View
+          style={[{ flexDirection: "row", justifyContent: "space-between" }]}
+        >
+          <Text>Enter teams:</Text>
+          <View style={[{ flexDirection: "column", justifyContent: "center" }]}>
+            <TextInput
+              style={styles.textInput}
+              onChangeText={setTeam1}
+              value={team1}
+              placeholder="Team 1"
+              placeholderTextColor="#ffe8d6"
+            />
+            <TextInput
+              style={styles.textInput}
+              onChangeText={setTeam2}
+              value={team2}
+              placeholder="Team 2"
+              placeholderTextColor="#ffe8d6"
+            />
           </View>
-          <Dropdown
-            style={[styles.dropdown, isFocus && { borderColor: "blue" }]}
-            data={evenNumbers}
-            onChange={(item) => {
-              setEvenNumber(item.value);
-              setIsFocus(false);
-            }}
-            labelField={"label"}
-            valueField={"value"}
-            value={evenNumber}
-            placeholder={
-              evenNumber
-                ? `Selected: ${evenNumber}`
-                : "What is the size of your grid?"
-            }
-          />
-          <Text style={styles.selected}>Selected Grid Size: {gridSize}</Text>
+        </View>
+        <Dropdown
+          style={[styles.dropdown, isFocus && { borderColor: "blue" }]}
+          data={gridSizes}
+          onChange={(item) => {
+            setGridSize(item.value);
+            setIsFocus(false);
+          }}
+          labelField={"label"}
+          valueField={"value"}
+          value={gridSize}
+          placeholder={
+            gridSize
+              ? `Selected: ${gridSize}`
+              : "What is the size of your grid?"
+          }
+        />
+        <Text style={styles.selected}>Selected Grid Size: {gridSize}</Text>
 
-          <Dropdown
-            style={styles.dropdown}
-            data={data}
-            labelField="label"
-            valueField="value"
-            value={selectedValue}
-            onChange={(item) => {
-              setSelectedValue(item.value);
-              setIsFocus(false);
-            }}
-            placeholder={
-              selectedValue ? `Selected: ${selectedValue}` : "Randomize Grid?"
-            }
-          />
-          <View style={styles.buttonsContainer}>
-            <TouchableOpacity style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleRedirect}
-              style={styles.saveButton}
-            >
-              <Text style={styles.saveButtonText}>Save</Text>
-            </TouchableOpacity>
-          </View>
+        <Dropdown
+          style={styles.dropdown}
+          data={data}
+          labelField="label"
+          valueField="value"
+          value={selectedValue}
+          onChange={(item) => {
+            setSelectedValue(item.value);
+            setIsFocus(false);
+          }}
+          placeholder={
+            selectedValue ? `Selected: ${selectedValue}` : "Randomize Grid?"
+          }
+        />
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity onPress={cancel} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={createGrid} style={styles.saveButton}>
+            <Text style={styles.saveButtonText}>Create Grid</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </SafeAreaView>
@@ -238,21 +224,24 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: "#28a745",
-    padding: 10,
+    padding: 12,
     borderRadius: 5,
-    marginRight: 10,
+    alignItems: "center",
   },
   saveButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "bold",
   },
   closeButton: {
     backgroundColor: "#dc3545",
-    padding: 10,
+    padding: 12,
     borderRadius: 5,
+    alignItems: "center",
   },
   closeButtonText: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "bold",
   },
 });

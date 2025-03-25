@@ -1,51 +1,32 @@
-import React, { useState } from "react";
-import {
-  View,
-  StyleSheet,
-  TouchableOpacity,
-  Text,
-  Button,
-  SafeAreaView,
-  ScrollView,
-} from "react-native";
+import React from "react";
+import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import NewModalSquare from "../modals/NewSquareModal";
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
 
-  const [modalVisible, setModalVisible] = useState(false);
-  const openModal = () => setModalVisible(true);
-  const closeModal = () => setModalVisible(false);
-
-  const handleSave = (title, squareAmount) => {
-    console.log("title: ", title);
-    console.log("squareAmount: ", squareAmount);
-    closeModal();
-    navigation.navigate("NewSquareScreen", {
-      inputTitle: title,
-      inputSquareAmount: squareAmount,
-    });
-  };
-
-  const navigateToDetails = () => {
+  const navigateToSquareCreation = () => {
     navigation.navigate("CreateNewSquareScreen");
   };
 
   return (
     <View style={[styles.container]}>
-      <TouchableOpacity style={styles.button} onPress={openModal}>
-        <Text style={[styles.buttonText]}>Create</Text>
-        <NewModalSquare
-          visible={modalVisible}
-          onClose={closeModal}
-          createNewSquare={handleSave}
-        />
+      <TouchableOpacity
+        style={styles.button}
+        onPress={navigateToSquareCreation}
+      >
+        <Text style={[styles.buttonText]}>Create a new square</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={navigateToDetails}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={navigateToSquareCreation}
+      >
         <Text style={[styles.buttonText]}>Join a friends</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={navigateToDetails}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={navigateToSquareCreation}
+      >
         <Text style={[styles.buttonText]}>Join random</Text>
       </TouchableOpacity>
     </View>

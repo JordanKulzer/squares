@@ -1,4 +1,4 @@
-colors
+Color Scheme:
 #6b705c
 #a5a58d
 #b7b7a4
