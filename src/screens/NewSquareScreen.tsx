@@ -1,3 +1,4 @@
+import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import React, { useState } from "react";
 import {
   View,
@@ -6,12 +7,14 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
+import { db } from "../../firebaseConfig";
 
 const NewSquareScreen = ({
   route,
 }: {
   route: {
     params: {
+      gridId: string;
       inputTitle: string;
       username: string;
       numPlayers: null;
@@ -21,14 +24,52 @@ const NewSquareScreen = ({
     };
   };
 }) => {
-  const { inputTitle, username, numPlayers, team1, team2, gridSize } =
+  const { gridId, inputTitle, username, numPlayers, team1, team2, gridSize } =
     route.params;
-  console.log(inputTitle, numPlayers, team1, team2, gridSize);
+  console.log(gridId, inputTitle, numPlayers, team1, team2, gridSize);
   // Initial 10x10 grid coordinates, will contain coordinates of selected squares
   const [selectedSquares, setSelectedSquares] = useState([]);
 
   const squareAmount = gridSize;
 
+  // Function to update Firestore when a square is selected
+  const selectSquareInFirestore = async (
+    gridId: string,
+    x: number,
+    y: number,
+    playerId: string
+  ) => {
+    const gridRef = doc(db, "grids", gridId);
+    try {
+      // Add the selected square to the 'selections' array in Firestore
+      await updateDoc(gridRef, {
+        selections: arrayUnion({ x, y, playerId }),
+      });
+      console.log(`Square at (${x}, ${y}) selected by ${playerId}`);
+    } catch (error) {
+      console.error("Error selecting square in Firestore:", error);
+    }
+  };
+
+  // Function to remove the deselected square from Firestore
+  const deselectSquareInFirestore = async (
+    gridId: string,
+    x: number,
+    y: number,
+    playerId: string
+  ) => {
+    const gridRef = doc(db, "grids", gridId);
+    try {
+      // Remove the selected square from the 'selections' array in Firestore
+      await updateDoc(gridRef, {
+        selections: arrayRemove({ x, y, playerId }),
+      });
+      console.log(`Square at (${x}, ${y}) deselected by ${playerId}`);
+      console.log(gridRef);
+    } catch (error) {
+      console.error("Error deselecting square in Firestore:", error);
+    }
+  };
   // Function to handle press on a grid square
   const handlePress = (x, y) => {
     const newSquare = `${x},${y}`;
@@ -36,8 +77,10 @@ const NewSquareScreen = ({
     if (selectedSquares.includes(newSquare)) {
       // If yes, remove it from the array
       setSelectedSquares(selectedSquares.filter((item) => item !== newSquare));
+      deselectSquareInFirestore(gridId, x, y, "playerId");
     } else {
       // If no, add it to the array
+      selectSquareInFirestore(gridId, x, y, "playerId");
       <Text style={styles.squareText}>{inputTitle}</Text>;
       setSelectedSquares([...selectedSquares, newSquare]);
       <Text style={styles.squareText}>{inputTitle}</Text>;

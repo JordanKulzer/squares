@@ -1,12 +1,20 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Text, Button } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { createSession } from "../../services/sessionService";
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
 
   const navigateToSquareCreation = () => {
     navigation.navigate("CreateNewSquareScreen");
+  };
+
+  const handleCreateSession = async () => {
+    const sessionId = await createSession("My First Session");
+    if (sessionId) {
+      console.log("Session successfully created with ID:", sessionId);
+    }
   };
 
   return (
@@ -29,6 +37,10 @@ const HomeScreen: React.FC = () => {
       >
         <Text style={[styles.buttonText]}>Join random</Text>
       </TouchableOpacity>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Welcome to the Session App!</Text>
+        <Button title="Create Session" onPress={handleCreateSession} />
+      </View>
     </View>
   );
 };
