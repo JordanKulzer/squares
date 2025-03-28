@@ -32,7 +32,7 @@ const data = [
   { label: "No", value: false },
 ];
 
-const CreateNewSquareScreen: React.FC<ModalProps> = ({}) => {
+const CreateSquareScreen: React.FC<ModalProps> = ({}) => {
   const [inputTitle, setInputTitle] = useState("");
   const [username, setUsername] = useState("");
   const [numPlayers, setNumPlayers] = useState("");
@@ -187,7 +187,7 @@ const CreateNewSquareScreen: React.FC<ModalProps> = ({}) => {
   );
 };
 
-export default CreateNewSquareScreen;
+export default CreateSquareScreen;
 
 const styles = StyleSheet.create({
   container: {

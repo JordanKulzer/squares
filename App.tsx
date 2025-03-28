@@ -8,7 +8,9 @@ import DetailsScreen from "./src/screens/DetailsScreen";
 import NewSquareScreen from "./src/screens/NewSquareScreen";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
-import CreateNewSquareScreen from "./src/screens/CreateNewSquareScreen";
+import CreateSquareScreen from "./src/screens/CreateSquareScreen";
+import JoinSquareScreen from "./src/screens/JoinSquareScreen";
+import SquareScreen from "./src/screens/SquareScreen";
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -29,12 +31,10 @@ const HomeStack = () => (
     }}
   >
     <Stack.Screen name="Home" component={HomeScreen} />
-    <Stack.Screen name="Details" component={DetailsScreen} />
-    <Stack.Screen
-      name="CreateNewSquareScreen"
-      component={CreateNewSquareScreen}
-    />
+    <Stack.Screen name="JoinSquareScreen" component={JoinSquareScreen} />
+    <Stack.Screen name="CreateSquareScreen" component={CreateSquareScreen} />
     <Stack.Screen name="NewSquareScreen" component={NewSquareScreen} />
+    <Stack.Screen name="SquareScreen" component={SquareScreen} />
   </Stack.Navigator>
 );
 

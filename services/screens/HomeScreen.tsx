@@ -10,10 +10,6 @@ const HomeScreen: React.FC = () => {
     navigation.navigate("CreateSquareScreen");
   };
 
-  const navigateToJoinSquare = () => {
-    navigation.navigate("JoinSquareScreen");
-  };
-
   const handleCreateSession = async () => {
     const sessionId = await createSession("My First Session");
     if (sessionId) {
@@ -29,10 +25,16 @@ const HomeScreen: React.FC = () => {
       >
         <Text style={[styles.buttonText]}>Create a new square</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={navigateToJoinSquare}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={navigateToSquareCreation}
+      >
         <Text style={[styles.buttonText]}>Join a friends</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={navigateToJoinSquare}>
+      <TouchableOpacity
+        style={styles.button}
+        onPress={navigateToSquareCreation}
+      >
         <Text style={[styles.buttonText]}>Join random</Text>
       </TouchableOpacity>
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
