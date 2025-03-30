@@ -36,7 +36,7 @@ const JoinSquareScreen = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
 
-        navigation.navigate("NewSquareScreen", {
+        navigation.navigate("SquareScreen", {
           gridId,
           inputTitle: data.title,
           username: username, // the user joining
@@ -72,7 +72,7 @@ const JoinSquareScreen = () => {
         placeholderTextColor="#ffe8d6"
       />
       <TouchableOpacity style={styles.submitButton}>
-        <Text style={styles.submitText} onPress={submit}>
+        <Text style={styles.submitText} onPress={joinGrid}>
           ENTER!
         </Text>
       </TouchableOpacity>

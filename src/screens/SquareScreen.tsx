@@ -1,13 +1,5 @@
-import {
-  doc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-  getDoc,
-  onSnapshot,
-  setDoc,
-} from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import { doc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,135 +9,112 @@ import {
 } from "react-native";
 import { db } from "../../firebaseConfig";
 
-const SquareScreen = ({ route }: { route: { params: any } }) => {
-  const {
-    inputTitle,
-    username,
-    numPlayers,
-    team1,
-    team2,
-    gridSize,
-    gridId: providedGridId,
-    isJoining,
-  } = route.params;
-  console.log(
-    inputTitle,
-    numPlayers,
-    team1,
-    team2,
-    gridSize,
-    providedGridId,
-    isJoining
-  );
-  // Initial 10x10 grid coordinates, will contain coordinates of selected squares
-  const [selectedSquares, setSelectedSquares] = useState([]);
-  const [gridId, setGridId] = useState<string>(providedGridId);
-  const [size, setSize] = useState<number>(gridSize || 10);
+const SquareScreen = ({
+  route,
+}: {
+  route: {
+    params: {
+      gridId: string;
+      inputTitle: string;
+      username: string;
+      numPlayers: null;
+      team1: string;
+      team2: string;
+      gridSize: null;
+    };
+  };
+}) => {
+  const { gridId, inputTitle, username, numPlayers, team1, team2, gridSize } = route.params;
+  
+  const [selectedSquares, setSelectedSquares] = useState<string[]>([]);
+  const [otherSelectedSquares, setOtherSelectedSquares] = useState<string[]>([]);
 
-  const squareAmount = size;
+  // const squareAmount = gridSize;
 
+  // Listen for real-time updates
   useEffect(() => {
     const gridRef = doc(db, "grids", gridId);
-
-    const setupGrid = async () => {
-      const docSnap = await getDoc(gridRef);
-      if (!docSnap.exists() && !isJoining) {
-        await setDoc(gridRef, {
-          title: inputTitle,
-          createdBy: username,
-          numPlayers,
-          team1,
-          team2,
-          gridSize: gridSize || 10,
-          selections: [],
-        });
-      } else if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSize(data.gridSize);
-      }
-    };
-
-    setupGrid();
-
+    
     const unsubscribe = onSnapshot(gridRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setSelectedSquares(data.selections || []);
+        if (data?.selections) {
+          // Separate squares based on who selected them
+          const userSquares: string[] = [];
+          const otherSquares: string[] = [];
+
+          data.selections.forEach((sel: any) => {
+            const square = `${sel.x},${sel.y}`;
+            if (sel.playerId === username) {
+              userSquares.push(square);
+            } else {
+              otherSquares.push(square);
+            }
+          });
+
+          setSelectedSquares(userSquares);
+          setOtherSelectedSquares(otherSquares);
+        }
       }
     });
 
     return () => unsubscribe();
-  }, [gridId]);
+  }, [gridId, username]);
 
   // Function to update Firestore when a square is selected
-  const selectSquareInFirestore = async (
-    gridId: string,
-    x: number,
-    y: number,
-    playerId: string
-  ) => {
+  const selectSquareInFirestore = async (x: number, y: number, playerId: string) => {
     const gridRef = doc(db, "grids", gridId);
     try {
-      // Add the selected square to the 'selections' array in Firestore
       await updateDoc(gridRef, {
         selections: arrayUnion({ x, y, playerId }),
       });
-      console.log(`Square at (${x}, ${y}) selected by ${playerId}`);
     } catch (error) {
       console.error("Error selecting square in Firestore:", error);
     }
   };
 
   // Function to remove the deselected square from Firestore
-  const deselectSquareInFirestore = async (
-    gridId: string,
-    x: number,
-    y: number,
-    playerId: string
-  ) => {
+  const deselectSquareInFirestore = async (x: number, y: number, playerId: string) => {
     const gridRef = doc(db, "grids", gridId);
     try {
-      // Remove the selected square from the 'selections' array in Firestore
       await updateDoc(gridRef, {
         selections: arrayRemove({ x, y, playerId }),
       });
-      console.log(`Square at (${x}, ${y}) deselected by ${playerId}`);
-      console.log(gridRef);
     } catch (error) {
       console.error("Error deselecting square in Firestore:", error);
     }
   };
+
   // Function to handle press on a grid square
-  const handlePress = (x, y) => {
+  const handlePress = (x: number, y: number) => {
     const newSquare = `${x},${y}`;
-    // Check if the square is already selected
+
     if (selectedSquares.includes(newSquare)) {
-      // If yes, remove it from the array
       setSelectedSquares(selectedSquares.filter((item) => item !== newSquare));
-      deselectSquareInFirestore(gridId, x, y, "playerId");
+      deselectSquareInFirestore(x, y, username);
     } else {
-      // If no, add it to the array
-      selectSquareInFirestore(gridId, x, y, "playerId");
-      <Text style={styles.squareText}>{inputTitle}</Text>;
-      setSelectedSquares([...selectedSquares, newSquare]);
-      <Text style={styles.squareText}>{inputTitle}</Text>;
+      selectSquareInFirestore(x, y, username);
     }
-    <Text>{inputTitle}</Text>;
   };
 
   // Function to render grid squares
   const renderGrid = () => {
     let grid = [];
-    for (let x = 0; x < squareAmount; x++) {
+    for (let x = 0; x < gridSize; x++) {
       let row = [];
-      for (let y = 0; y < squareAmount; y++) {
+      for (let y = 0; y < gridSize; y++) {
         const squareId = `${x},${y}`;
-        const isSelected = selectedSquares.includes(squareId);
+        const isCurrentUserSelected = selectedSquares.includes(squareId);
+        const isOtherUserSelected = otherSelectedSquares.includes(squareId);
 
         row.push(
           <TouchableOpacity
             key={squareId}
-            style={[styles.square, isSelected && styles.selectedSquare]}
+            style={[
+              styles.square,
+              isCurrentUserSelected && styles.selectedSquare,
+              isOtherUserSelected && styles.otherUserSelectedSquare,
+            ]}
             onPress={() => handlePress(x, y)}
           />
         );
@@ -162,41 +131,29 @@ const SquareScreen = ({ route }: { route: { params: any } }) => {
   return (
     <View style={styles.container}>
       <Text>{inputTitle}</Text>
-      {/* <ScrollView horizontal={true}> */}
       <View style={styles.gridContainer}>
-        {/* Y-Axis labels */}
-        {/* <Text>{team1}</Text> */}
         <View style={styles.yAxisContainer}>
-          {Array.from({ length: squareAmount }, (_, index) => (
+          {Array.from({ length: gridSize }, (_, index) => (
             <Text key={index} style={styles.axisLabel}>
               {index}
             </Text>
           ))}
         </View>
 
-        {/* Grid and X-Axis labels */}
         <View style={styles.gridWithXAxis}>
-          {/* X-Axis labels */}
-          {/* <Text>{team2}</Text> */}
           <View style={styles.xAxisRow}>
-            {Array.from({ length: squareAmount }, (_, index) => (
+            {Array.from({ length: gridSize }, (_, index) => (
               <Text key={index} style={styles.axisLabel}>
                 {index}
               </Text>
             ))}
           </View>
-
-          {/* Scrollable grid */}
-          <View style={styles.grid}>
-            <View>{renderGrid()}</View>
-          </View>
+          <View style={styles.grid}>{renderGrid()}</View>
         </View>
       </View>
-      {/* </ScrollView> */}
 
       <Text style={styles.arrayTitle}>{username}'s Selected Coordinates:</Text>
       <Text style={styles.selectedArray}>{selectedSquares.join(", ")}</Text>
-      <Text>Grid ID: {gridId}</Text>
     </View>
   );
 };
@@ -207,10 +164,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingTop: 50,
-  },
-  squareText: {
-    fontSize: 12,
-    textAlign: "center",
   },
   gridContainer: {
     flexDirection: "row",
@@ -243,13 +196,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   selectedSquare: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#4CAF50",  // Current user selected square color
+  },
+  otherUserSelectedSquare: {
+    backgroundColor: "#FFEB3B",  // Other user selected square color (yellow for example)
   },
   axisLabel: {
     fontSize: 12,
     width: 30,
     textAlign: "center",
-    lineHeight: 30, // Center the text vertically
+    lineHeight: 30,
   },
   arrayTitle: {
     fontSize: 18,

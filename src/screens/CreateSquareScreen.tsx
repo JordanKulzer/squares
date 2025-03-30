@@ -76,7 +76,7 @@ const CreateSquareScreen: React.FC<ModalProps> = ({}) => {
       team2
     );
     console.log("Id: ", gridId);
-    navigation.navigate("NewSquareScreen", {
+    navigation.navigate("SquareScreen", {
       gridId,
       inputTitle,
       username,
