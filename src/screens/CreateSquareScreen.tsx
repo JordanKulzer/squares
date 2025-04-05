@@ -11,8 +11,15 @@ import {
 } from "react-native";
 import { Dropdown } from "react-native-element-dropdown";
 import { useNavigation } from "@react-navigation/native";
-import { addDoc, collection } from "firebase/firestore";
+import {
+  addDoc,
+  arrayUnion,
+  collection,
+  doc,
+  setDoc,
+} from "firebase/firestore";
 import { db } from "../../firebaseConfig";
+import { getAuth } from "firebase/auth";
 
 const gridSizes = [
   { label: "1 x 1", value: 1 },
@@ -46,36 +53,59 @@ const CreateSquareScreen: React.FC<ModalProps> = ({}) => {
   const createGridSession = async (
     gridSize: number,
     inputTitle: string,
+    userId: string, // Store userId
     username: string,
     team1: string,
     team2: string
   ) => {
     try {
-      const docRef = await addDoc(collection(db, "grids"), {
-        size: gridSize,
-        players: [username], // Add the player who created the grid
+      const squareRef = await addDoc(collection(db, "squares"), {
+        gridSize: gridSize,
+        createdBy: { userId, username }, // Store both userId and username
+        players: [{ userId, username }], // Store as an array of objects
+        playerIds: [userId],
         selections: [], // Initial empty selections
         title: inputTitle,
-        team1: team1,
-        team2: team2,
+        team1,
+        team2,
       });
-      console.log("Grid created with ID:", docRef.id);
-      console.log("docRef: ", docRef);
-      return docRef.id; // Return the grid ID to later use for updates
+      console.log("Grid created with ID:", squareRef.id);
+      // Save square ID to user's list
+      const userRef = doc(db, "users", userId);
+      await setDoc(
+        userRef,
+        {
+          squares: arrayUnion(squareRef.id),
+        },
+        { merge: true }
+      );
+
+      return squareRef.id;
     } catch (error) {
       console.error("Error creating grid:", error);
+      return null;
     }
   };
 
   const createGrid = async () => {
+    const auth = getAuth();
+    const user = auth.currentUser;
+
+    if (!user) {
+      console.error("No authenticated user found.");
+      return;
+    }
+
     var gridId = await createGridSession(
       gridSize,
       inputTitle,
+      user.uid, // Pass the Firebase user ID
       username,
       team1,
       team2
     );
-    console.log("Id: ", gridId);
+
+    console.log("Grid ID: ", gridId);
     navigation.navigate("SquareScreen", {
       gridId,
       inputTitle,
@@ -88,7 +118,7 @@ const CreateSquareScreen: React.FC<ModalProps> = ({}) => {
   };
 
   const cancel = () => {
-    navigation.navigate("Home");
+    navigation.navigate("HomeDrawer");
   };
 
   return (

@@ -1,5 +1,12 @@
-import { doc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
-import React, { useState, useEffect } from "react";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import {
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  onSnapshot,
+} from "firebase/firestore";
+import React, { useState, useEffect, memo } from "react";
 import {
   View,
   Text,
@@ -24,17 +31,37 @@ const SquareScreen = ({
     };
   };
 }) => {
-  const { gridId, inputTitle, username, numPlayers, team1, team2, gridSize } = route.params;
-  
+  const auth = getAuth();
+  // const userId = auth.currentUser?.uid;
+  const { gridId, inputTitle, username, numPlayers, team1, team2, gridSize } =
+    route.params;
+  console.log("GRID SIZE: ", gridSize); // Check the grid size
+
+  const [userId, setUserId] = useState<string | null>(null);
   const [selectedSquares, setSelectedSquares] = useState<string[]>([]);
-  const [otherSelectedSquares, setOtherSelectedSquares] = useState<string[]>([]);
+  const [otherSelectedSquares, setOtherSelectedSquares] = useState<string[]>(
+    []
+  );
+
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserId(user.uid);
+      } else {
+        setUserId(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   // const squareAmount = gridSize;
 
   // Listen for real-time updates
   useEffect(() => {
-    const gridRef = doc(db, "grids", gridId);
-    
+    const gridRef = doc(db, "squares", gridId);
+
     const unsubscribe = onSnapshot(gridRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -45,7 +72,7 @@ const SquareScreen = ({
 
           data.selections.forEach((sel: any) => {
             const square = `${sel.x},${sel.y}`;
-            if (sel.playerId === username) {
+            if (sel.userId === userId) {
               userSquares.push(square);
             } else {
               otherSquares.push(square);
@@ -59,14 +86,22 @@ const SquareScreen = ({
     });
 
     return () => unsubscribe();
-  }, [gridId, username]);
+  }, [gridId, userId]);
 
   // Function to update Firestore when a square is selected
-  const selectSquareInFirestore = async (x: number, y: number, playerId: string) => {
-    const gridRef = doc(db, "grids", gridId);
+  const selectSquareInFirestore = async (x: number, y: number) => {
+    if (!userId) {
+      console.error(
+        "User ID is undefined. Ensure user is authenticated before selecting a square."
+      );
+      return;
+    }
+    const gridRef = doc(db, "squares", gridId);
+    const selection = { x, y, userId, username };
+    console.log("Y", selection);
     try {
       await updateDoc(gridRef, {
-        selections: arrayUnion({ x, y, playerId }),
+        selections: arrayUnion(selection),
       });
     } catch (error) {
       console.error("Error selecting square in Firestore:", error);
@@ -74,11 +109,18 @@ const SquareScreen = ({
   };
 
   // Function to remove the deselected square from Firestore
-  const deselectSquareInFirestore = async (x: number, y: number, playerId: string) => {
-    const gridRef = doc(db, "grids", gridId);
+  const deselectSquareInFirestore = async (x: number, y: number) => {
+    if (!userId) {
+      console.error(
+        "User ID is undefined. Ensure user is authenticated before selecting a square."
+      );
+      return;
+    }
+    const gridRef = doc(db, "squares", gridId);
+    const selection = { x, y, userId, username };
     try {
       await updateDoc(gridRef, {
-        selections: arrayRemove({ x, y, playerId }),
+        selections: arrayRemove(selection),
       });
     } catch (error) {
       console.error("Error deselecting square in Firestore:", error);
@@ -91,11 +133,23 @@ const SquareScreen = ({
 
     if (selectedSquares.includes(newSquare)) {
       setSelectedSquares(selectedSquares.filter((item) => item !== newSquare));
-      deselectSquareInFirestore(x, y, username);
+      deselectSquareInFirestore(x, y);
     } else {
-      selectSquareInFirestore(x, y, username);
+      selectSquareInFirestore(x, y);
     }
   };
+
+  // Memoized Square component to optimize rendering
+  const Square = memo(({ x, y, isSelected, isOtherSelected, onPress }: any) => (
+    <TouchableOpacity
+      style={[
+        styles.square,
+        isSelected && styles.selectedSquare,
+        isOtherSelected && styles.otherUserSelectedSquare,
+      ]}
+      onPress={() => onPress(x, y)}
+    />
+  ));
 
   // Function to render grid squares
   const renderGrid = () => {
@@ -108,14 +162,13 @@ const SquareScreen = ({
         const isOtherUserSelected = otherSelectedSquares.includes(squareId);
 
         row.push(
-          <TouchableOpacity
+          <Square
             key={squareId}
-            style={[
-              styles.square,
-              isCurrentUserSelected && styles.selectedSquare,
-              isOtherUserSelected && styles.otherUserSelectedSquare,
-            ]}
-            onPress={() => handlePress(x, y)}
+            x={x}
+            y={y}
+            isSelected={isCurrentUserSelected}
+            isOtherSelected={isOtherUserSelected}
+            onPress={handlePress}
           />
         );
       }
@@ -194,12 +247,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
+    borderColor: "#ccc", // Make border consistent
   },
   selectedSquare: {
-    backgroundColor: "#4CAF50",  // Current user selected square color
+    backgroundColor: "#4CAF50", // Current user selected square color
   },
   otherUserSelectedSquare: {
-    backgroundColor: "#FFEB3B",  // Other user selected square color (yellow for example)
+    backgroundColor: "#FFEB3B", // Other user selected square color (yellow for example)
   },
   axisLabel: {
     fontSize: 12,

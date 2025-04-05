@@ -8,7 +8,14 @@ import {
 } from "react-native";
 import React, { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
-import { doc, getDoc } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import {
+  arrayUnion,
+  doc,
+  getDoc,
+  getFirestore,
+  setDoc,
+} from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 
 const JoinSquareScreen = () => {
@@ -16,11 +23,29 @@ const JoinSquareScreen = () => {
   const [username, setUsername] = useState("");
   const navigation = useNavigation();
 
-  const submit = () => {
-    navigation.navigate("SquareScreen");
+  const auth = getAuth(); // Get Firebase Auth instance
+  const user = auth.currentUser; // Get the currently signed-in user
+  const db = getFirestore();
+
+  const saveUserSquare = async (userId, squareId) => {
+    try {
+      console.log("Saving square for user:", userId, "Square ID:", squareId); // Debugging
+      const userRef = doc(db, "users", userId);
+      await setDoc(
+        userRef,
+        {
+          squares: arrayUnion(squareId),
+        },
+        { merge: true }
+      );
+
+      console.log("Square successfully saved!");
+    } catch (err) {
+      console.error("Error saving square:", err);
+    }
   };
 
-  const joinGrid = async () => {
+  const joinSquare = async () => {
     if (!gridId || !username) {
       Alert.alert(
         "Missing Fields",
@@ -29,17 +54,34 @@ const JoinSquareScreen = () => {
       return;
     }
 
-    try {
-      const docRef = doc(db, "grids", gridId);
-      const docSnap = await getDoc(docRef);
+    if (!user) {
+      Alert.alert("Error", "User is not authenticated. Please log in.");
+      return;
+    }
 
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+    try {
+      const squareRef = doc(db, "squares", gridId);
+      const squareSnap = await getDoc(squareRef);
+
+      if (squareSnap.exists()) {
+        const data = squareSnap.data();
+
+        // Add user to players array in square
+        await setDoc(
+          squareRef,
+          {
+            players: arrayUnion({ userId: user.uid, username }),
+            playerIds: arrayUnion(user.uid), // Add user ID to playerIds array
+          },
+          { merge: true }
+        );
+
+        saveUserSquare(user.uid, gridId); // Save square to user
 
         navigation.navigate("SquareScreen", {
           gridId,
           inputTitle: data.title,
-          username: username, // the user joining
+          username,
           numPlayers: data.numPlayers || null,
           team1: data.team1,
           team2: data.team2,
@@ -71,10 +113,8 @@ const JoinSquareScreen = () => {
         placeholder="Enter your Username"
         placeholderTextColor="#ffe8d6"
       />
-      <TouchableOpacity style={styles.submitButton}>
-        <Text style={styles.submitText} onPress={joinGrid}>
-          ENTER!
-        </Text>
+      <TouchableOpacity style={styles.submitButton} onPress={joinSquare}>
+        <Text style={styles.submitText}>ENTER!</Text>
       </TouchableOpacity>
     </View>
   );
