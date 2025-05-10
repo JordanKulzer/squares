@@ -1,3 +1,5 @@
+import React, { useState, useEffect, useCallback } from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
   doc,
@@ -6,8 +8,6 @@ import {
   arrayRemove,
   onSnapshot,
 } from "firebase/firestore";
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { auth, db } from "../../firebaseConfig";
 
 // Memoized Square component
@@ -32,7 +32,7 @@ const Square = React.memo(
 );
 
 const SquareScreen = ({ route }: { route: any }) => {
-  const { gridId, inputTitle, username, gridSize } = route.params;
+  const { gridId, inputTitle, username, gridSize, team1, team2 } = route.params;
 
   const [userId, setUserId] = useState<string | null>(null);
   const [selectedSquares, setSelectedSquares] = useState<Set<string>>(
@@ -148,6 +148,8 @@ const SquareScreen = ({ route }: { route: any }) => {
     const grid = [];
     for (let x = 0; x < gridSize; x++) {
       let row = [];
+      row.push(<Text style={styles.yAxisText}>{x}</Text>);
+
       for (let y = 0; y < gridSize; y++) {
         const squareId = `${x},${y}`;
         const isSelected = selectedSquares.has(squareId);
@@ -176,10 +178,43 @@ const SquareScreen = ({ route }: { route: any }) => {
     return grid;
   };
 
+  const splitTeamName = (teamName: string) => {
+    return teamName.split("");
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{inputTitle}</Text>
-      <View style={styles.gridContainer}>{renderGrid()}</View>
+
+      {/* Displaying Team2 above the grid */}
+      <Text style={styles.teamInfo}>{team2}</Text>
+
+      <View style={styles.mainContainer}>
+        {/* Displaying Team1 vertically to the left */}
+        <View style={styles.teamColumn}>
+          {splitTeamName(team1).map((letter, index) => (
+            <Text key={index} style={styles.teamLetter}>
+              {letter}
+            </Text>
+          ))}
+        </View>
+
+        <View style={styles.gridWrapper}>
+          <View style={styles.axisWrapper}>
+            {/* Render Grid */}
+            <View style={styles.gridRows}>{renderGrid()}</View>
+          </View>
+
+          {/* Render X-axis numbers */}
+          <View style={styles.xAxisContainer}>
+            {Array.from({ length: gridSize }).map((_, index) => (
+              <Text key={index} style={styles.xAxisText}>
+                {index}
+              </Text>
+            ))}
+          </View>
+        </View>
+      </View>
 
       <Text style={styles.arrayTitle}>My Squares:</Text>
       <Text style={styles.selectedArray}>
@@ -197,15 +232,56 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingTop: 50,
+    backgroundColor: "#a5a58d",
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "bold",
     marginBottom: 20,
-    textAlign: "center",
-    color: "#333", // Title color
+    textTransform: "uppercase",
+    color: "#000000",
   },
-  gridContainer: {
+  teamInfo: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  mainContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  teamColumn: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10, // Adds space between Team1 and the grid
+  },
+  teamLetter: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 0,
+  },
+  gridWrapper: {
+    flexDirection: "column",
+    alignItems: "center",
+  },
+  axisWrapper: {
+    flexDirection: "row",
+  },
+  xAxisText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 5,
+    paddingLeft: 25,
+  },
+  yAxisText: {
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 5, // Space between the Y-axis and the grid
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  gridRows: {
     flexDirection: "column",
   },
   row: {
@@ -238,6 +314,12 @@ const styles = StyleSheet.create({
   selectedArray: {
     marginTop: 10,
     fontSize: 16,
+  },
+  xAxisContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 5,
+    marginRight: 15,
   },
 });
 
