@@ -19,7 +19,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
-import { getAuth } from "firebase/auth";
+import { auth } from "../../firebaseConfig"; // instead of getAuth()
 
 const gridSizes = [
   { label: "1 x 1", value: 1 },
@@ -88,7 +88,7 @@ const CreateSquareScreen: React.FC<ModalProps> = ({}) => {
   };
 
   const createGrid = async () => {
-    const auth = getAuth();
+    // const auth = getAuth();
     const user = auth.currentUser;
 
     if (!user) {

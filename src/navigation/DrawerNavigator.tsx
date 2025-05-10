@@ -5,16 +5,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   FlatList,
+  Button,
 } from "react-native";
 import { createDrawerNavigator } from "@react-navigation/drawer";
 import { useNavigation } from "@react-navigation/native";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  getDocs,
-} from "firebase/firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import HomeScreen from "../screens/HomeScreen";
 import SquareScreen from "../screens/SquareScreen";
 import { db } from "../../firebaseConfig";
@@ -22,16 +17,17 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { signOut } from "firebase/auth";
+import { auth } from "../../firebaseConfig";
 
 const Drawer = createDrawerNavigator();
 
 /** Drawer Content Component */
-const CustomDrawerContent = ({ userId }) => {
+const CustomDrawerContent = ({ userId, onLogout }) => {
   const navigation = useNavigation();
   const [squares, setSquares] = useState([]);
   const insets = useSafeAreaInsets();
 
-  console.log("HomeDrawer User ID:", userId);
   useEffect(() => {
     const fetchSquares = async () => {
       try {
@@ -46,10 +42,7 @@ const CustomDrawerContent = ({ userId }) => {
           where("playerIds", "array-contains", userId) // Checks if user is in the players array
         );
 
-        console.log("Running Firestore Query:", q);
-
         const querySnapshot = await getDocs(q);
-        console.log("Query Snapshot Size:", querySnapshot.size);
 
         if (querySnapshot.empty) {
           console.log("No squares found for user.");
@@ -60,7 +53,6 @@ const CustomDrawerContent = ({ userId }) => {
           ...doc.data(),
         }));
 
-        console.log("Fetched Squares List:", squaresList);
         setSquares(squaresList);
       } catch (error) {
         console.error("Error fetching squares:", error);
@@ -89,8 +81,8 @@ const CustomDrawerContent = ({ userId }) => {
                 navigation.navigate("SquareScreen", {
                   gridId: item.id,
                   inputTitle: item.title,
-                  username: userId, // Assuming userId is the username, update if necessary
-                  numPlayers: item.numPlayers, // Assuming numPlayers is stored in Firestore
+                  username: userId, // Assuming userId is the username
+                  numPlayers: item.numPlayers,
                   team1: item.team1,
                   team2: item.team2,
                   gridSize: item.gridSize,
@@ -104,15 +96,20 @@ const CustomDrawerContent = ({ userId }) => {
           )}
         />
       )}
+
+      {/* Logout Button */}
+      <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 };
 
 /** Drawer Navigator */
-const HomeDrawer = ({ userId }) => (
+const HomeDrawer = ({ userId, onLogout }) => (
   <Drawer.Navigator
     drawerContent={(props) => (
-      <CustomDrawerContent {...props} userId={userId} />
+      <CustomDrawerContent {...props} userId={userId} onLogout={onLogout} />
     )}
   >
     <Drawer.Screen name="Home" component={HomeScreen} />
@@ -154,6 +151,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  logoutButton: {
+    padding: 15,
+    backgroundColor: "#ff4d4d",
+    borderRadius: 8,
+    marginTop: 20,
+    alignItems: "center",
+  },
+  logoutText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
 

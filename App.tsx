@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Image, View, ActivityIndicator } from "react-native";
+import { Image, View, ActivityIndicator, Button } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import JoinSquareScreen from "./src/screens/JoinSquareScreen";
@@ -17,7 +17,7 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 /** Home Stack with Drawer */
-const HomeStack = ({ userId }) => (
+const HomeStack = ({ userId, onLogout }) => (
   <Stack.Navigator
     screenOptions={{
       headerTitle: () => (
@@ -31,7 +31,7 @@ const HomeStack = ({ userId }) => (
     }}
   >
     <Stack.Screen name="HomeDrawer" options={{ headerShown: false }}>
-      {() => <HomeDrawer userId={userId} />}
+      {() => <HomeDrawer userId={userId} onLogout={onLogout} />}
     </Stack.Screen>
     <Stack.Screen name="JoinSquareScreen" component={JoinSquareScreen} />
     <Stack.Screen name="CreateSquareScreen" component={CreateSquareScreen} />
@@ -76,7 +76,7 @@ const ProfileStack = () => (
 );
 
 /** Bottom Tabs */
-const BottomTabs = ({ userId }) => (
+const BottomTabs = ({ userId, onLogout }) => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
@@ -85,7 +85,9 @@ const BottomTabs = ({ userId }) => (
       tabBarInactiveTintColor: "#a5a58d",
     }}
   >
-    <Tab.Screen name="Home">{() => <HomeStack userId={userId} />}</Tab.Screen>
+    <Tab.Screen name="Home">
+      {() => <HomeStack userId={userId} onLogout={onLogout} />}
+    </Tab.Screen>
     <Tab.Screen name="My Profile" component={ProfileStack} />
     <Tab.Screen name="Settings" component={SettingsStack} />
   </Tab.Navigator>
@@ -93,9 +95,10 @@ const BottomTabs = ({ userId }) => (
 
 /** App Component */
 const App: React.FC = () => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Check if the user is authenticated
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
@@ -104,6 +107,16 @@ const App: React.FC = () => {
 
     return unsubscribe;
   }, []);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOut(auth); // Sign out from Firebase
+      setUser(null); // Update user state after logout
+    } catch (error) {
+      console.error("Error logging out: ", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -116,7 +129,7 @@ const App: React.FC = () => {
   return (
     <NavigationContainer>
       {user ? (
-        <BottomTabs userId={user.uid} />
+        <BottomTabs userId={user.uid} onLogout={handleLogout} />
       ) : (
         <Stack.Navigator>
           <Stack.Screen name="Login" component={LoginScreen} />

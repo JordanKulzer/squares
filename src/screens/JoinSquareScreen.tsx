@@ -16,14 +16,14 @@ import {
   getFirestore,
   setDoc,
 } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig";
 
 const JoinSquareScreen = () => {
   const [gridId, setGridId] = useState("");
   const [username, setUsername] = useState("");
   const navigation = useNavigation();
 
-  const auth = getAuth(); // Get Firebase Auth instance
+  //const auth = getAuth(); // Get Firebase Auth instance
   const user = auth.currentUser; // Get the currently signed-in user
   const db = getFirestore();
 
@@ -65,6 +65,7 @@ const JoinSquareScreen = () => {
 
       if (squareSnap.exists()) {
         const data = squareSnap.data();
+        console.log("Square data:", data); // Debugging
 
         // Add user to players array in square
         await setDoc(

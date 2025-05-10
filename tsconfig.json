@@ -1,9 +1,7 @@
 {
+  "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    // "baseUrl": ".",
-    // "paths": {
-    //   "@/*": ["src/*"]
-    // }
-  },
-  "extends": "expo/tsconfig.base"
+    "moduleResolution": "node",
+    "esModuleInterop": true
+  }
 }
