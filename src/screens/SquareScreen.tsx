@@ -9,6 +9,8 @@ import {
   onSnapshot,
 } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
+import * as Clipboard from "expo-clipboard"; // Import expo-clipboard
+import Icon from "react-native-vector-icons/Ionicons"; // Import share icon from MaterialIcons
 
 // Memoized Square component
 const Square = React.memo(
@@ -31,7 +33,13 @@ const Square = React.memo(
   }
 );
 
-const SquareScreen = ({ route }: { route: any }) => {
+const SquareScreen = ({
+  route,
+  navigation,
+}: {
+  route: any;
+  navigation: any;
+}) => {
   const { gridId, inputTitle, username, gridSize, team1, team2 } = route.params;
 
   const [userId, setUserId] = useState<string | null>(null);
@@ -182,6 +190,26 @@ const SquareScreen = ({ route }: { route: any }) => {
     return teamName.split("");
   };
 
+  // Add this to the navigation header
+  useEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity
+          onPress={handleCopyToClipboard}
+          style={styles.copyButton}
+        >
+          <Icon name="share-outline" size={24} color="#fff" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation]);
+
+  // Function to copy the gridId to the clipboard
+  const handleCopyToClipboard = () => {
+    Clipboard.setString(gridId); // Copies gridId to clipboard
+    alert("Session ID copied to clipboard!"); // Alert to inform the user
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{inputTitle}</Text>
@@ -320,6 +348,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginTop: 5,
     marginRight: 15,
+  },
+  copyButton: {
+    marginRight: 15,
+    padding: 10,
+  },
+  copyText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#fff",
+    backgroundColor: "#6b705c",
+    padding: 5,
+    borderRadius: 5,
   },
 });
 

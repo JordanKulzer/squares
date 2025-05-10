@@ -1,36 +1,52 @@
 import React, { useState, useEffect } from "react";
-import { Image, View, ActivityIndicator, Button } from "react-native";
+import { Image, View, ActivityIndicator, TouchableOpacity } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "./firebaseConfig";
 import SettingsScreen from "./src/screens/SettingsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import JoinSquareScreen from "./src/screens/JoinSquareScreen";
 import SquareScreen from "./src/screens/SquareScreen";
 import CreateSquareScreen from "./src/screens/CreateSquareScreen";
 import HomeDrawer from "./src/navigation/DrawerNavigator";
-import { auth } from "./firebaseConfig";
 import LoginScreen from "./src/screens/LoginScreen";
+import Icon from "react-native-vector-icons/MaterialIcons"; // Import Icon for the drawer toggle
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 /** Home Stack with Drawer */
-const HomeStack = ({ userId, onLogout }) => (
+const HomeStack = ({ userId, onLogout }: any) => (
   <Stack.Navigator
     screenOptions={{
-      headerTitle: () => (
-        <Image
-          source={require("./assets/favicon.png")}
-          style={{ width: 40, height: 40 }}
-          resizeMode="contain"
-        />
-      ),
       headerStyle: { backgroundColor: "#a5a58d" },
     }}
   >
-    <Stack.Screen name="HomeDrawer" options={{ headerShown: false }}>
+    {/* Remove header settings from the HomeDrawer screen here */}
+    <Stack.Screen
+      name="HomeDrawer"
+      options={({ navigation }: any) => ({
+        headerTitle: () => (
+          <Image
+            source={require("./assets/icon_outline3.png")}
+            style={{ width: 80, height: 80 }}
+            resizeMode="contain"
+          />
+        ),
+        headerLeft: () => (
+          <TouchableOpacity onPress={() => navigation.openDrawer()}>
+            <Icon
+              name="menu"
+              size={30}
+              color="#fff"
+              style={{ marginLeft: 15 }}
+            />
+          </TouchableOpacity>
+        ),
+      })}
+    >
       {() => <HomeDrawer userId={userId} onLogout={onLogout} />}
     </Stack.Screen>
     <Stack.Screen name="JoinSquareScreen" component={JoinSquareScreen} />
