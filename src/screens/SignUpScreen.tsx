@@ -2,35 +2,35 @@ import React, { useState } from "react";
 import {
   View,
   TextInput,
-  Button,
   Text,
-  StyleSheet,
   TouchableOpacity,
-  Image,
+  StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from "react-native";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../firebaseConfig";
 
-const LoginScreen = ({ navigation }) => {
+const SignupScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const handleLogin = async () => {
+  const handleSignup = async () => {
+    setError("");
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await createUserWithEmailAndPassword(auth, email, password);
       navigation.reset({ index: 0, routes: [{ name: "Home" }] });
     } catch (err) {
-      if (err.code === "auth/invalid-email") {
+      if (err.code === "auth/email-already-in-use") {
+        setError("Email already in use.");
+      } else if (err.code === "auth/invalid-email") {
         setError("Invalid email address.");
-      } else if (err.code === "auth/user-not-found") {
-        setError("No account found with that email.");
-      } else if (err.code === "auth/wrong-password") {
-        setError("Incorrect password.");
+      } else if (err.code === "auth/weak-password") {
+        setError("Password must be at least 6 characters.");
       } else {
-        setError("Login failed. Try again.");
+        setError("Signup failed. Try again.");
       }
     }
   };
@@ -46,17 +46,14 @@ const LoginScreen = ({ navigation }) => {
         resizeMode="contain"
       />
 
-      <Text style={styles.title}>Welcome Back</Text>
+      <Text style={styles.title}>Create Account</Text>
 
       <TextInput
         style={styles.input}
         placeholder="Email"
         placeholderTextColor="#444"
         value={email}
-        onChangeText={(text) => {
-          setEmail(text);
-          if (text === "" && password === "") setError("");
-        }}
+        onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
       />
@@ -66,20 +63,17 @@ const LoginScreen = ({ navigation }) => {
         placeholderTextColor="#444"
         secureTextEntry
         value={password}
-        onChangeText={(text) => {
-          setPassword(text);
-          if (text === "" && email === "") setError("");
-        }}
+        onChangeText={setPassword}
       />
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
+      <TouchableOpacity style={styles.button} onPress={handleSignup}>
+        <Text style={styles.buttonText}>Sign Up</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
-        <Text style={styles.linkText}>Don't have an account? Sign up</Text>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
+        <Text style={styles.linkText}>Already have an account? Log in</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );
@@ -139,4 +133,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoginScreen;
+export default SignupScreen;

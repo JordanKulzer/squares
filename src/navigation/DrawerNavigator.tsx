@@ -1,24 +1,20 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  Button,
-} from "react-native";
+import React, { useState, useEffect } from "react";
 import { createDrawerNavigator } from "@react-navigation/drawer";
+import {
+  Image,
+  TouchableOpacity,
+  Text,
+  FlatList,
+  SafeAreaView,
+  StyleSheet,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { collection, query, where, getDocs } from "firebase/firestore";
 import HomeScreen from "../screens/HomeScreen";
 import SquareScreen from "../screens/SquareScreen";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { signOut } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import HeaderLogo from "../components/HeaderLogo";
+import Icon from "react-native-vector-icons/MaterialIcons";
 
 const Drawer = createDrawerNavigator();
 
@@ -26,27 +22,16 @@ const Drawer = createDrawerNavigator();
 const CustomDrawerContent = ({ userId, onLogout }) => {
   const navigation = useNavigation();
   const [squares, setSquares] = useState([]);
-  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const fetchSquares = async () => {
       try {
-        if (!userId) {
-          console.log("No user ID found.");
-          return;
-        }
-
         const squaresRef = collection(db, "squares");
         const q = query(
           squaresRef,
-          where("playerIds", "array-contains", userId) // Checks if user is in the players array
+          where("playerIds", "array-contains", userId)
         );
-
         const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-          console.log("No squares found for user.");
-        }
 
         const squaresList = querySnapshot.docs.map((doc) => ({
           id: doc.id,
@@ -63,9 +48,8 @@ const CustomDrawerContent = ({ userId, onLogout }) => {
   }, [userId]);
 
   return (
-    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.header}>My Squares</Text>
-
       {squares.length === 0 ? (
         <Text style={styles.noSquaresText}>
           You haven't joined any squares yet.
@@ -81,11 +65,11 @@ const CustomDrawerContent = ({ userId, onLogout }) => {
                 navigation.navigate("SquareScreen", {
                   gridId: item.id,
                   inputTitle: item.title,
-                  username: userId, // Assuming userId is the username
-                  numPlayers: item.numPlayers,
+                  username: userId,
                   team1: item.team1,
                   team2: item.team2,
-                  gridSize: item.gridSize,
+                  deadline: item.deadline,
+                  disableAnimation: true,
                 })
               }
             >
@@ -97,7 +81,6 @@ const CustomDrawerContent = ({ userId, onLogout }) => {
         />
       )}
 
-      {/* Logout Button */}
       <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
@@ -111,12 +94,31 @@ const HomeDrawer = ({ userId, onLogout }) => (
     drawerContent={(props) => (
       <CustomDrawerContent {...props} userId={userId} onLogout={onLogout} />
     )}
+    screenOptions={{
+      headerTitle: () => (
+        <Image
+          source={require("../../assets/icon_outline3.png")}
+          style={{ width: 80, height: 80 }}
+          resizeMode="contain"
+        />
+      ),
+    }}
   >
-    <Drawer.Screen name="Home" component={HomeScreen} />
     <Drawer.Screen
-      name="SquareScreen"
-      component={SquareScreen}
-      options={{ headerShown: false }}
+      name="Home"
+      component={HomeScreen}
+      options={({ navigation }) => ({
+        headerTitle: () => <HeaderLogo />,
+        headerStyle: { backgroundColor: "white" },
+        headerLeft: () => (
+          <TouchableOpacity
+            style={{ marginLeft: 10 }}
+            onPress={() => navigation.toggleDrawer()}
+          >
+            <Icon name="menu" size={28} color="#000" />
+          </TouchableOpacity>
+        ),
+      })}
     />
   </Drawer.Navigator>
 );
@@ -133,6 +135,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
+    paddingTop: 80,
   },
   noSquaresText: {
     textAlign: "center",
@@ -142,7 +145,7 @@ const styles = StyleSheet.create({
   },
   squareItem: {
     padding: 15,
-    backgroundColor: "#6b705c",
+    backgroundColor: "#457b9d",
     borderRadius: 8,
     marginVertical: 5,
   },

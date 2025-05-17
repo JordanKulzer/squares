@@ -1,49 +1,21 @@
+import React, { useState } from "react";
 import {
-  Alert,
-  StyleSheet,
+  View,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  StyleSheet,
+  Alert,
 } from "react-native";
-import React, { useState } from "react";
 import { useNavigation } from "@react-navigation/native";
-import { getAuth } from "firebase/auth";
-import {
-  arrayUnion,
-  doc,
-  getDoc,
-  getFirestore,
-  setDoc,
-} from "firebase/firestore";
+import { doc, getDoc, setDoc, arrayUnion } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
 
 const JoinSquareScreen = () => {
   const [gridId, setGridId] = useState("");
   const [username, setUsername] = useState("");
   const navigation = useNavigation();
-
-  //const auth = getAuth(); // Get Firebase Auth instance
-  const user = auth.currentUser; // Get the currently signed-in user
-  const db = getFirestore();
-
-  const saveUserSquare = async (userId, squareId) => {
-    try {
-      console.log("Saving square for user:", userId, "Square ID:", squareId); // Debugging
-      const userRef = doc(db, "users", userId);
-      await setDoc(
-        userRef,
-        {
-          squares: arrayUnion(squareId),
-        },
-        { merge: true }
-      );
-
-      console.log("Square successfully saved!");
-    } catch (err) {
-      console.error("Error saving square:", err);
-    }
-  };
+  const user = auth.currentUser;
 
   const joinSquare = async () => {
     if (!gridId || !username) {
@@ -65,29 +37,27 @@ const JoinSquareScreen = () => {
 
       if (squareSnap.exists()) {
         const data = squareSnap.data();
-        console.log("Square data:", data); // Debugging
 
-        // Add user to players array in square
+        // Join square logic
         await setDoc(
           squareRef,
           {
             players: arrayUnion({ userId: user.uid, username }),
-            playerIds: arrayUnion(user.uid), // Add user ID to playerIds array
+            playerIds: arrayUnion(user.uid),
           },
           { merge: true }
         );
 
-        saveUserSquare(user.uid, gridId); // Save square to user
-
+        // Navigate to the SquareScreen and pass the relevant data
         navigation.navigate("SquareScreen", {
           gridId,
           inputTitle: data.title,
           username,
-          numPlayers: data.numPlayers || null,
           team1: data.team1,
           team2: data.team2,
-          gridSize: data.size,
-          selections: data.selections || [],
+          deadline: data.deadline,
+          // gridSize: data.gridSize,
+          disableAnimation: true,
         });
       } else {
         Alert.alert("Error", "Grid not found.");
@@ -121,8 +91,6 @@ const JoinSquareScreen = () => {
   );
 };
 
-export default JoinSquareScreen;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -149,3 +117,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
+
+export default JoinSquareScreen;

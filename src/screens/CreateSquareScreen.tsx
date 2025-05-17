@@ -6,115 +6,60 @@ import {
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  ModalProps,
-  ScrollView,
+  Modal,
 } from "react-native";
-import { Dropdown } from "react-native-element-dropdown";
-import { useNavigation } from "@react-navigation/native";
-import {
-  addDoc,
-  arrayUnion,
-  collection,
-  doc,
-  setDoc,
-} from "firebase/firestore";
+import DateTimePicker from "@react-native-community/datetimepicker"; // Import DateTimePicker
+import { addDoc, collection } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import { auth } from "../../firebaseConfig"; // instead of getAuth()
 
-const gridSizes = [
-  { label: "1 x 1", value: 1 },
-  { label: "2 x 2", value: 2 },
-  { label: "3 x 3", value: 3 },
-  { label: "4 x 4", value: 4 },
-  { label: "5 x 5", value: 5 },
-  { label: "6 x 6", value: 6 },
-  { label: "7 x 7", value: 7 },
-  { label: "8 x 8", value: 8 },
-  { label: "9 x 9", value: 9 },
-  { label: "10 x 10", value: 10 },
-];
-
-const data = [
-  { label: "Yes", value: true },
-  { label: "No", value: false },
-];
-
-const CreateSquareScreen: React.FC<ModalProps> = ({}) => {
+const CreateSquareScreen = ({ navigation }) => {
   const [inputTitle, setInputTitle] = useState("");
   const [username, setUsername] = useState("");
-  const [numPlayers, setNumPlayers] = useState("");
-  const [isFocus, setIsFocus] = useState(false);
-  const [selectedValue, setSelectedValue] = useState(null);
-  const [gridSize, setGridSize] = useState(null);
   const [team1, setTeam1] = useState("");
   const [team2, setTeam2] = useState("");
-  const navigation = useNavigation();
+  const [deadline, setDeadline] = useState(new Date()); // Default to current date
 
-  const createGridSession = async (
-    gridSize: number,
-    inputTitle: string,
-    userId: string, // Store userId
-    username: string,
-    team1: string,
-    team2: string
-  ) => {
-    try {
-      const squareRef = await addDoc(collection(db, "squares"), {
-        gridSize: gridSize,
-        createdBy: { userId, username }, // Store both userId and username
-        players: [{ userId, username }], // Store as an array of objects
-        playerIds: [userId],
-        selections: [], // Initial empty selections
-        title: inputTitle,
-        team1,
-        team2,
-      });
-      console.log("Grid created with ID:", squareRef.id);
-      // Save square ID to user's list
-      const userRef = doc(db, "users", userId);
-      await setDoc(
-        userRef,
-        {
-          squares: arrayUnion(squareRef.id),
-        },
-        { merge: true }
-      );
-
-      return squareRef.id;
-    } catch (error) {
-      console.error("Error creating grid:", error);
-      return null;
+  // Handle date change from DateTimePicker
+  const onDateChange = (event, selectedDate) => {
+    if (selectedDate) {
+      setDeadline(selectedDate); // Update state with selected date
     }
   };
 
-  const createGrid = async () => {
-    // const auth = getAuth();
+  // Create the Square session
+  const createSquareSession = async () => {
     const user = auth.currentUser;
-
     if (!user) {
       console.error("No authenticated user found.");
       return;
     }
 
-    var gridId = await createGridSession(
-      gridSize,
-      inputTitle,
-      user.uid, // Pass the Firebase user ID
-      username,
-      team1,
-      team2
-    );
+    try {
+      const squareRef = await addDoc(collection(db, "squares"), {
+        title: inputTitle,
+        username,
+        team1,
+        team2,
+        deadline,
+        createdBy: user.uid,
+        players: [{ userId: user.uid, username }], // Store player data
+        playerIds: [user.uid],
+        selections: [], // empty selections initially
+      });
 
-    console.log("Grid ID: ", gridId);
-    navigation.navigate("SquareScreen", {
-      gridId,
-      inputTitle,
-      username,
-      numPlayers,
-      team1,
-      team2,
-      gridSize,
-    });
+      console.log("Grid created with ID:", squareRef.id);
+      navigation.navigate("SquareScreen", {
+        gridId: squareRef.id,
+        inputTitle,
+        username,
+        team1,
+        team2,
+        deadline,
+      });
+    } catch (error) {
+      console.error("Error creating grid:", error);
+    }
   };
 
   const cancel = () => {
@@ -123,195 +68,140 @@ const CreateSquareScreen: React.FC<ModalProps> = ({}) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Create a New Square!</Text>
-          <TextInput
-            style={styles.textInput}
-            onChangeText={setInputTitle}
-            value={inputTitle}
-            placeholder="Enter the name of your new Square"
-            placeholderTextColor="#ffe8d6"
-          />
-          <TextInput
-            style={styles.textInput}
-            onChangeText={setUsername}
-            value={username}
-            placeholder="Enter your username"
-            placeholderTextColor="#ffe8d6"
-          />
-          <TextInput
-            style={styles.textInput}
-            keyboardType="numeric"
-            onChangeText={setNumPlayers}
-            value={numPlayers}
-            placeholder="Enter number of players"
-            placeholderTextColor="#ffe8d6"
-          />
-          <View
-            style={[{ flexDirection: "row", justifyContent: "space-between" }]}
-          >
-            <Text>Enter teams:</Text>
-            <View
-              style={[{ flexDirection: "column", justifyContent: "center" }]}
-            >
-              <TextInput
-                style={styles.textInput}
-                onChangeText={setTeam1}
-                value={team1}
-                placeholder="Team 1"
-                placeholderTextColor="#ffe8d6"
-              />
-              <TextInput
-                style={styles.textInput}
-                onChangeText={setTeam2}
-                value={team2}
-                placeholder="Team 2"
-                placeholderTextColor="#ffe8d6"
-              />
-            </View>
-          </View>
-          <Dropdown
-            style={[styles.dropdown, isFocus && { borderColor: "blue" }]}
-            data={gridSizes}
-            onChange={(item) => {
-              setGridSize(item.value);
-              setIsFocus(false);
-            }}
-            labelField={"label"}
-            valueField={"value"}
-            value={gridSize}
-            placeholder={
-              gridSize
-                ? `Selected: ${gridSize}`
-                : "What is the size of your grid?"
-            }
-          />
-          <Text style={styles.selected}>Selected Grid Size: {gridSize}</Text>
+      <View style={styles.formContainer}>
+        <Text style={styles.title}>Create a New Square</Text>
 
-          <Dropdown
-            style={styles.dropdown}
-            data={data}
-            labelField="label"
-            valueField="value"
-            value={selectedValue}
-            onChange={(item) => {
-              setSelectedValue(item.value);
-              setIsFocus(false);
-            }}
-            placeholder={
-              selectedValue ? `Selected: ${selectedValue}` : "Randomize Grid?"
-            }
+        <TextInput
+          style={styles.input}
+          onChangeText={setInputTitle}
+          value={inputTitle}
+          placeholder="Enter the name of your Square"
+          placeholderTextColor="#888"
+        />
+
+        <TextInput
+          style={styles.input}
+          onChangeText={setUsername}
+          value={username}
+          placeholder="Enter your username"
+          placeholderTextColor="#888"
+        />
+
+        <TextInput
+          style={styles.input}
+          onChangeText={setTeam1}
+          value={team1}
+          placeholder="Enter Team 1"
+          placeholderTextColor="#888"
+        />
+
+        <TextInput
+          style={styles.input}
+          onChangeText={setTeam2}
+          value={team2}
+          placeholder="Enter Team 2"
+          placeholderTextColor="#888"
+        />
+
+        <View style={styles.dateContainer}>
+          <Text style={styles.dateLabel}>Deadline:</Text>
+          <DateTimePicker
+            value={deadline}
+            mode="datetime" // You can change it to "time" or "datetime" if needed
+            display="default"
+            onChange={onDateChange}
           />
-          <View style={styles.buttonsContainer}>
-            <TouchableOpacity onPress={cancel} style={styles.closeButton}>
-              <Text style={styles.closeButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={createGrid} style={styles.saveButton}>
-              <Text style={styles.saveButtonText}>Create Grid</Text>
-            </TouchableOpacity>
-          </View>
         </View>
-      </ScrollView>
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity onPress={cancel} style={styles.cancelButton}>
+            <Text style={styles.buttonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={createSquareSession}
+            style={styles.saveButton}
+          >
+            <Text style={styles.buttonText}>Create Square</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </SafeAreaView>
   );
 };
 
-export default CreateSquareScreen;
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#f4f4f4",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#a5a58d",
   },
-  selected: {
-    marginTop: 20,
-    fontSize: 16,
-  },
-  dropdown: {
-    height: 50,
-    width: 200,
-    borderColor: "#ffe8d6",
-    borderWidth: 0.5,
-    borderRadius: 8,
-    paddingHorizontal: 8,
-  },
-  icon: {
-    marginRight: 5,
-  },
-  button: {
-    backgroundColor: "#007bff",
-    padding: 10,
-    borderRadius: 5,
-  },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
-  },
-  modalOverlay: {
-    // flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    // backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  modalContent: {
-    width: 300,
+  formContainer: {
+    width: "90%",
     padding: 20,
-    backgroundColor: "#a5a58d",
+    backgroundColor: "#fff",
     borderRadius: 10,
-    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  modalTitle: {
-    fontSize: 18,
+  title: {
+    fontSize: 20,
     fontWeight: "bold",
     marginBottom: 20,
+    textAlign: "center",
   },
-  textInput: {
-    height: 40,
-    width: "100%",
-    borderColor: "#ffe8d6",
-    borderWidth: 1,
-    borderRadius: 5,
-    paddingLeft: 10,
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    marginBottom: 10,
-    color: "#ffe8d6",
-  },
-  picker: {
-    width: "100%",
+  input: {
     height: 50,
+    width: "100%",
+    borderColor: "#ddd",
+    borderWidth: 1,
+    borderRadius: 8,
     marginBottom: 20,
+    paddingLeft: 10,
   },
-  buttonsContainer: {
+  dateContainer: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  dateLabel: {
+    fontSize: 16,
+    color: "#6b705c",
+    marginBottom: 10,
+  },
+  deadlineText: {
+    fontSize: 16,
+    color: "#333",
+    marginTop: 10,
+  },
+  buttonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "100%",
+  },
+  cancelButton: {
+    backgroundColor: "#dc3545",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flex: 1,
+    marginRight: 10,
+    alignItems: "center",
   },
   saveButton: {
     backgroundColor: "#28a745",
-    padding: 12,
-    borderRadius: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flex: 1,
     alignItems: "center",
   },
-  saveButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  closeButton: {
-    backgroundColor: "#dc3545",
-    padding: 12,
-    borderRadius: 5,
-    alignItems: "center",
-  },
-  closeButtonText: {
+  buttonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
   },
 });
+
+export default CreateSquareScreen;

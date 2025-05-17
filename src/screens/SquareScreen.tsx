@@ -1,5 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+} from "react-native";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
   doc,
@@ -7,10 +13,15 @@ import {
   arrayUnion,
   arrayRemove,
   onSnapshot,
+  deleteDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
 import * as Clipboard from "expo-clipboard"; // Import expo-clipboard
 import Icon from "react-native-vector-icons/Ionicons"; // Import share icon from MaterialIcons
+import { Timestamp } from "firebase/firestore";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { Menu } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Memoized Square component
 const Square = React.memo(
@@ -33,6 +44,17 @@ const Square = React.memo(
   }
 );
 
+// This function will check if it's a Firebase Timestamp or a regular Date
+const convertToDate = (deadline: any) => {
+  if (deadline instanceof Timestamp) {
+    return deadline.toDate();
+  } else if (deadline instanceof Date) {
+    return deadline;
+  } else {
+    return null;
+  }
+};
+
 const SquareScreen = ({
   route,
   navigation,
@@ -40,7 +62,9 @@ const SquareScreen = ({
   route: any;
   navigation: any;
 }) => {
-  const { gridId, inputTitle, username, gridSize, team1, team2 } = route.params;
+  const { gridId, inputTitle, username, team1, team2, deadline } = route.params;
+
+  const formattedDeadline = convertToDate(deadline);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [selectedSquares, setSelectedSquares] = useState<Set<string>>(
@@ -49,6 +73,26 @@ const SquareScreen = ({
   const [otherSelectedSquares, setOtherSelectedSquares] = useState<Set<string>>(
     new Set()
   );
+  const [isOwner, setIsOwner] = useState(false);
+  const [deadlineValue, setDeadlineValue] = useState<Date | null>(
+    formattedDeadline
+  );
+  const [menuVisible, setMenuVisible] = useState(false);
+  const toggleMenu = () => setMenuVisible(!menuVisible);
+  const closeMenu = () => setMenuVisible(false);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (formattedDeadline && new Date() > formattedDeadline) {
+      console.log("Deadline has passed, navigating to FinalSquareScreen...");
+      navigation.replace("FinalSquareScreen", {
+        gridId,
+        inputTitle,
+        team1,
+        team2,
+      });
+    }
+  }, [formattedDeadline]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -83,11 +127,38 @@ const SquareScreen = ({
           setSelectedSquares(userSquares);
           setOtherSelectedSquares(otherSquares);
         }
+
+        if (data?.createdBy === userId) {
+          setIsOwner(true);
+        } else {
+          setIsOwner(false);
+        }
+
+        if (data?.deadline) {
+          const deadlineDate = convertToDate(data.deadline);
+          if (deadlineDate) {
+            setDeadlineValue(deadlineDate);
+          }
+        }
       }
     });
 
     return () => unsubscribe();
   }, [gridId, userId]);
+
+  const handleDeadlineChange = async (event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === "ios"); // iOS keeps picker open
+    if (!selectedDate) return;
+
+    const gridRef = doc(db, "squares", gridId);
+    try {
+      await updateDoc(gridRef, { deadline: selectedDate });
+      setDeadlineValue(selectedDate);
+      console.log("Deadline updated successfully");
+    } catch (err) {
+      console.error("Error updating deadline:", err);
+    }
+  };
 
   const selectSquareInFirestore = useCallback(
     async (x: number, y: number) => {
@@ -154,11 +225,11 @@ const SquareScreen = ({
 
   const renderGrid = () => {
     const grid = [];
-    for (let x = 0; x < gridSize; x++) {
+    for (let x = 0; x < 10; x++) {
       let row = [];
       row.push(<Text style={styles.yAxisText}>{x}</Text>);
 
-      for (let y = 0; y < gridSize; y++) {
+      for (let y = 0; y < 10; y++) {
         const squareId = `${x},${y}`;
         const isSelected = selectedSquares.has(squareId);
         const isOtherSelected = otherSelectedSquares.has(squareId);
@@ -187,27 +258,90 @@ const SquareScreen = ({
   };
 
   const splitTeamName = (teamName: string) => {
-    return teamName.split("");
+    if (teamName) {
+      return teamName.split("");
+    }
+    return [];
   };
 
-  // Add this to the navigation header
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <TouchableOpacity
-          onPress={handleCopyToClipboard}
-          style={styles.copyButton}
+        <Menu
+          visible={menuVisible}
+          onDismiss={closeMenu}
+          anchor={
+            <TouchableOpacity onPress={toggleMenu} style={{ paddingRight: 12 }}>
+              <Icon name="ellipsis-vertical" size={24} color="#000" />
+            </TouchableOpacity>
+          }
+          contentStyle={{
+            backgroundColor: "#f0f0f0",
+            borderRadius: 10,
+            width: 200,
+          }}
+          style={{
+            marginTop: 40, // push it below the header a bit
+            elevation: 4, // adds shadow on Android
+          }}
         >
-          <Icon name="share-outline" size={24} color="#fff" />
-        </TouchableOpacity>
+          <Menu.Item
+            onPress={() => {
+              Clipboard.setString(gridId);
+              alert("Session ID copied!");
+              closeMenu();
+            }}
+            title="Share Session ID"
+            titleStyle={{ color: "#333", fontWeight: "bold" }}
+          />
+          <Menu.Item
+            onPress={() => {
+              handleLeaveSquare();
+              closeMenu();
+            }}
+            title="Leave Square"
+            titleStyle={{ color: "red" }}
+          />
+          {isOwner && (
+            <Menu.Item
+              onPress={() => {
+                handleDeleteSquare();
+                closeMenu();
+              }}
+              title="Delete Square"
+              titleStyle={{ color: "red" }}
+            />
+          )}
+        </Menu>
       ),
     });
-  }, [navigation]);
+  }, [menuVisible, isOwner]);
 
-  // Function to copy the gridId to the clipboard
-  const handleCopyToClipboard = () => {
-    Clipboard.setString(gridId); // Copies gridId to clipboard
-    alert("Session ID copied to clipboard!"); // Alert to inform the user
+  const handleLeaveSquare = async () => {
+    const gridRef = doc(db, "squares", gridId);
+    try {
+      await updateDoc(gridRef, {
+        playerIds: arrayRemove(userId),
+        selections: arrayRemove(
+          ...Array.from(selectedSquares).map((s) => {
+            const [x, y] = s.split(",");
+            return { x: Number(x), y: Number(y), userId, username };
+          })
+        ),
+      });
+      navigation.navigate("Home");
+    } catch (err) {
+      console.error("Failed to leave square:", err);
+    }
+  };
+
+  const handleDeleteSquare = async () => {
+    try {
+      await deleteDoc(doc(db, "squares", gridId));
+      navigation.navigate("Home");
+    } catch (err) {
+      console.error("Failed to delete square:", err);
+    }
   };
 
   return (
@@ -235,7 +369,7 @@ const SquareScreen = ({
 
           {/* Render X-axis numbers */}
           <View style={styles.xAxisContainer}>
-            {Array.from({ length: gridSize }).map((_, index) => (
+            {Array.from({ length: 10 }).map((_, index) => (
               <Text key={index} style={styles.xAxisText}>
                 {index}
               </Text>
@@ -243,13 +377,45 @@ const SquareScreen = ({
           </View>
         </View>
       </View>
+      {/* <Text style={styles.deadlineText}>
+        {formattedDeadline
+          ? `Deadline: ${formattedDeadline.toLocaleString()}`
+          : "No deadline set"}
+      </Text> */}
+      <View style={styles.deadlineContainer}>
+        {!isOwner && (
+          <Text style={styles.deadlineText}>
+            {deadlineValue
+              ? `Deadline: ${deadlineValue.toLocaleString()}`
+              : "No deadline set"}
+          </Text>
+        )}
+
+        {/* {isOwner && (
+          <TouchableOpacity
+            style={styles.editDeadlineButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={styles.editDeadlineText}>Edit</Text>
+          </TouchableOpacity>
+        )} */}
+
+        {isOwner && (
+          <DateTimePicker
+            value={deadlineValue || new Date()}
+            mode="datetime"
+            display="default"
+            onChange={handleDeadlineChange}
+          />
+        )}
+      </View>
 
       <Text style={styles.arrayTitle}>My Squares:</Text>
-      <Text style={styles.selectedArray}>
+      {/* <Text style={styles.selectedArray}>
         {Array.from(selectedSquares)
           .map((square) => `(${square})`) // Add parentheses around each square's coordinate
           .join(", ")}{" "}
-      </Text>
+      </Text> */}
     </View>
   );
 };
@@ -260,7 +426,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingTop: 50,
-    backgroundColor: "#a5a58d",
+    backgroundColor: "white",
   },
   title: {
     fontSize: 24,
@@ -269,10 +435,16 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     color: "#000000",
   },
+  deadlineText: {
+    fontSize: 18,
+    color: "#fff",
+    marginBottom: 20,
+  },
   teamInfo: {
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 10,
+    fontFamily: "Courier",
   },
   mainContainer: {
     flexDirection: "row",
@@ -287,7 +459,7 @@ const styles = StyleSheet.create({
   teamLetter: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 0,
+    fontFamily: "Courier",
   },
   gridWrapper: {
     flexDirection: "column",
@@ -301,6 +473,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 5,
     paddingLeft: 25,
+    fontFamily: "Courier",
   },
   yAxisText: {
     justifyContent: "center",
@@ -308,6 +481,7 @@ const styles = StyleSheet.create({
     marginTop: 5, // Space between the Y-axis and the grid
     fontSize: 14,
     fontWeight: "bold",
+    fontFamily: "Courier",
   },
   gridRows: {
     flexDirection: "column",
@@ -353,13 +527,20 @@ const styles = StyleSheet.create({
     marginRight: 15,
     padding: 10,
   },
-  copyText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#fff",
-    backgroundColor: "#6b705c",
+  deadlineContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  editDeadlineButton: {
+    marginLeft: 10,
     padding: 5,
+    backgroundColor: "#6b705c",
     borderRadius: 5,
+  },
+  editDeadlineText: {
+    color: "#fff",
+    fontWeight: "bold",
   },
 });
 
