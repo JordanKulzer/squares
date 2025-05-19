@@ -21,7 +21,6 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
     } catch (err) {
       if (err.code === "auth/invalid-email") {
         setError("Invalid email address.");
@@ -41,7 +40,7 @@ const LoginScreen = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Image
-        source={require("../../assets/icon_outline3.png")}
+        source={require("../../assets/icons/icon_outline3.png")}
         style={styles.logo}
         resizeMode="contain"
       />

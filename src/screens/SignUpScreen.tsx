@@ -21,7 +21,6 @@ const SignupScreen = ({ navigation }) => {
     setError("");
     try {
       await createUserWithEmailAndPassword(auth, email, password);
-      navigation.reset({ index: 0, routes: [{ name: "Home" }] });
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
         setError("Email already in use.");
@@ -41,7 +40,7 @@ const SignupScreen = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Image
-        source={require("../../assets/icon_outline3.png")}
+        source={require("../../assets/icons/icon_outline3.png")}
         style={styles.logo}
         resizeMode="contain"
       />

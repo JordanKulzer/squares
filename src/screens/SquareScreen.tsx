@@ -5,8 +5,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   Platform,
+  ScrollView,
 } from "react-native";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import {
   doc,
   updateDoc,
@@ -16,75 +17,38 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
-import * as Clipboard from "expo-clipboard"; // Import expo-clipboard
-import Icon from "react-native-vector-icons/Ionicons"; // Import share icon from MaterialIcons
+import * as Clipboard from "expo-clipboard";
+import Icon from "react-native-vector-icons/Ionicons";
 import { Timestamp } from "firebase/firestore";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Menu } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// Memoized Square component
-const Square = React.memo(
-  ({ x, y, isSelected, isOtherSelected, onPress, isDisabled }: any) => {
-    return (
-      <TouchableOpacity
-        style={[
-          styles.square,
-          isSelected && styles.selectedSquare,
-          isOtherSelected && styles.otherUserSelectedSquare,
-        ]}
-        onPress={() => !isDisabled && onPress(x, y)}
-        disabled={isDisabled}
-      >
-        <Text style={styles.coordinateText}>
-          ({x},{y})
-        </Text>
-      </TouchableOpacity>
-    );
-  }
-);
-
-// This function will check if it's a Firebase Timestamp or a regular Date
-const convertToDate = (deadline: any) => {
-  if (deadline instanceof Timestamp) {
-    return deadline.toDate();
-  } else if (deadline instanceof Date) {
-    return deadline;
-  } else {
-    return null;
-  }
+const convertToDate = (deadline) => {
+  if (deadline instanceof Timestamp) return deadline.toDate();
+  if (deadline instanceof Date) return deadline;
+  return null;
 };
 
-const SquareScreen = ({
-  route,
-  navigation,
-}: {
-  route: any;
-  navigation: any;
-}) => {
-  const { gridId, inputTitle, username, team1, team2, deadline } = route.params;
-
+const SquareScreen = ({ route, navigation }) => {
+  const { gridId, inputTitle, team1, team2, deadline } = route.params;
   const formattedDeadline = convertToDate(deadline);
 
-  const [userId, setUserId] = useState<string | null>(null);
-  const [selectedSquares, setSelectedSquares] = useState<Set<string>>(
-    new Set()
-  );
-  const [otherSelectedSquares, setOtherSelectedSquares] = useState<Set<string>>(
-    new Set()
-  );
+  const [userId, setUserId] = useState(null);
+  const [selectedSquares, setSelectedSquares] = useState(new Set());
+  const [squareColors, setSquareColors] = useState({});
+  const [playerColors, setPlayerColors] = useState({});
+  const [playerUsernames, setPlayerUsernames] = useState({});
   const [isOwner, setIsOwner] = useState(false);
-  const [deadlineValue, setDeadlineValue] = useState<Date | null>(
-    formattedDeadline
-  );
+  const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
   const [menuVisible, setMenuVisible] = useState(false);
-  const toggleMenu = () => setMenuVisible(!menuVisible);
-  const closeMenu = () => setMenuVisible(false);
   const insets = useSafeAreaInsets();
+
+  const currentUsername =
+    userId && playerUsernames[userId] ? playerUsernames[userId] : "Unknown";
 
   useEffect(() => {
     if (formattedDeadline && new Date() > formattedDeadline) {
-      console.log("Deadline has passed, navigating to FinalSquareScreen...");
       navigation.replace("FinalSquareScreen", {
         gridId,
         inputTitle,
@@ -96,14 +60,9 @@ const SquareScreen = ({
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUserId(user.uid);
-      } else {
-        setUserId(null);
-      }
+      setUserId(user ? user.uid : null);
     });
-
-    return () => unsubscribe();
+    return unsubscribe;
   }, []);
 
   useEffect(() => {
@@ -111,157 +70,161 @@ const SquareScreen = ({
     const unsubscribe = onSnapshot(gridRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (data?.selections) {
-          const userSquares = new Set<string>();
-          const otherSquares = new Set<string>();
 
-          data.selections.forEach((sel: any) => {
-            const square = `${sel.x},${sel.y}`;
-            if (sel.userId === userId) {
-              userSquares.add(square);
-            } else {
-              otherSquares.add(square);
-            }
+        const colorMapping = {};
+        const nameMapping = {};
+
+        if (data?.players) {
+          data.players.forEach((p) => {
+            colorMapping[p.userId] = p.color || "#999";
+            nameMapping[p.userId] = p.username || p.userId;
           });
 
-          setSelectedSquares(userSquares);
-          setOtherSelectedSquares(otherSquares);
+          setPlayerColors(colorMapping);
+          setPlayerUsernames(nameMapping);
         }
 
-        if (data?.createdBy === userId) {
-          setIsOwner(true);
-        } else {
-          setIsOwner(false);
+        if (data?.selections) {
+          const newSelections = new Set();
+          const squareColorMap = {};
+
+          data.selections.forEach((sel) => {
+            const id = `${sel.x},${sel.y}`;
+            newSelections.add(id);
+            squareColorMap[id] = colorMapping[sel.userId] || "#999";
+          });
+
+          setSelectedSquares(newSelections);
+          setSquareColors(squareColorMap);
         }
 
+        if (data?.createdBy === userId) setIsOwner(true);
         if (data?.deadline) {
           const deadlineDate = convertToDate(data.deadline);
-          if (deadlineDate) {
-            setDeadlineValue(deadlineDate);
-          }
+          if (deadlineDate) setDeadlineValue(deadlineDate);
         }
       }
     });
 
-    return () => unsubscribe();
+    return unsubscribe;
   }, [gridId, userId]);
 
-  const handleDeadlineChange = async (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === "ios"); // iOS keeps picker open
+  const handleDeadlineChange = async (event, selectedDate) => {
     if (!selectedDate) return;
-
     const gridRef = doc(db, "squares", gridId);
     try {
       await updateDoc(gridRef, { deadline: selectedDate });
       setDeadlineValue(selectedDate);
-      console.log("Deadline updated successfully");
     } catch (err) {
       console.error("Error updating deadline:", err);
     }
   };
 
   const selectSquareInFirestore = useCallback(
-    async (x: number, y: number) => {
-      if (!userId) {
-        console.error(
-          "User ID is undefined. Ensure user is authenticated before selecting a square."
-        );
-        return;
-      }
+    async (x, y) => {
+      if (!userId) return;
       const gridRef = doc(db, "squares", gridId);
-      const selection = { x, y, userId, username };
-
-      try {
-        await updateDoc(gridRef, {
-          selections: arrayUnion(selection),
-        });
-      } catch (error) {
-        console.error("Error selecting square in Firestore:", error);
-      }
+      await updateDoc(gridRef, {
+        selections: arrayUnion({ x, y, userId, username: currentUsername }),
+      });
     },
-    [gridId, userId, username]
+    [gridId, userId, currentUsername]
   );
 
   const deselectSquareInFirestore = useCallback(
-    async (x: number, y: number) => {
-      if (!userId) {
-        console.error(
-          "User ID is undefined. Ensure user is authenticated before deselecting a square."
-        );
-        return;
-      }
+    async (x, y) => {
+      if (!userId) return;
       const gridRef = doc(db, "squares", gridId);
-      const selection = { x, y, userId, username };
-
-      try {
-        await updateDoc(gridRef, {
-          selections: arrayRemove(selection),
-        });
-      } catch (error) {
-        console.error("Error deselecting square in Firestore:", error);
-      }
+      await updateDoc(gridRef, {
+        selections: arrayRemove({ x, y, userId, username: currentUsername }),
+      });
     },
-    [gridId, userId, username]
+    [gridId, userId, currentUsername]
   );
 
   const handlePress = useCallback(
-    (x: number, y: number) => {
+    (x, y) => {
       const squareId = `${x},${y}`;
-
       if (selectedSquares.has(squareId)) {
-        // Deselect square
         selectedSquares.delete(squareId);
-        setSelectedSquares(new Set(selectedSquares)); // Trigger re-render with new Set
+        setSelectedSquares(new Set(selectedSquares));
         deselectSquareInFirestore(x, y);
       } else {
-        // Select square
         selectedSquares.add(squareId);
-        setSelectedSquares(new Set(selectedSquares)); // Trigger re-render with new Set
+        setSelectedSquares(new Set(selectedSquares));
         selectSquareInFirestore(x, y);
       }
     },
     [selectedSquares, deselectSquareInFirestore, selectSquareInFirestore]
   );
 
+  const handleLeaveSquare = async () => {
+    const gridRef = doc(db, "squares", gridId);
+    try {
+      await updateDoc(gridRef, {
+        playerIds: arrayRemove(userId),
+        selections: arrayRemove(
+          ...Array.from(selectedSquares).map((s: string) => {
+            const [x, y] = s.split(",");
+            return {
+              x: Number(x),
+              y: Number(y),
+              userId,
+              username: currentUsername,
+            };
+          })
+        ),
+      });
+      navigation.navigate("Main");
+    } catch (err) {
+      console.error("Failed to leave square:", err);
+    }
+  };
+
+  const handleDeleteSquare = async () => {
+    try {
+      await deleteDoc(doc(db, "squares", gridId));
+      navigation.navigate("Main");
+    } catch (err) {
+      console.error("Failed to delete square:", err);
+    }
+  };
+
   const renderGrid = () => {
     const grid = [];
+
     for (let x = 0; x < 10; x++) {
-      let row = [];
-      row.push(<Text style={styles.yAxisText}>{x}</Text>);
+      const row = [];
+      row.push(
+        <Text key={`y-${x}`} style={styles.yAxisText}>
+          {x}
+        </Text>
+      );
 
       for (let y = 0; y < 10; y++) {
         const squareId = `${x},${y}`;
-        const isSelected = selectedSquares.has(squareId);
-        const isOtherSelected = otherSelectedSquares.has(squareId);
-
-        const isDisabled = isOtherSelected; // Disable square if selected by another user
+        const bgColor = squareColors[squareId] || "#ddd";
 
         row.push(
-          <Square
+          <TouchableOpacity
             key={squareId}
-            x={x}
-            y={y}
-            isSelected={isSelected}
-            isOtherSelected={isOtherSelected}
-            isDisabled={isDisabled}
-            onPress={handlePress}
-          />
+            style={[styles.square, { backgroundColor: bgColor }]}
+            onPress={() => handlePress(x, y)}
+            disabled={!playerColors[userId] || playerColors[userId] === bgColor}
+          >
+            <Text style={styles.coordinateText}>{`(${x},${y})`}</Text>
+          </TouchableOpacity>
         );
       }
+
       grid.push(
-        <View key={x} style={styles.row}>
+        <View key={`row-${x}`} style={styles.row}>
           {row}
         </View>
       );
     }
-    return grid;
-  };
 
-  const splitTeamName = (teamName: string) => {
-    if (teamName) {
-      return teamName.split("");
-    }
-    return [];
+    return grid;
   };
 
   useEffect(() => {
@@ -269,9 +232,12 @@ const SquareScreen = ({
       headerRight: () => (
         <Menu
           visible={menuVisible}
-          onDismiss={closeMenu}
+          onDismiss={() => setMenuVisible(false)}
           anchor={
-            <TouchableOpacity onPress={toggleMenu} style={{ paddingRight: 12 }}>
+            <TouchableOpacity
+              onPress={() => setMenuVisible(true)}
+              style={{ paddingRight: 12 }}
+            >
               <Icon name="ellipsis-vertical" size={24} color="#000" />
             </TouchableOpacity>
           }
@@ -280,34 +246,24 @@ const SquareScreen = ({
             borderRadius: 10,
             width: 200,
           }}
-          style={{
-            marginTop: 40, // push it below the header a bit
-            elevation: 4, // adds shadow on Android
-          }}
+          style={{ marginTop: 40, elevation: 4 }}
         >
           <Menu.Item
             onPress={() => {
               Clipboard.setString(gridId);
               alert("Session ID copied!");
-              closeMenu();
             }}
             title="Share Session ID"
             titleStyle={{ color: "#333", fontWeight: "bold" }}
           />
           <Menu.Item
-            onPress={() => {
-              handleLeaveSquare();
-              closeMenu();
-            }}
+            onPress={handleLeaveSquare}
             title="Leave Square"
             titleStyle={{ color: "red" }}
           />
           {isOwner && (
             <Menu.Item
-              onPress={() => {
-                handleDeleteSquare();
-                closeMenu();
-              }}
+              onPress={handleDeleteSquare}
               title="Delete Square"
               titleStyle={{ color: "red" }}
             />
@@ -317,42 +273,14 @@ const SquareScreen = ({
     });
   }, [menuVisible, isOwner]);
 
-  const handleLeaveSquare = async () => {
-    const gridRef = doc(db, "squares", gridId);
-    try {
-      await updateDoc(gridRef, {
-        playerIds: arrayRemove(userId),
-        selections: arrayRemove(
-          ...Array.from(selectedSquares).map((s) => {
-            const [x, y] = s.split(",");
-            return { x: Number(x), y: Number(y), userId, username };
-          })
-        ),
-      });
-      navigation.navigate("Home");
-    } catch (err) {
-      console.error("Failed to leave square:", err);
-    }
-  };
-
-  const handleDeleteSquare = async () => {
-    try {
-      await deleteDoc(doc(db, "squares", gridId));
-      navigation.navigate("Home");
-    } catch (err) {
-      console.error("Failed to delete square:", err);
-    }
-  };
+  const splitTeamName = (teamName) => (teamName ? teamName.split("") : []);
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{inputTitle}</Text>
-
-      {/* Displaying Team2 above the grid */}
       <Text style={styles.teamInfo}>{team2}</Text>
 
       <View style={styles.mainContainer}>
-        {/* Displaying Team1 vertically to the left */}
         <View style={styles.teamColumn}>
           {splitTeamName(team1).map((letter, index) => (
             <Text key={index} style={styles.teamLetter}>
@@ -362,26 +290,17 @@ const SquareScreen = ({
         </View>
 
         <View style={styles.gridWrapper}>
-          <View style={styles.axisWrapper}>
-            {/* Render Grid */}
-            <View style={styles.gridRows}>{renderGrid()}</View>
-          </View>
-
-          {/* Render X-axis numbers */}
+          <View style={styles.gridRows}>{renderGrid()}</View>
           <View style={styles.xAxisContainer}>
-            {Array.from({ length: 10 }).map((_, index) => (
-              <Text key={index} style={styles.xAxisText}>
-                {index}
+            {Array.from({ length: 10 }).map((_, i) => (
+              <Text key={i} style={styles.xAxisText}>
+                {i}
               </Text>
             ))}
           </View>
         </View>
       </View>
-      {/* <Text style={styles.deadlineText}>
-        {formattedDeadline
-          ? `Deadline: ${formattedDeadline.toLocaleString()}`
-          : "No deadline set"}
-      </Text> */}
+
       <View style={styles.deadlineContainer}>
         {!isOwner && (
           <Text style={styles.deadlineText}>
@@ -390,16 +309,6 @@ const SquareScreen = ({
               : "No deadline set"}
           </Text>
         )}
-
-        {/* {isOwner && (
-          <TouchableOpacity
-            style={styles.editDeadlineButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text style={styles.editDeadlineText}>Edit</Text>
-          </TouchableOpacity>
-        )} */}
-
         {isOwner && (
           <DateTimePicker
             value={deadlineValue || new Date()}
@@ -410,12 +319,26 @@ const SquareScreen = ({
         )}
       </View>
 
-      <Text style={styles.arrayTitle}>My Squares:</Text>
-      {/* <Text style={styles.selectedArray}>
-        {Array.from(selectedSquares)
-          .map((square) => `(${square})`) // Add parentheses around each square's coordinate
-          .join(", ")}{" "}
-      </Text> */}
+      <View style={styles.legendContainer}>
+        <Text style={styles.legendTitle}>Player Colors:</Text>
+        <ScrollView style={styles.legendScroll} showsVerticalScrollIndicator>
+          {Object.entries(playerColors).map(([uid, color]) => (
+            <View key={uid} style={styles.legendItem}>
+              <View
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: color as string },
+                ]}
+              />
+              <Text style={styles.legendText}>
+                {uid === userId
+                  ? `${currentUsername} (You)`
+                  : playerUsernames?.[uid] || uid}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
     </View>
   );
 };
@@ -433,18 +356,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 20,
     textTransform: "uppercase",
-    color: "#000000",
-  },
-  deadlineText: {
-    fontSize: 18,
-    color: "#fff",
-    marginBottom: 20,
+    color: "#000",
   },
   teamInfo: {
     fontSize: 24,
     fontWeight: "bold",
     marginBottom: 10,
     fontFamily: "Courier",
+    textTransform: "uppercase",
   },
   mainContainer: {
     flexDirection: "row",
@@ -454,34 +373,17 @@ const styles = StyleSheet.create({
   teamColumn: {
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10, // Adds space between Team1 and the grid
+    marginRight: 10,
   },
   teamLetter: {
     fontSize: 24,
     fontWeight: "bold",
     fontFamily: "Courier",
+    textTransform: "uppercase",
   },
   gridWrapper: {
     flexDirection: "column",
     alignItems: "center",
-  },
-  axisWrapper: {
-    flexDirection: "row",
-  },
-  xAxisText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    marginBottom: 5,
-    paddingLeft: 25,
-    fontFamily: "Courier",
-  },
-  yAxisText: {
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 5, // Space between the Y-axis and the grid
-    fontSize: 14,
-    fontWeight: "bold",
-    fontFamily: "Courier",
   },
   gridRows: {
     flexDirection: "column",
@@ -493,54 +395,63 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     margin: 2,
-    backgroundColor: "#ddd",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
   },
-  selectedSquare: {
-    backgroundColor: "#4CAF50", // Current user selected square color
-  },
-  otherUserSelectedSquare: {
-    backgroundColor: "#FFEB3B", // Other user selected square color
-  },
-  coordinateText: {
-    fontSize: 10,
-    color: "#000", // Color of the text displaying coordinates
-  },
-  arrayTitle: {
-    fontSize: 18,
+  coordinateText: { fontSize: 10, color: "#000" },
+  xAxisContainer: { flexDirection: "row", marginTop: 5, marginRight: 15 },
+  xAxisText: {
+    fontSize: 14,
     fontWeight: "bold",
-    marginTop: 20,
+    paddingLeft: 25,
+    fontFamily: "Courier",
   },
-  selectedArray: {
-    marginTop: 10,
-    fontSize: 16,
-  },
-  xAxisContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
+  yAxisText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    fontFamily: "Courier",
     marginTop: 5,
-    marginRight: 15,
-  },
-  copyButton: {
-    marginRight: 15,
-    padding: 10,
   },
   deadlineContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 20,
   },
-  editDeadlineButton: {
-    marginLeft: 10,
-    padding: 5,
-    backgroundColor: "#6b705c",
-    borderRadius: 5,
+  deadlineText: {
+    fontSize: 18,
+    color: "#000",
   },
-  editDeadlineText: {
-    color: "#fff",
+  legendContainer: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    alignSelf: "stretch",
+    maxHeight: 120,
+  },
+  legendScroll: {
+    paddingVertical: 5,
+  },
+  legendTitle: {
+    fontSize: 16,
     fontWeight: "bold",
+    marginBottom: 10,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  colorSwatch: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  legendText: {
+    fontSize: 14,
+    color: "#000",
   },
 });
 

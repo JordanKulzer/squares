@@ -61,9 +61,9 @@ const App: React.FC = () => {
         <Stack.Navigator>
           {user ? (
             <>
-              {/* ✅ HomeScreen now has a header with logo + drawer button */}
+              {/* Screen that doesn't have the back button in the header */}
               <Stack.Screen
-                name="Home"
+                name="Main"
                 component={HomeScreen}
                 initialParams={{ userId: user.uid, onLogout: handleLogout }}
                 options={() => ({

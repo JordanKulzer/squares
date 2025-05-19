@@ -1,67 +1,77 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 
-const Square = ({ x, y, isSelectedByUser, isSelectedByOthers }) => (
-  <View
-    style={[
-      styles.square,
-      isSelectedByUser && styles.selectedSquare,
-      isSelectedByOthers && styles.otherUserSelectedSquare,
-    ]}
-  >
-    <Text style={styles.coordinateText}>
-      ({x},{y})
-    </Text>
-  </View>
-);
+const quarterWinners = [
+  { quarter: "1st", username: "Alice" },
+  { quarter: "2nd", username: "Bob" },
+  { quarter: "3rd", username: "Carlos" },
+  { quarter: "4th", username: "Alice" },
+];
 
 const FinalSquareScreen = ({ route }) => {
   const { gridId, inputTitle, team1, team2 } = route.params;
 
-  const [userSquares, setUserSquares] = useState(new Set());
-  const [otherSquares, setOtherSquares] = useState(new Set());
-  console.log("FinalSquareScreen: ", gridId, inputTitle, team1, team2); // Debugging log
-
+  const [squareColors, setSquareColors] = useState({});
+  const [playerColors, setPlayerColors] = useState({});
+  const [playerUsernames, setPlayerUsernames] = useState({});
+  console.log("FinalSquare");
   useEffect(() => {
     const ref = doc(db, "squares", gridId);
     const unsubscribe = onSnapshot(ref, (snap) => {
       const data = snap.data();
-      if (data?.selections) {
-        const mine = new Set();
-        const others = new Set();
-        data.selections.forEach((s) => {
-          const id = `${s.x},${s.y}`;
-          // if needed, you can distinguish current user here
-          others.add(id); // treat all as final
+
+      const colorMapping = {};
+      const nameMapping = {};
+
+      if (data?.players) {
+        data.players.forEach((p) => {
+          colorMapping[p.userId] = p.color || "#999";
+          nameMapping[p.userId] = p.username || p.userId;
         });
-        setOtherSquares(others);
+        setPlayerColors(colorMapping);
+        setPlayerUsernames(nameMapping);
+      }
+
+      if (data?.selections) {
+        const squareMap = {};
+        data.selections.forEach((sel) => {
+          const id = `${sel.x},${sel.y}`;
+          squareMap[id] = colorMapping[sel.userId] || "#999";
+        });
+        setSquareColors(squareMap);
       }
     });
 
-    return () => unsubscribe();
+    return unsubscribe;
   }, [gridId]);
 
   const renderGrid = () => {
     const grid = [];
     for (let x = 0; x < 10; x++) {
-      let row = [];
-      row.push(<Text style={styles.yAxisText}>{x}</Text>);
+      const row = [];
+      row.push(
+        <Text key={`y-${x}`} style={styles.yAxisText}>
+          {x}
+        </Text>
+      );
+
       for (let y = 0; y < 10; y++) {
         const id = `${x},${y}`;
+        const bgColor = squareColors[id] || "#ddd";
+
         row.push(
-          <Square
-            key={id}
-            x={x}
-            y={y}
-            isSelectedByUser={false}
-            isSelectedByOthers={otherSquares.has(id)}
-          />
+          <View key={id} style={[styles.square, { backgroundColor: bgColor }]}>
+            <Text style={styles.coordinateText}>
+              ({x},{y})
+            </Text>
+          </View>
         );
       }
+
       grid.push(
-        <View key={x} style={styles.row}>
+        <View key={`row-${x}`} style={styles.row}>
           {row}
         </View>
       );
@@ -88,7 +98,6 @@ const FinalSquareScreen = ({ route }) => {
         </View>
 
         <View style={styles.gridWrapper}>
-          <View style={styles.gridRows}>{renderGrid()}</View>
           <View style={styles.xAxisContainer}>
             {Array.from({ length: 10 }).map((_, i) => (
               <Text key={i} style={styles.xAxisText}>
@@ -96,7 +105,27 @@ const FinalSquareScreen = ({ route }) => {
               </Text>
             ))}
           </View>
+          <View style={styles.gridRows}>{renderGrid()}</View>
         </View>
+      </View>
+
+      <View style={styles.legendContainer}>
+        <Text style={styles.legendTitle}>Player Colors:</Text>
+        <ScrollView style={styles.legendScroll} showsVerticalScrollIndicator>
+          {Object.entries(playerColors).map(([uid, color]) => (
+            <View key={uid} style={styles.legendItem}>
+              <View
+                style={[
+                  styles.colorSwatch,
+                  { backgroundColor: color as string },
+                ]}
+              />
+              <Text style={styles.legendText}>
+                {playerUsernames?.[uid] || uid}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
       </View>
     </View>
   );
@@ -121,6 +150,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 10,
     fontFamily: "Courier",
+    textTransform: "uppercase",
   },
   mainContainer: {
     flexDirection: "row",
@@ -134,10 +164,29 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     fontFamily: "Courier",
+    textTransform: "uppercase",
   },
   gridWrapper: {
     flexDirection: "column",
     alignItems: "center",
+  },
+  gridRows: {
+    flexDirection: "column",
+  },
+  row: {
+    flexDirection: "row",
+  },
+  square: {
+    width: 30,
+    height: 30,
+    margin: 2,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  coordinateText: {
+    fontSize: 10,
+    color: "#000",
   },
   xAxisContainer: {
     flexDirection: "row",
@@ -156,29 +205,35 @@ const styles = StyleSheet.create({
     fontFamily: "Courier",
     marginTop: 5,
   },
-  gridRows: {
-    flexDirection: "column",
+  legendContainer: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    alignSelf: "stretch",
+    maxHeight: 120,
   },
-  row: {
+  legendScroll: {
+    paddingVertical: 5,
+  },
+  legendTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  legendItem: {
     flexDirection: "row",
-  },
-  square: {
-    width: 30,
-    height: 30,
-    margin: 2,
-    backgroundColor: "#ddd",
-    justifyContent: "center",
     alignItems: "center",
+    marginBottom: 6,
+  },
+  colorSwatch: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    marginRight: 10,
     borderWidth: 1,
+    borderColor: "#333",
   },
-  selectedSquare: {
-    backgroundColor: "#4CAF50",
-  },
-  otherUserSelectedSquare: {
-    backgroundColor: "#FFEB3B",
-  },
-  coordinateText: {
-    fontSize: 10,
+  legendText: {
+    fontSize: 14,
     color: "#000",
   },
 });
