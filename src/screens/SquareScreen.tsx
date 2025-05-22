@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Platform,
   ScrollView,
+  Alert,
 } from "react-native";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -159,6 +160,7 @@ const SquareScreen = ({ route, navigation }) => {
   );
 
   const handleLeaveSquare = async () => {
+    setMenuVisible(false);
     const gridRef = doc(db, "squares", gridId);
     try {
       await updateDoc(gridRef, {
@@ -181,13 +183,27 @@ const SquareScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleDeleteSquare = async () => {
-    try {
-      await deleteDoc(doc(db, "squares", gridId));
-      navigation.navigate("Main");
-    } catch (err) {
-      console.error("Failed to delete square:", err);
-    }
+  const handleDeleteSquare = () => {
+    Alert.alert(
+      "Delete Square",
+      "Are you sure you want to delete this square?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setMenuVisible(false); // close menu
+            try {
+              await deleteDoc(doc(db, "squares", gridId));
+              navigation.navigate("Main");
+            } catch (err) {
+              console.error("Failed to delete square:", err);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderGrid = () => {
@@ -250,6 +266,7 @@ const SquareScreen = ({ route, navigation }) => {
         >
           <Menu.Item
             onPress={() => {
+              setMenuVisible(false);
               Clipboard.setString(gridId);
               alert("Session ID copied!");
             }}
