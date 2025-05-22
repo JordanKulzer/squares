@@ -1,43 +1,69 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
+  Dimensions,
+  useColorScheme,
   TouchableOpacity,
   Alert,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
-import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import { Card, Menu, Snackbar } from "react-native-paper";
+import {
+  arrayRemove,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  updateDoc,
+} from "firebase/firestore";
+import { auth, db } from "../../firebaseConfig";
+import Icon from "react-native-vector-icons/MaterialIcons";
 import { useNavigation } from "@react-navigation/native";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
-import { arrayRemove, deleteDoc, updateDoc } from "firebase/firestore";
 import * as Clipboard from "expo-clipboard";
-import Icon from "react-native-vector-icons/Ionicons";
-import { Menu } from "react-native-paper";
 
-const quarterWinners = [
-  { quarter: "1st", username: "Alice" },
-  { quarter: "2nd", username: "Bob" },
-  { quarter: "3rd", username: "Carlos" },
-  { quarter: "4th", username: "Alice" },
-];
+const screenWidth = Dimensions.get("window").width;
+const squareSize = (screenWidth - 80) / 11;
 
 const FinalSquareScreen = ({ route }) => {
-  const { gridId, inputTitle, team1, team2 } = route.params;
+  const { gridId, inputTitle } = route.params;
+
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
 
   const [squareColors, setSquareColors] = useState({});
   const [playerColors, setPlayerColors] = useState({});
   const [playerUsernames, setPlayerUsernames] = useState({});
+  const [team1, setTeam1] = useState("");
+  const [team2, setTeam2] = useState("");
   const [xAxis, setXAxis] = useState<number[]>([]);
   const [yAxis, setYAxis] = useState<number[]>([]);
-  const navigation = useNavigation();
-  const [userId, setUserId] = useState(null);
+  const [legendExpanded, setLegendExpanded] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
+  const [userId, setUserId] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [legendVisible, setLegendVisible] = useState(false);
+  const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
 
-  console.log("FinalSquare");
+  const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: inputTitle,
+    });
+  }, [navigation, inputTitle]);
+
+  const quarterWinners = [
+    { quarter: "1st", username: "Alice" },
+    { quarter: "2nd", username: "Bob" },
+    { quarter: "3rd", username: "Carlos" },
+    { quarter: "4th", username: "Dana" },
+  ];
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -48,17 +74,21 @@ const FinalSquareScreen = ({ route }) => {
 
   useEffect(() => {
     const ref = doc(db, "squares", gridId);
-    const unsubscribe = onSnapshot(ref, (snap) => {
-      const data = snap.data();
-
+    const unsub = onSnapshot(ref, (docSnap) => {
+      const data = docSnap.data();
+      if (!data) return;
       const colorMapping = {};
       const nameMapping = {};
+
+      setTeam1(data.team1 || "");
+      setTeam2(data.team2 || "");
 
       if (data?.players) {
         data.players.forEach((p) => {
           colorMapping[p.userId] = p.color || "#999";
           nameMapping[p.userId] = p.username || p.userId;
         });
+        console.log("color: " + colorMapping[1]);
         setPlayerColors(colorMapping);
         setPlayerUsernames(nameMapping);
       }
@@ -71,6 +101,7 @@ const FinalSquareScreen = ({ route }) => {
         });
         setSquareColors(squareMap);
       }
+
       if (Array.isArray(data?.xAxis) && data.xAxis.length === 10) {
         setXAxis(data.xAxis);
       } else {
@@ -88,7 +119,7 @@ const FinalSquareScreen = ({ route }) => {
       }
     });
 
-    return unsubscribe;
+    return unsub;
   }, [gridId]);
 
   const handleLeaveSquare = async () => {
@@ -127,44 +158,88 @@ const FinalSquareScreen = ({ route }) => {
     );
   };
 
-  const renderGrid = () => {
-    const grid = [];
+  const handleSquarePress = (x: number, y: number) => {
+    const key = `${x},${y}`;
+    const userColor = squareColors[key];
+    const userId = Object.entries(playerColors).find(
+      ([id, color]) => color === userColor
+    )?.[0];
+    const username = playerUsernames[userId] || "Unknown Player";
 
-    for (let y = 0; y < 10; y++) {
+    const message = userColor
+      ? `${username} owns this square`
+      : "This square is unclaimed";
+
+    setSelectedSquare(key);
+
+    if (snackbarVisible) {
+      setSnackbarMessage(message);
+      setSnackbarVisible(true);
+    } else {
+      setSnackbarMessage(message);
+      setSnackbarVisible(true);
+    }
+  };
+
+  const handleDismissSnackbar = () => {
+    setSnackbarVisible(false);
+    setSelectedSquare(null); // 🔴 clear highlight
+  };
+
+  const splitTeamName = (teamName) => {
+    return teamName ? teamName.split("") : [];
+  };
+
+  const renderGridBody = () => {
+    const rows = [];
+
+    for (let y = 0; y <= 10; y++) {
       const row = [];
 
-      // Render Y axis label
-      row.push(
-        <Text key={`y-${y}`} style={styles.yAxisText}>
-          {yAxis[y]}
-        </Text>
-      );
+      for (let x = 0; x <= 10; x++) {
+        if (x === 0 && y === 0) {
+          row.push(<View key="corner" style={styles.square} />);
+        } else if (y === 0) {
+          row.push(
+            <View key={`x-${x}`} style={[styles.square, styles.axisCell]}>
+              <Text style={styles.axisText}>{xAxis[x - 1]}</Text>
+            </View>
+          );
+        } else if (x === 0) {
+          row.push(
+            <View key={`y-${y}`} style={[styles.square, styles.axisCell]}>
+              <Text style={styles.axisText}>{yAxis[y - 1]}</Text>
+            </View>
+          );
+        } else {
+          const key = `${x - 1},${y - 1}`;
+          const color = squareColors[key] || "#fff";
 
-      for (let x = 0; x < 10; x++) {
-        const actualX = xAxis[x];
-        const actualY = yAxis[y];
-        const id = `${actualX},${actualY}`;
-        const bgColor = squareColors[id] || "#ddd";
-
-        row.push(
-          <View key={id} style={[styles.square, { backgroundColor: bgColor }]}>
-            <Text style={styles.coordinateText}>({id})</Text>
-          </View>
-        );
+          row.push(
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.square,
+                {
+                  backgroundColor: color || "#fff",
+                  borderColor: selectedSquare === key ? "blue" : "#ccc", // 👈 Highlight border
+                  borderWidth: selectedSquare === key ? 2 : 1,
+                },
+              ]}
+              onPress={() => handleSquarePress(x - 1, y - 1)}
+            />
+          );
+        }
       }
 
-      grid.push(
-        <View key={`row-${y}`} style={styles.row}>
+      rows.push(
+        <View key={y} style={styles.row}>
           {row}
         </View>
       );
     }
 
-    return grid;
-  };
-
-  const splitTeamName = (teamName) => {
-    return teamName ? teamName.split("") : [];
+    return rows;
   };
 
   useEffect(() => {
@@ -178,7 +253,7 @@ const FinalSquareScreen = ({ route }) => {
               onPress={() => setMenuVisible(true)}
               style={{ paddingRight: 12 }}
             >
-              <Icon name="ellipsis-vertical" size={24} color="#000" />
+              <Icon name="more-vert" size={24} color="#000" />
             </TouchableOpacity>
           }
           contentStyle={{
@@ -190,7 +265,7 @@ const FinalSquareScreen = ({ route }) => {
         >
           <Menu.Item
             onPress={() => {
-              Clipboard.setString(gridId);
+              Clipboard.setStringAsync(gridId);
               alert("Session ID copied!");
             }}
             title="Share Session ID"
@@ -214,87 +289,184 @@ const FinalSquareScreen = ({ route }) => {
   }, [menuVisible, isOwner]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{inputTitle}</Text>
-      <Text style={styles.teamInfo}>{team2}</Text>
+    <TouchableWithoutFeedback
+      onPress={() => {
+        Keyboard.dismiss();
+        handleDismissSnackbar(); // dismiss snackbar on outside press
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{
+            padding: 16,
+            backgroundColor: isDark ? "#121212" : "#fff",
+          }}
+        >
+          <Card style={styles.card}>
+            {/* <Card.Title title={inputTitle} /> */}
+            <View style={styles.legendWrapper}>
+              <TouchableOpacity
+                onPress={() => setLegendExpanded(!legendExpanded)}
+              >
+                <View style={styles.legendHeader}>
+                  <Text style={styles.legendTitle}>Legend</Text>
+                  <Icon
+                    name={legendExpanded ? "expand-less" : "expand-more"}
+                    size={24}
+                  />
+                </View>
+              </TouchableOpacity>
 
-      <View style={styles.mainContainer}>
-        <View style={styles.teamColumn}>
-          {splitTeamName(team1).map((letter, i) => (
-            <View key={i} style={styles.teamLetterWrapper}>
-              <Text style={styles.teamLetter}>{letter}</Text>
+              {legendExpanded && (
+                <View style={styles.legendDropdown}>
+                  {Object.entries(playerColors).map(([uid, color]) => {
+                    const username = playerUsernames[uid] || uid;
+                    const wonQuarters = quarterWinners
+                      .filter((q) => q.username === username)
+                      .map((q) => q.quarter);
+
+                    return (
+                      <View key={uid} style={styles.legendRow}>
+                        <View
+                          style={[
+                            styles.colorCircle,
+                            { backgroundColor: color as string },
+                          ]}
+                        />
+                        <Text style={styles.legendText}>{username}</Text>
+                        {wonQuarters.length > 0 && (
+                          <Text style={styles.legendTrophy}>
+                            {" "}
+                            🏆 {wonQuarters.join(", ")}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
-          ))}
-        </View>
 
-        <View style={styles.gridWrapper}>
-          <View style={styles.xAxisContainer}>
-            <Text style={styles.xAxisText}></Text>
-            {/* spacer for Y-axis column */}
-            {xAxis.map((val, i) => (
-              <Text key={i} style={styles.xAxisText}>
-                {val}
-              </Text>
-            ))}
-          </View>
+            <Card.Content>
+              <View style={{ alignItems: "center", marginBottom: 8 }}>
+                <Text style={styles.teamLabel}>{team2}</Text>
+              </View>
+              <View style={{ flexDirection: "row" }}>
+                {/* Team1 Vertical Letters */}
+                <View style={styles.teamColumn}>
+                  {splitTeamName(team1).map((letter, i) => (
+                    <Text key={i} style={styles.teamLetter}>
+                      {letter}
+                    </Text>
+                  ))}
+                </View>
 
-          <View style={styles.gridRows}>
-            {xAxis.length === 10 && yAxis.length === 10 ? renderGrid() : null}
-          </View>
-        </View>
-      </View>
+                {/* Scrollable Grid */}
+                <ScrollView horizontal>
+                  <ScrollView>{renderGridBody()}</ScrollView>
+                </ScrollView>
+              </View>
+            </Card.Content>
+          </Card>
 
-      <View style={styles.legendContainer}>
-        <Text style={styles.legendTitle}>Player Colors:</Text>
-        <ScrollView style={styles.legendScroll} showsVerticalScrollIndicator>
-          {Object.entries(playerColors).map(([uid, color]) => (
-            <View key={uid} style={styles.legendItem}>
-              <View
-                style={[
-                  styles.colorSwatch,
-                  { backgroundColor: color as string },
-                ]}
-              />
-              <Text style={styles.legendText}>
-                {playerUsernames?.[uid] || uid}
-              </Text>
-            </View>
-          ))}
+          <Card style={styles.card}>
+            <Card.Title title="Quarter Winners" />
+            <Card.Content>
+              {quarterWinners.length > 0 ? (
+                quarterWinners.map((q, i) => (
+                  <View key={i} style={styles.winnerRow}>
+                    <Icon name="emoji-events" size={20} color="gold" />
+                    <Text style={styles.winnerText}>
+                      {q.quarter}: {q.username}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text>No winners yet.</Text>
+              )}
+            </Card.Content>
+          </Card>
+
+          <Snackbar
+  visible={snackbarVisible}
+  onDismiss={handleDismissSnackbar}
+  duration={999999}
+  style={{
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    elevation: 4,
+    marginBottom: 20,
+    marginHorizontal: 16,
+  }}
+  wrapperStyle={{
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  }}
+  action={{
+    label: 'Close',
+    onPress: handleDismissSnackbar,
+    textColor: '#007AFF', // iOS blue accent
+  }}
+>
+  <Text style={{ color: '#333', fontWeight: '600' }}>
+    {snackbarMessage}
+  </Text>
+</Snackbar>
+
         </ScrollView>
       </View>
-    </View>
+    </TouchableWithoutFeedback>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 50,
-    backgroundColor: "white",
+  card: {
+    marginBottom: 16,
+    borderRadius: 12,
+  },
+  square: {
+    width: squareSize,
+    height: squareSize,
+    justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
   },
-  title: {
-    fontSize: 24,
+  axisCell: {
+    backgroundColor: "#f5f5f5",
+  },
+  axisText: {
+    fontSize: 10,
     fontWeight: "bold",
-    marginBottom: 20,
-    color: "#000",
-    textTransform: "uppercase",
+    textAlign: "center",
   },
-  teamInfo: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 10,
-    fontFamily: "Courier",
-    textTransform: "uppercase",
-  },
-  mainContainer: {
+  row: {
     flexDirection: "row",
   },
+  teamLabel: {
+    fontSize: 24,
+    fontWeight: "bold",
+    fontFamily: "Courier",
+    textTransform: "uppercase",
+    textAlign: "center",
+    marginHorizontal: 2,
+  },
+  winnerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 6,
+  },
+  winnerText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
   teamColumn: {
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 25,
-    marginRight: -10,
+    paddingRight: 10,
   },
   teamLetter: {
     fontSize: 24,
@@ -307,79 +479,53 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
-  gridWrapper: {
-    flexDirection: "column",
+  legendWrapper: {
+    position: "absolute",
+    top: 0,
+    left: 250,
+    right: 16,
+    zIndex: 100,
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  legendHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
   },
-  gridRows: {
-    flexDirection: "column",
-  },
-  row: {
-    flexDirection: "row",
-  },
-  square: {
-    width: 30,
-    height: 30,
-    margin: 2,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-  },
-  coordinateText: {
-    fontSize: 10,
-    color: "#000",
-  },
-  xAxisContainer: {
-    flexDirection: "row",
-    marginTop: 5,
-    marginRight: 20,
-    marginBottom: 2, // just a small tweak
-  },
-  xAxisText: {
-    width: 34, // square width (30) + marginLeft + marginRight (2+2)
-    textAlign: "center",
-    fontSize: 14,
-    fontWeight: "bold",
-    fontFamily: "Courier",
-  },
-
-  yAxisText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    fontFamily: "Courier",
-    marginTop: 5,
-  },
-  legendContainer: {
-    marginTop: 20,
-    paddingHorizontal: 20,
-    alignSelf: "stretch",
-    maxHeight: 120,
-  },
-  legendScroll: {
-    paddingVertical: 5,
+  legendDropdown: {
+    marginTop: 8,
   },
   legendTitle: {
-    fontSize: 16,
     fontWeight: "bold",
-    marginBottom: 10,
+    fontSize: 16,
   },
-  legendItem: {
+  legendRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginVertical: 4,
   },
-  colorSwatch: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    marginRight: 10,
+  colorCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 8,
     borderWidth: 1,
-    borderColor: "#333",
+    borderColor: "#000",
   },
   legendText: {
     fontSize: 14,
-    color: "#000",
+  },
+  legendTrophy: {
+    marginLeft: 8,
+    fontSize: 12,
+    color: "gold",
   },
 });
 
