@@ -218,14 +218,19 @@ const FinalSquareScreen = ({ route }) => {
           row.push(
             <TouchableOpacity
               key={key}
-              style={[
-                styles.square,
-                {
-                  backgroundColor: color || "#fff",
-                  borderColor: selectedSquare === key ? "blue" : "#ccc", // 👈 Highlight border
-                  borderWidth: selectedSquare === key ? 2 : 1,
-                },
-              ]}
+ style={[
+  styles.square,
+  {
+    backgroundColor: color || '#fff',
+    borderColor: selectedSquare ? '#007AFF' : '#ccc',
+    borderWidth: selectedSquare ? 2 : 1,
+    shadowColor: selectedSquare ? '#007AFF' : 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: selectedSquare ? 0.4 : 0,
+    shadowRadius: selectedSquare ? 8 : 0,
+    elevation: selectedSquare ? 6 : 1,
+  },
+]}
               onPress={() => handleSquarePress(x - 1, y - 1)}
             />
           );
