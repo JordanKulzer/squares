@@ -8,8 +8,6 @@ import {
   useColorScheme,
   TouchableOpacity,
   Alert,
-  Keyboard,
-  TouchableWithoutFeedback,
 } from "react-native";
 import { Card, Menu, Snackbar } from "react-native-paper";
 import {
@@ -24,13 +22,18 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import { useNavigation } from "@react-navigation/native";
 import { onAuthStateChanged } from "firebase/auth";
 import * as Clipboard from "expo-clipboard";
+import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
+import Toast from "react-native-toast-message";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
 
+const splitTeamName = (teamName) => {
+  return teamName ? teamName.split("") : [];
+};
+
 const FinalSquareScreen = ({ route }) => {
   const { gridId, inputTitle } = route.params;
-
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
 
@@ -41,21 +44,22 @@ const FinalSquareScreen = ({ route }) => {
   const [team2, setTeam2] = useState("");
   const [xAxis, setXAxis] = useState<number[]>([]);
   const [yAxis, setYAxis] = useState<number[]>([]);
-  const [legendExpanded, setLegendExpanded] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [userId, setUserId] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [legendVisible, setLegendVisible] = useState(false);
-  const [snackbarVisible, setSnackbarVisible] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState("");
-
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  console.log("FINAL");
+
+  const [index, setIndex] = useState(0);
+  const [routes] = useState([
+    { key: "squares", title: "Square" },
+    { key: "winners", title: "Winners" },
+  ]);
 
   const navigation = useNavigation();
+
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerTitle: inputTitle,
-    });
+    navigation.setOptions({ headerTitle: inputTitle });
   }, [navigation, inputTitle]);
 
   const quarterWinners = [
@@ -88,7 +92,6 @@ const FinalSquareScreen = ({ route }) => {
           colorMapping[p.userId] = p.color || "#999";
           nameMapping[p.userId] = p.username || p.userId;
         });
-        console.log("color: " + colorMapping[1]);
         setPlayerColors(colorMapping);
         setPlayerUsernames(nameMapping);
       }
@@ -126,9 +129,7 @@ const FinalSquareScreen = ({ route }) => {
     setMenuVisible(false);
     const ref = doc(db, "squares", gridId);
     try {
-      await updateDoc(ref, {
-        playerIds: arrayRemove(userId),
-      });
+      await updateDoc(ref, { playerIds: arrayRemove(userId) });
       navigation.navigate("Main");
     } catch (err) {
       console.error("Failed to leave square:", err);
@@ -145,7 +146,7 @@ const FinalSquareScreen = ({ route }) => {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setMenuVisible(false); // close menu
+            setMenuVisible(false);
             try {
               await deleteDoc(doc(db, "squares", gridId));
               navigation.navigate("Main");
@@ -158,6 +159,27 @@ const FinalSquareScreen = ({ route }) => {
     );
   };
 
+  const showSquareToast = (message: string) => {
+    Toast.hide(); // Hide current toast immediately
+
+    setTimeout(() => {
+      Toast.show({
+        type: "info",
+        text1: message,
+        position: "bottom",
+        visibilityTime: 3000,
+        autoHide: true,
+        bottomOffset: 60,
+        text1Style: {
+          fontSize: 16,
+          fontWeight: "600",
+          color: "#333",
+          textAlign: "center",
+        },
+      });
+    }, 200);
+  };
+
   const handleSquarePress = (x: number, y: number) => {
     const key = `${x},${y}`;
     const userColor = squareColors[key];
@@ -165,90 +187,20 @@ const FinalSquareScreen = ({ route }) => {
       ([id, color]) => color === userColor
     )?.[0];
     const username = playerUsernames[userId] || "Unknown Player";
+    const xLabel = xAxis[x];
+    const yLabel = yAxis[y];
 
     const message = userColor
-      ? `${username} owns this square`
+      ? `${username} owns (${xLabel},${yLabel})`
       : "This square is unclaimed";
 
     setSelectedSquare(key);
-
-    if (snackbarVisible) {
-      setSnackbarMessage(message);
-      setSnackbarVisible(true);
-    } else {
-      setSnackbarMessage(message);
-      setSnackbarVisible(true);
-    }
+    showSquareToast(message);
   };
 
-  const handleDismissSnackbar = () => {
-    setSnackbarVisible(false);
-    setSelectedSquare(null); // 🔴 clear highlight
-  };
-
-  const splitTeamName = (teamName) => {
-    return teamName ? teamName.split("") : [];
-  };
-
-  const renderGridBody = () => {
-    const rows = [];
-
-    for (let y = 0; y <= 10; y++) {
-      const row = [];
-
-      for (let x = 0; x <= 10; x++) {
-        if (x === 0 && y === 0) {
-          row.push(<View key="corner" style={styles.square} />);
-        } else if (y === 0) {
-          row.push(
-            <View key={`x-${x}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>{xAxis[x - 1]}</Text>
-            </View>
-          );
-        } else if (x === 0) {
-          row.push(
-            <View key={`y-${y}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>{yAxis[y - 1]}</Text>
-            </View>
-          );
-        } else {
-          const key = `${x - 1},${y - 1}`;
-          const color = squareColors[key] || "#fff";
-
-          row.push(
-            <TouchableOpacity
-              key={key}
- style={[
-  styles.square,
-  {
-    backgroundColor: color || '#fff',
-    borderColor: selectedSquare ? '#007AFF' : '#ccc',
-    borderWidth: selectedSquare ? 2 : 1,
-    shadowColor: selectedSquare ? '#007AFF' : 'transparent',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: selectedSquare ? 0.4 : 0,
-    shadowRadius: selectedSquare ? 8 : 0,
-    elevation: selectedSquare ? 6 : 1,
-  },
-]}
-              onPress={() => handleSquarePress(x - 1, y - 1)}
-            />
-          );
-        }
-      }
-
-      rows.push(
-        <View key={y} style={styles.row}>
-          {row}
-        </View>
-      );
-    }
-
-    return rows;
-  };
-
-  useEffect(() => {
+  useLayoutEffect(() => {
     navigation.setOptions({
+      headerTitle: inputTitle,
       headerRight: () => (
         <Menu
           visible={menuVisible}
@@ -291,146 +243,166 @@ const FinalSquareScreen = ({ route }) => {
         </Menu>
       ),
     });
-  }, [menuVisible, isOwner]);
+  }, [navigation, menuVisible, isOwner]);
+
+  // const handleDismissSnackbar = () => {
+  //   setSnackbarVisible(false);
+  //   setSelectedSquare(null);
+  // };
+
+  const renderGridBody = () => {
+    const rows = [];
+    for (let y = 0; y <= 10; y++) {
+      const row = [];
+      for (let x = 0; x <= 10; x++) {
+        if (x === 0 && y === 0) {
+          row.push(<View key="corner" style={styles.square} />);
+        } else if (y === 0) {
+          row.push(
+            <View key={`x-${x}`} style={[styles.square, styles.axisCell]}>
+              <Text style={styles.axisText}>{xAxis[x - 1]}</Text>
+            </View>
+          );
+        } else if (x === 0) {
+          row.push(
+            <View key={`y-${y}`} style={[styles.square, styles.axisCell]}>
+              <Text style={styles.axisText}>{yAxis[y - 1]}</Text>
+            </View>
+          );
+        } else {
+          const key = `${x - 1},${y - 1}`;
+          const color = squareColors[key] || "#fff";
+          const isSelected = selectedSquare === key;
+          row.push(
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.square,
+                {
+                  backgroundColor: color,
+                  borderColor: isSelected ? "#007AFF" : "#ccc",
+                  borderWidth: isSelected ? 2 : 1,
+                  shadowColor: isSelected ? "#007AFF" : "transparent",
+                  shadowOpacity: isSelected ? 0.5 : 0,
+                  shadowRadius: isSelected ? 6 : 0,
+                  elevation: isSelected ? 5 : 1,
+                },
+              ]}
+              onPress={() => handleSquarePress(x - 1, y - 1)}
+            />
+          );
+        }
+      }
+      rows.push(
+        <View key={y} style={styles.row}>
+          {row}
+        </View>
+      );
+    }
+    return rows;
+  };
+
+  const renderScene = SceneMap({
+    squares: () => (
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Card>
+          <Card.Content>
+            <View style={{ alignItems: "center", marginBottom: 8 }}>
+              <Text style={styles.teamLabel}>{team2}</Text>
+            </View>
+            <View style={{ flexDirection: "row", marginBottom: 40 }}>
+              <View style={styles.teamColumn}>
+                {splitTeamName(team1).map((letter, i) => (
+                  <Text key={i} style={styles.teamLetter}>
+                    {letter}
+                  </Text>
+                ))}
+              </View>
+              <ScrollView horizontal>
+                <ScrollView>{renderGridBody()}</ScrollView>
+              </ScrollView>
+            </View>
+            <View>
+              {Object.entries(playerColors).map(([uid, color]) => (
+                <View key={uid} style={styles.legendRow}>
+                  <View
+                    style={[
+                      styles.colorCircle,
+                      { backgroundColor: color as string },
+                    ]}
+                  />
+                  <Text style={styles.legendText}>
+                    {playerUsernames[uid] || uid}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Card.Content>
+        </Card>
+      </ScrollView>
+    ),
+    winners: () => (
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Card>
+          <Card.Title title="Quarter Winners" />
+          <Card.Content>
+            {quarterWinners.map((q, i) => (
+              <View key={i} style={styles.winnerRow}>
+                <Icon name="emoji-events" size={20} color="gold" />
+                <Text style={styles.winnerText}>
+                  {q.quarter}: {q.username}
+                </Text>
+              </View>
+            ))}
+          </Card.Content>
+        </Card>
+      </ScrollView>
+    ),
+  });
 
   return (
-    <TouchableWithoutFeedback
-      onPress={() => {
-        Keyboard.dismiss();
-        handleDismissSnackbar(); // dismiss snackbar on outside press
-      }}
-    >
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={{
-            padding: 16,
-            backgroundColor: isDark ? "#121212" : "#fff",
+    <TabView
+      navigationState={{ index, routes }}
+      renderScene={renderScene}
+      onIndexChange={setIndex}
+      initialLayout={{ width: Dimensions.get("window").width }}
+      renderTabBar={(props) => (
+        <TabBar
+          {...(props as TabBarProps)}
+          indicatorStyle={{
+            backgroundColor: "#007AFF",
+            height: 4,
+            borderRadius: 2,
           }}
-        >
-          <Card style={styles.card}>
-            {/* <Card.Title title={inputTitle} /> */}
-            <View style={styles.legendWrapper}>
-              <TouchableOpacity
-                onPress={() => setLegendExpanded(!legendExpanded)}
-              >
-                <View style={styles.legendHeader}>
-                  <Text style={styles.legendTitle}>Legend</Text>
-                  <Icon
-                    name={legendExpanded ? "expand-less" : "expand-more"}
-                    size={24}
-                  />
-                </View>
-              </TouchableOpacity>
-
-              {legendExpanded && (
-                <View style={styles.legendDropdown}>
-                  {Object.entries(playerColors).map(([uid, color]) => {
-                    const username = playerUsernames[uid] || uid;
-                    const wonQuarters = quarterWinners
-                      .filter((q) => q.username === username)
-                      .map((q) => q.quarter);
-
-                    return (
-                      <View key={uid} style={styles.legendRow}>
-                        <View
-                          style={[
-                            styles.colorCircle,
-                            { backgroundColor: color as string },
-                          ]}
-                        />
-                        <Text style={styles.legendText}>{username}</Text>
-                        {wonQuarters.length > 0 && (
-                          <Text style={styles.legendTrophy}>
-                            {" "}
-                            🏆 {wonQuarters.join(", ")}
-                          </Text>
-                        )}
-                      </View>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-
-            <Card.Content>
-              <View style={{ alignItems: "center", marginBottom: 8 }}>
-                <Text style={styles.teamLabel}>{team2}</Text>
-              </View>
-              <View style={{ flexDirection: "row" }}>
-                {/* Team1 Vertical Letters */}
-                <View style={styles.teamColumn}>
-                  {splitTeamName(team1).map((letter, i) => (
-                    <Text key={i} style={styles.teamLetter}>
-                      {letter}
-                    </Text>
-                  ))}
-                </View>
-
-                {/* Scrollable Grid */}
-                <ScrollView horizontal>
-                  <ScrollView>{renderGridBody()}</ScrollView>
-                </ScrollView>
-              </View>
-            </Card.Content>
-          </Card>
-
-          <Card style={styles.card}>
-            <Card.Title title="Quarter Winners" />
-            <Card.Content>
-              {quarterWinners.length > 0 ? (
-                quarterWinners.map((q, i) => (
-                  <View key={i} style={styles.winnerRow}>
-                    <Icon name="emoji-events" size={20} color="gold" />
-                    <Text style={styles.winnerText}>
-                      {q.quarter}: {q.username}
-                    </Text>
-                  </View>
-                ))
-              ) : (
-                <Text>No winners yet.</Text>
-              )}
-            </Card.Content>
-          </Card>
-
-          <Snackbar
-  visible={snackbarVisible}
-  onDismiss={handleDismissSnackbar}
-  duration={999999}
-  style={{
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    elevation: 4,
-    marginBottom: 20,
-    marginHorizontal: 16,
-  }}
-  wrapperStyle={{
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  }}
-  action={{
-    label: 'Close',
-    onPress: handleDismissSnackbar,
-    textColor: '#007AFF', // iOS blue accent
-  }}
->
-  <Text style={{ color: '#333', fontWeight: '600' }}>
-    {snackbarMessage}
-  </Text>
-</Snackbar>
-
-        </ScrollView>
-      </View>
-    </TouchableWithoutFeedback>
+          style={{
+            backgroundColor: "#fff",
+            shadowColor: "#000",
+            shadowOpacity: 0.1,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 3,
+          }}
+          activeColor="#007AFF" // 👈 Ensure active label color is applied
+          inactiveColor={isDark ? "#ccc" : "#333"} // 👈 Ensure inactive color is readable
+          renderLabel={({ route, focused, color }) => (
+            <Text
+              style={{
+                color: color, // 👈 Use the `color` passed by TabBar
+                fontWeight: focused ? "bold" : "500",
+                fontSize: 14,
+                textTransform: "uppercase",
+              }}
+            >
+              {route.title}
+            </Text>
+          )}
+        />
+      )}
+    />
   );
 };
 
 const styles = StyleSheet.create({
-  card: {
-    marginBottom: 16,
-    borderRadius: 12,
-  },
+  card: { marginBottom: 16, borderRadius: 12 },
   square: {
     width: squareSize,
     height: squareSize,
@@ -438,17 +410,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
   },
-  axisCell: {
-    backgroundColor: "#f5f5f5",
-  },
-  axisText: {
-    fontSize: 10,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  row: {
-    flexDirection: "row",
-  },
+  axisCell: { backgroundColor: "#f5f5f5" },
+  axisText: { fontSize: 15, fontWeight: "bold", textAlign: "center" },
+  row: { flexDirection: "row" },
   teamLabel: {
     fontSize: 24,
     fontWeight: "bold",
@@ -457,21 +421,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginHorizontal: 2,
   },
-  winnerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 6,
-  },
-  winnerText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
+  winnerRow: { flexDirection: "row", alignItems: "center", marginVertical: 6 },
+  winnerText: { marginLeft: 8, fontSize: 14, fontWeight: "600" },
   teamColumn: {
     justifyContent: "center",
     alignItems: "center",
-    paddingRight: 10,
+    paddingRight: 5,
+    marginLeft: -5,
   },
   teamLetter: {
     fontSize: 24,
@@ -479,43 +435,7 @@ const styles = StyleSheet.create({
     fontFamily: "Courier",
     textTransform: "uppercase",
   },
-  teamLetterWrapper: {
-    height: 34, // same as square height + margin
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  legendWrapper: {
-    position: "absolute",
-    top: 0,
-    left: 250,
-    right: 16,
-    zIndex: 100,
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  legendHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  legendDropdown: {
-    marginTop: 8,
-  },
-  legendTitle: {
-    fontWeight: "bold",
-    fontSize: 16,
-  },
-  legendRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 4,
-  },
+  legendRow: { flexDirection: "row", alignItems: "center", marginVertical: 6 },
   colorCircle: {
     width: 16,
     height: 16,
@@ -524,14 +444,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#000",
   },
-  legendText: {
-    fontSize: 14,
-  },
-  legendTrophy: {
-    marginLeft: 8,
-    fontSize: 12,
-    color: "gold",
-  },
+  legendText: { fontSize: 14 },
 });
 
 export default FinalSquareScreen;

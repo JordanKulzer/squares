@@ -16,6 +16,8 @@ import HeaderLogo from "./src/components/HeaderLogo";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import SignupScreen from "./src/screens/SignUpScreen";
 import { Provider as PaperProvider } from "react-native-paper";
+import Toast from "react-native-toast-message";
+import { toastConfig } from "./src/components/toastConfig";
 
 const Stack = createNativeStackNavigator();
 
@@ -145,6 +147,7 @@ const App: React.FC = () => {
           )}
         </Stack.Navigator>
       </NavigationContainer>
+      <Toast config={toastConfig} position="bottom" bottomOffset={60} />
     </PaperProvider>
   );
 };
