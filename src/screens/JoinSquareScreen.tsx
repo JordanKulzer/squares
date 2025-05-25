@@ -55,12 +55,12 @@ const JoinSquareScreen = () => {
           { merge: true }
         );
 
-        navigation.navigate("SquareScreen", {
+        navigation.navigate("FinalSquareScreen", {
           gridId,
           inputTitle: data.title,
           username,
-          team1: data.team1,
-          team2: data.team2,
+          // team1: data.team1,
+          // team2: data.team2,
           deadline: data.deadline,
         });
       } else {

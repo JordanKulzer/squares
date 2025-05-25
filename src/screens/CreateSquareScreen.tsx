@@ -73,12 +73,12 @@ const CreateSquareScreen = ({ navigation }) => {
         yAxis,
       });
 
-      navigation.navigate("SquareScreen", {
+      navigation.navigate("FinalSquareScreen", {
         gridId: squareRef.id,
         inputTitle,
         username,
-        team1,
-        team2,
+        // team1,
+        // team2,
         deadline,
         xAxis,
         yAxis,

@@ -62,12 +62,12 @@ const CustomDrawerContent = ({ userId, onLogout }) => {
             <TouchableOpacity
               style={styles.squareItem}
               onPress={() =>
-                navigation.navigate("SquareScreen", {
+                navigation.navigate("FinalSquareScreen", {
                   gridId: item.id,
                   inputTitle: item.title,
                   username: userId,
-                  team1: item.team1,
-                  team2: item.team2,
+                  // team1: item.team1,
+                  // team2: item.team2,
                   deadline: item.deadline,
                   disableAnimation: true,
                 })

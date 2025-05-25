@@ -17,7 +17,7 @@ import Icon from "react-native-vector-icons/MaterialIcons";
 import SignupScreen from "./src/screens/SignUpScreen";
 import { Provider as PaperProvider } from "react-native-paper";
 import Toast from "react-native-toast-message";
-import { toastConfig } from "./src/components/toastConfig";
+import { toastConfig } from "./src/components/ToastConfig";
 
 const Stack = createNativeStackNavigator();
 
@@ -85,11 +85,11 @@ const App: React.FC = () => {
                   component: CreateSquareScreen,
                   title: "Create Game",
                 },
-                {
-                  name: "SquareScreen",
-                  component: SquareScreen,
-                  title: null,
-                },
+                // {
+                //   name: "SquareScreen",
+                //   component: SquareScreen,
+                //   title: null,
+                // },
                 {
                   name: "FinalSquareScreen",
                   component: FinalSquareScreen,

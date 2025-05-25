@@ -78,7 +78,6 @@ const HomeScreen: React.FC = () => {
 
       <Text style={styles.sectionTitle}>Your Games</Text>
 
-      {/* Display user games (squares) */}
       {loading ? (
         <Text>Loading...</Text>
       ) : (
@@ -89,12 +88,12 @@ const HomeScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.gameCard}
               onPress={() =>
-                navigation.navigate("SquareScreen", {
+                navigation.navigate("FinalSquareScreen", {
                   gridId: item.id,
                   inputTitle: item.title,
                   username: item.username,
-                  team1: item.team1,
-                  team2: item.team2,
+                  // team1: item.team1,
+                  // team2: item.team2,
                   deadline: item.deadline,
                   disableAnimation: true,
                 })

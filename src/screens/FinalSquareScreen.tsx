@@ -1,4 +1,9 @@
-import React, { useEffect, useLayoutEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -9,12 +14,15 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-import { Card, Menu, Snackbar } from "react-native-paper";
+import { Card, Menu } from "react-native-paper";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   arrayRemove,
+  arrayUnion,
   deleteDoc,
   doc,
   onSnapshot,
+  Timestamp,
   updateDoc,
 } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
@@ -32,8 +40,16 @@ const splitTeamName = (teamName) => {
   return teamName ? teamName.split("") : [];
 };
 
+const convertToDate = (deadline) => {
+  if (deadline instanceof Timestamp) return deadline.toDate();
+  if (deadline instanceof Date) return deadline;
+  return null;
+};
+
 const FinalSquareScreen = ({ route }) => {
-  const { gridId, inputTitle } = route.params;
+  const { gridId, inputTitle, deadline } = route.params;
+  const formattedDeadline = convertToDate(deadline);
+
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
 
@@ -48,6 +64,15 @@ const FinalSquareScreen = ({ route }) => {
   const [userId, setUserId] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+
+  const [selectedSquares, setSelectedSquares] = useState(new Set());
+  const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
+  const [isAfterDeadline, setIsAfterDeadline] = useState(false);
+  const [showDeadlineModal, setShowDeadlineModal] = useState(false);
+  const [tempDeadline, setTempDeadline] = useState(deadlineValue);
+
+  const currentUsername =
+    userId && playerUsernames[userId] ? playerUsernames[userId] : "Unknown";
   console.log("FINAL");
 
   const [index, setIndex] = useState(0);
@@ -120,10 +145,35 @@ const FinalSquareScreen = ({ route }) => {
       if (data?.createdBy === auth.currentUser?.uid) {
         setIsOwner(true);
       }
+
+      if (data?.deadline) {
+        const deadlineDate = convertToDate(data.deadline);
+        setDeadlineValue(deadlineDate);
+      }
     });
 
     return unsub;
   }, [gridId]);
+
+  useEffect(() => {
+    if (deadlineValue) {
+      setIsAfterDeadline(new Date() > deadlineValue);
+    }
+  }, [deadlineValue]);
+
+  useEffect(() => {
+    if (!deadlineValue) return;
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      if (now > deadlineValue) {
+        setIsAfterDeadline(true);
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [deadlineValue]);
 
   const handleLeaveSquare = async () => {
     setMenuVisible(false);
@@ -157,6 +207,17 @@ const FinalSquareScreen = ({ route }) => {
         },
       ]
     );
+  };
+
+  const handleDeadlineChange = async (event, selectedDate) => {
+    if (!selectedDate || selectedDate.getTime() === deadlineValue?.getTime())
+      return;
+    setDeadlineValue(selectedDate); // keep local state in sync
+    try {
+      await updateDoc(doc(db, "squares", gridId), { deadline: selectedDate });
+    } catch (err) {
+      console.error("Error updating deadline:", err);
+    }
   };
 
   const showSquareToast = (message: string) => {
@@ -228,6 +289,17 @@ const FinalSquareScreen = ({ route }) => {
             title="Share Session ID"
             titleStyle={{ color: "#333", fontWeight: "bold" }}
           />
+          {isOwner && (
+            <Menu.Item
+              onPress={() => {
+                setMenuVisible(false);
+                setTempDeadline(deadlineValue);
+                setShowDeadlineModal(true);
+              }}
+              title="Change Deadline"
+              titleStyle={{ color: "#333" }}
+            />
+          )}
           <Menu.Item
             onPress={handleLeaveSquare}
             title="Leave Square"
@@ -245,12 +317,124 @@ const FinalSquareScreen = ({ route }) => {
     });
   }, [navigation, menuVisible, isOwner]);
 
-  // const handleDismissSnackbar = () => {
-  //   setSnackbarVisible(false);
-  //   setSelectedSquare(null);
-  // };
+  const selectSquareInFirestore = useCallback(
+    async (x, y) => {
+      if (!userId) return;
+      const gridRef = doc(db, "squares", gridId);
+      await updateDoc(gridRef, {
+        selections: arrayUnion({ x, y, userId, username: currentUsername }),
+      });
+    },
+    [gridId, userId, currentUsername]
+  );
 
-  const renderGridBody = () => {
+  const deselectSquareInFirestore = useCallback(
+    async (x, y) => {
+      if (!userId) return;
+      const gridRef = doc(db, "squares", gridId);
+      await updateDoc(gridRef, {
+        selections: arrayRemove({ x, y, userId, username: currentUsername }),
+      });
+    },
+    [gridId, userId, currentUsername]
+  );
+
+  const handlePress = useCallback(
+    (x, y) => {
+      const squareId = `${x},${y}`;
+      const currentColor = squareColors[squareId];
+
+      // Square owned by another player
+      if (currentColor && currentColor !== playerColors[userId]) {
+        const username = Object.entries(playerColors).find(
+          ([id, color]) => color === currentColor
+        )?.[0];
+        showSquareToast(
+          `${playerUsernames[username] || "Someone"} already owns this square.`
+        );
+        return;
+      }
+
+      // Square owned by me (toggle)
+      const isSelected = selectedSquares.has(squareId);
+      const updatedSet = new Set(selectedSquares);
+
+      if (isSelected) {
+        updatedSet.delete(squareId);
+        deselectSquareInFirestore(x, y);
+      } else {
+        updatedSet.add(squareId);
+        selectSquareInFirestore(x, y);
+      }
+
+      setSelectedSquares(updatedSet); // Re-trigger re-render
+    },
+    [
+      squareColors,
+      playerColors,
+      userId,
+      selectedSquares,
+      deselectSquareInFirestore,
+      selectSquareInFirestore,
+      playerUsernames,
+    ]
+  );
+
+  const renderEditSquare = () => {
+    console.log("Rendering edit square grid...");
+    const rows = [];
+    for (let y = 0; y <= 10; y++) {
+      const row = [];
+      for (let x = 0; x <= 10; x++) {
+        if (x === 0 && y === 0) {
+          row.push(<View key="corner" style={styles.square} />);
+        } else if (y === 0) {
+          row.push(
+            <View key={`x-${x}`} style={[styles.square, styles.axisCell]}>
+              <Text style={styles.axisText}>{xAxis[x - 1]}</Text>
+            </View>
+          );
+        } else if (x === 0) {
+          row.push(
+            <View key={`y-${y}`} style={[styles.square, styles.axisCell]}>
+              <Text style={styles.axisText}>{yAxis[y - 1]}</Text>
+            </View>
+          );
+        } else {
+          const key = `${x - 1},${y - 1}`;
+          const color = squareColors[key] || "#fff";
+          const isSelected = selectedSquares.has(key);
+          row.push(
+            <TouchableOpacity
+              key={key}
+              style={[
+                styles.square,
+                {
+                  backgroundColor: color,
+                  borderColor: isSelected ? "#007AFF" : "#ccc",
+                  borderWidth: isSelected ? 2 : 1,
+                  shadowColor: isSelected ? "#007AFF" : "transparent",
+                  shadowOpacity: isSelected ? 0.5 : 0,
+                  shadowRadius: isSelected ? 6 : 0,
+                  elevation: isSelected ? 5 : 1,
+                },
+              ]}
+              onPress={() => handlePress(x - 1, y - 1)}
+            />
+          );
+        }
+      }
+      rows.push(
+        <View key={y} style={styles.row}>
+          {row}
+        </View>
+      );
+    }
+    return rows;
+  };
+
+  const renderFinalSquare = () => {
+    console.log("Rendering final square view");
     const rows = [];
     for (let y = 0; y <= 10; y++) {
       const row = [];
@@ -319,9 +503,21 @@ const FinalSquareScreen = ({ route }) => {
                 ))}
               </View>
               <ScrollView horizontal>
-                <ScrollView>{renderGridBody()}</ScrollView>
+                <ScrollView>
+                  {isAfterDeadline ? renderFinalSquare() : renderEditSquare()}
+                </ScrollView>
               </ScrollView>
             </View>
+            {!isAfterDeadline && (
+              <View style={styles.deadlineContainerCentered}>
+                <Text style={styles.deadlineLabel}>Deadline:</Text>
+                <Text style={styles.deadlineValue}>
+                  {deadlineValue
+                    ? deadlineValue.toLocaleString()
+                    : "No deadline set"}
+                </Text>
+              </View>
+            )}
             <View>
               {Object.entries(playerColors).map(([uid, color]) => (
                 <View key={uid} style={styles.legendRow}>
@@ -339,6 +535,74 @@ const FinalSquareScreen = ({ route }) => {
             </View>
           </Card.Content>
         </Card>
+        {showDeadlineModal && (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 10,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: 12,
+                padding: 20,
+                width: "80%",
+              }}
+            >
+              <Text
+                style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}
+              >
+                Select New Deadline
+              </Text>
+
+              <DateTimePicker
+                value={tempDeadline || new Date()}
+                mode="datetime"
+                display="default"
+                onChange={(event, date) => {
+                  if (date) setTempDeadline(date);
+                }}
+              />
+
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  marginTop: 20,
+                }}
+              >
+                <TouchableOpacity
+                  onPress={() => setShowDeadlineModal(false)}
+                  style={{ padding: 10 }}
+                >
+                  <Text style={{ color: "red", fontWeight: "600" }}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowDeadlineModal(false);
+                    handleDeadlineChange(null, tempDeadline);
+                  }}
+                  style={{ padding: 10 }}
+                >
+                  <Text style={{ color: "#007AFF", fontWeight: "600" }}>
+                    Confirm
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        )}
       </ScrollView>
     ),
     winners: () => (
@@ -445,6 +709,36 @@ const styles = StyleSheet.create({
     borderColor: "#000",
   },
   legendText: { fontSize: 14 },
+  yAxisText: {
+    fontSize: 14,
+    fontWeight: "bold",
+    fontFamily: "Courier",
+    marginTop: 5,
+  },
+  coordinateText: { fontSize: 10, color: "#000" },
+  deadlineContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  deadlineText: {
+    fontSize: 18,
+    color: "#000",
+  },
+  deadlineContainerCentered: {
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  deadlineLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#444",
+  },
+  deadlineValue: {
+    fontSize: 16,
+    color: "#333",
+    marginTop: 4,
+  },
 });
 
 export default FinalSquareScreen;
