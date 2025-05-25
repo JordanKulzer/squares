@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -18,6 +18,16 @@ import { db, auth } from "../../firebaseConfig";
 import colorOptions from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import GestureRecognizer from "react-native-swipe-gestures";
+import { useRoute } from "@react-navigation/native";
+
+// Define expected route parameters
+type CreateSquareRouteParams = {
+  CreateSquareScreen: {
+    team1?: string;
+    team2?: string;
+    deadline?: string;
+  };
+};
 
 const CreateSquareScreen = ({ navigation }) => {
   const [inputTitle, setInputTitle] = useState("");
@@ -27,14 +37,25 @@ const CreateSquareScreen = ({ navigation }) => {
   const [deadline, setDeadline] = useState(new Date());
   const [selectedColor, setSelectedColor] = useState(null);
   const [randomizeAxis, setRandomizeAxis] = useState(false);
+  const [maxSelections, setMaxSelections] = useState("3");
   const [step, setStep] = useState(0);
   const slideAnim = useState(new Animated.Value(0))[0];
+  const route =
+    useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
 
   const onDateChange = (event, selectedDate) => {
     if (selectedDate) {
       setDeadline(selectedDate);
     }
   };
+
+  useEffect(() => {
+    if (route.params?.team1 && route.params?.team2 && route.params?.deadline) {
+      setTeam1(route.params.team1);
+      setTeam2(route.params.team2);
+      setDeadline(new Date(route.params.deadline));
+    }
+  }, [route.params]);
 
   const generateShuffledArray = () => {
     const arr = [...Array(10).keys()];
@@ -71,6 +92,7 @@ const CreateSquareScreen = ({ navigation }) => {
         selections: [],
         xAxis,
         yAxis,
+        maxSelections: parseInt(maxSelections, 10),
       });
 
       navigation.navigate("FinalSquareScreen", {
@@ -123,7 +145,7 @@ const CreateSquareScreen = ({ navigation }) => {
         />
 
         <Text style={styles.sectionHeader}>Teams</Text>
-        <TextInput
+        {/* <TextInput
           style={styles.input}
           onChangeText={setTeam1}
           value={team1}
@@ -137,7 +159,15 @@ const CreateSquareScreen = ({ navigation }) => {
           value={team2}
           placeholder="Enter Team 2 (e.g. 🐻 Bears)"
           placeholderTextColor="#888"
-        />
+        /> */}
+        <TouchableOpacity
+          style={styles.input}
+          onPress={() => navigation.navigate("GamePickerScreen")}
+        >
+          <Text style={{ color: "#333" }}>
+            {team1 && team2 ? `${team1} vs ${team2}` : "Pick an NFL game"}
+          </Text>
+        </TouchableOpacity>
 
         <Text style={styles.sectionHeader}>Deadline</Text>
         <View style={styles.dateContainer}>
@@ -152,6 +182,22 @@ const CreateSquareScreen = ({ navigation }) => {
           <Text style={styles.helperText}>
             This deadline determines when the square locks and reveals results.
           </Text>
+        </View>
+        <View style={styles.formSectionContainer}>
+          <Text style={styles.sectionHeader}>Limit Player Selections</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="numeric"
+            value={maxSelections}
+            onChangeText={setMaxSelections}
+            placeholder="e.g. 3"
+            placeholderTextColor="#888"
+          />
+          <View style={styles.helperTextContainer}>
+            <Text style={styles.helperText}>
+              Set how many squares each player can claim.
+            </Text>
+          </View>
         </View>
       </View>
     </ScrollView>

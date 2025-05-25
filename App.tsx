@@ -18,6 +18,7 @@ import SignupScreen from "./src/screens/SignUpScreen";
 import { Provider as PaperProvider } from "react-native-paper";
 import Toast from "react-native-toast-message";
 import { toastConfig } from "./src/components/ToastConfig";
+import GamePickerScreen from "./src/screens/GamePickerScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -83,6 +84,11 @@ const App: React.FC = () => {
                 {
                   name: "CreateSquareScreen",
                   component: CreateSquareScreen,
+                  title: "Create Game",
+                },
+                {
+                  name: "GamePickerScreen",
+                  component: GamePickerScreen,
                   title: "Create Game",
                 },
                 {

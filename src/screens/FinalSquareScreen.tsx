@@ -65,6 +65,11 @@ const FinalSquareScreen = ({ route }) => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
 
+  const [team1Mascot, setTeam1Mascot] = useState("");
+  const [team2Mascot, setTeam2Mascot] = useState("");
+  const [showPlayers, setShowPlayers] = useState(false);
+  const [maxSelections, setMaxSelections] = useState(0);
+
   const [selectedSquares, setSelectedSquares] = useState(new Set());
   const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
   const [isAfterDeadline, setIsAfterDeadline] = useState(false);
@@ -78,6 +83,7 @@ const FinalSquareScreen = ({ route }) => {
   const [index, setIndex] = useState(0);
   const [routes] = useState([
     { key: "squares", title: "Square" },
+    { key: "players", title: "Players" },
     { key: "winners", title: "Winners" },
   ]);
 
@@ -111,6 +117,9 @@ const FinalSquareScreen = ({ route }) => {
 
       setTeam1(data.team1 || "");
       setTeam2(data.team2 || "");
+
+      setTeam1Mascot(data.team1.split(" ").slice(-1)[0]); // 'Buccaneers'
+      setTeam2Mascot(data.team2.split(" ").slice(-1)[0]); // 'Eagles'
 
       if (data?.players) {
         data.players.forEach((p) => {
@@ -149,6 +158,10 @@ const FinalSquareScreen = ({ route }) => {
       if (data?.deadline) {
         const deadlineDate = convertToDate(data.deadline);
         setDeadlineValue(deadlineDate);
+      }
+
+      if (typeof data?.maxSelections === "number") {
+        setMaxSelections(data.maxSelections);
       }
     });
 
@@ -359,6 +372,11 @@ const FinalSquareScreen = ({ route }) => {
       const isSelected = selectedSquares.has(squareId);
       const updatedSet = new Set(selectedSquares);
 
+      if (!isSelected && selectedSquares.size >= maxSelections) {
+        showSquareToast(`Limit reached: Max ${maxSelections} squares allowed.`);
+        return;
+      }
+
       if (isSelected) {
         updatedSet.delete(squareId);
         deselectSquareInFirestore(x, y);
@@ -491,12 +509,19 @@ const FinalSquareScreen = ({ route }) => {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Card>
           <Card.Content>
+            <Card style={styles.titleCard}>
+              <Card.Content style={{ alignItems: "center" }}>
+                <Text style={styles.titleText}>{team1}</Text>
+                <Text style={styles.vsText}>vs</Text>
+                <Text style={styles.titleText}>{team2}</Text>
+              </Card.Content>
+            </Card>
             <View style={{ alignItems: "center", marginBottom: 8 }}>
-              <Text style={styles.teamLabel}>{team2}</Text>
+              <Text style={styles.teamLabel}>{team2Mascot}</Text>
             </View>
-            <View style={{ flexDirection: "row", marginBottom: 40 }}>
+            <View style={{ flexDirection: "row", marginBottom: 15 }}>
               <View style={styles.teamColumn}>
-                {splitTeamName(team1).map((letter, i) => (
+                {splitTeamName(team1Mascot).map((letter, i) => (
                   <Text key={i} style={styles.teamLetter}>
                     {letter}
                   </Text>
@@ -518,7 +543,7 @@ const FinalSquareScreen = ({ route }) => {
                 </Text>
               </View>
             )}
-            <View>
+            {/* <View>
               {Object.entries(playerColors).map(([uid, color]) => (
                 <View key={uid} style={styles.legendRow}>
                   <View
@@ -532,7 +557,7 @@ const FinalSquareScreen = ({ route }) => {
                   </Text>
                 </View>
               ))}
-            </View>
+            </View> */}
           </Card.Content>
         </Card>
         {showDeadlineModal && (
@@ -603,6 +628,28 @@ const FinalSquareScreen = ({ route }) => {
             </View>
           </View>
         )}
+      </ScrollView>
+    ),
+    players: () => (
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Card>
+          <Card.Title title="Players" />
+          <Card.Content>
+            {Object.entries(playerColors).map(([uid, color]) => (
+              <View key={uid} style={styles.playerRow}>
+                <View
+                  style={[
+                    styles.colorCircle,
+                    { backgroundColor: color as string },
+                  ]}
+                />
+                <Text style={styles.playerText}>
+                  {playerUsernames[uid] || uid}
+                </Text>
+              </View>
+            ))}
+          </Card.Content>
+        </Card>
       </ScrollView>
     ),
     winners: () => (
@@ -738,6 +785,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     marginTop: 4,
+  },
+  titleCard: {
+    marginBottom: 24,
+    backgroundColor: "#fafafa",
+    marginHorizontal: 8,
+    borderRadius: 12,
+    elevation: 2,
+  },
+  titleText: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#222",
+    textAlign: "center",
+  },
+  vsText: {
+    fontSize: 16,
+    color: "#888",
+    marginVertical: 4,
+    fontWeight: "600",
+  },
+  playerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  playerText: {
+    fontSize: 16,
+    marginLeft: 10,
   },
 });
 
