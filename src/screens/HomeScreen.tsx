@@ -1,4 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import {
   Text,
   StyleSheet,
@@ -6,9 +11,16 @@ import {
   FlatList,
   SafeAreaView,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
+} from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig"; // Import Firebase
+import HeaderSettingsMenu from "../components/HeaderSettingsMenu";
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -16,45 +28,40 @@ const HomeScreen: React.FC = () => {
   const [loading, setLoading] = useState(true); // Loading state
 
   // Fetch user squares
-  const fetchUserSquares = async () => {
-    const user = auth.currentUser;
-    if (!user) {
-      console.error("No authenticated user found.");
-      return;
-    }
+  useFocusEffect(
+    useCallback(() => {
+      const user = auth.currentUser;
+      if (!user) return;
 
-    try {
       const userSquaresRef = query(
         collection(db, "squares"),
-        where("playerIds", "array-contains", user.uid) // Fetch squares where user is a player
+        where("playerIds", "array-contains", user.uid)
       );
 
-      const querySnapshot = await getDocs(userSquaresRef);
+      const unsubscribe = onSnapshot(userSquaresRef, (querySnapshot) => {
+        const squaresList = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          const userPlayer = data.players.find((p) => p.uid === user.uid);
+          return {
+            id: doc.id,
+            ...data,
+            username: userPlayer?.username || "Unknown",
+          };
+        });
 
-      const squaresList = querySnapshot.docs.map((doc) => {
-        const data = doc.data();
-        const userPlayer = data.players.find((p) => p.uid === user.uid);
-        console.log("username: " + userPlayer?.username);
-
-        return {
-          id: doc.id,
-          ...data,
-          username: userPlayer?.username || "Unknown",
-        };
+        setUserGames(squaresList);
+        setLoading(false);
       });
 
-      setUserGames(squaresList); // Set the fetched squares to the state
-    } catch (error) {
-      console.error("Error fetching squares:", error);
-    } finally {
-      setLoading(false); // Set loading to false once data is fetched
-    }
-  };
+      return () => unsubscribe(); // clean up on blur
+    }, [])
+  );
 
-  // Fetch squares when the component is mounted
-  useEffect(() => {
-    fetchUserSquares();
-  }, []);
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => <HeaderSettingsMenu />,
+    });
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container}>

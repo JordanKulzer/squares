@@ -85,11 +85,6 @@ const App: React.FC = () => {
                   component: CreateSquareScreen,
                   title: "Create Game",
                 },
-                // {
-                //   name: "SquareScreen",
-                //   component: SquareScreen,
-                //   title: null,
-                // },
                 {
                   name: "FinalSquareScreen",
                   component: FinalSquareScreen,

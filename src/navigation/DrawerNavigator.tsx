@@ -11,7 +11,13 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import HomeScreen from "../screens/HomeScreen";
 import SquareScreen from "../screens/SquareScreen";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  onSnapshot,
+} from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 import HeaderLogo from "../components/HeaderLogo";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -24,27 +30,20 @@ const CustomDrawerContent = ({ userId, onLogout }) => {
   const [squares, setSquares] = useState([]);
 
   useEffect(() => {
-    const fetchSquares = async () => {
-      try {
-        const squaresRef = collection(db, "squares");
-        const q = query(
-          squaresRef,
-          where("playerIds", "array-contains", userId)
-        );
-        const querySnapshot = await getDocs(q);
+    const q = query(
+      collection(db, "squares"),
+      where("playerIds", "array-contains", userId)
+    );
 
-        const squaresList = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const squaresList = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setSquares(squaresList);
+    });
 
-        setSquares(squaresList);
-      } catch (error) {
-        console.error("Error fetching squares:", error);
-      }
-    };
-
-    fetchSquares();
+    return () => unsubscribe();
   }, [userId]);
 
   return (
