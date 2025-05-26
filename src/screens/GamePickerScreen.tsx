@@ -8,11 +8,41 @@ import {
   ActivityIndicator,
   SafeAreaView,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import {
+  useRoute,
+  RouteProp,
+  useNavigation,
+  NavigationProp,
+} from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 const PRESEASON_START = new Date("2025-07-28T12:00:00");
 
-const formatDate = (date) => date.toISOString().split("T")[0].replace(/-/g, "");
+type RootStackParamList = {
+  CreateSquareScreen: {
+    team1?: string;
+    team2?: string;
+    deadline?: string;
+    inputTitle?: string;
+    username?: string;
+    maxSelections?: string;
+    selectedColor?: string;
+    eventId?: string;
+  };
+};
+
+type GamePickerScreenRouteProp = RouteProp<
+  RootStackParamList,
+  "CreateSquareScreen"
+>;
+
+type GamePickerScreenNavigationProp = NativeStackNavigationProp<
+  RootStackParamList,
+  "CreateSquareScreen"
+>;
+
+const formatDate = (date: Date) =>
+  date.toISOString().split("T")[0].replace(/-/g, "");
 
 const getStartOfWeek = (offsetWeeks = 0) => {
   const base = new Date(PRESEASON_START);
@@ -21,7 +51,7 @@ const getStartOfWeek = (offsetWeeks = 0) => {
   return base;
 };
 
-const formatWeekLabel = (date) =>
+const formatWeekLabel = (date: Date) =>
   `Week of ${date.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -29,14 +59,29 @@ const formatWeekLabel = (date) =>
   })}`;
 
 const GamePickerScreen = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<GamePickerScreenNavigationProp>();
+  const route = useRoute<GamePickerScreenRouteProp>();
+
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [weekStart, setWeekStart] = useState(getStartOfWeek(0));
   const [showWeekModal, setShowWeekModal] = useState(false);
+  const [deadline, setDeadline] = useState(new Date());
 
-  const fetchGamesForWeek = async (startDate) => {
+  const {
+    inputTitle = "",
+    username = "",
+    selectedColor = null,
+    maxSelections = "",
+    deadline: incomingDeadline,
+  } = route.params || {};
+
+  useEffect(() => {
+    if (incomingDeadline) setDeadline(new Date(incomingDeadline));
+  }, [incomingDeadline]);
+
+  const fetchGamesForWeek = async (startDate: Date) => {
     const allGames = [];
 
     for (let i = 0; i < 7; i++) {
@@ -86,10 +131,15 @@ const GamePickerScreen = () => {
   }, [weekOffset]);
 
   const handleSelectGame = (game) => {
-    navigation.navigate("CreateSquareScreen", {
+    navigation.replace("CreateSquareScreen", {
       team1: game.awayTeam,
       team2: game.homeTeam,
       deadline: game.date,
+      inputTitle,
+      username,
+      selectedColor,
+      maxSelections,
+      eventId: game.id,
     });
   };
 
@@ -151,44 +201,6 @@ const GamePickerScreen = () => {
             </TouchableOpacity>
           )}
         />
-      )}
-
-      {showWeekModal && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Jump to a Week</Text>
-            <FlatList
-              data={Array.from({ length: 22 }, (_, i) => i)}
-              keyExtractor={(item) => item.toString()}
-              renderItem={({ item }) => {
-                const labelDate = getStartOfWeek(item);
-                return (
-                  <TouchableOpacity
-                    style={styles.modalItem}
-                    onPress={() => {
-                      setShowWeekModal(false);
-                      setWeekOffset(item);
-                    }}
-                  >
-                    <Text style={styles.modalItemText}>
-                      Week of{" "}
-                      {labelDate.toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-            <TouchableOpacity
-              style={styles.closeModalButton}
-              onPress={() => setShowWeekModal(false)}
-            >
-              <Text style={{ color: "#fff" }}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
       )}
     </SafeAreaView>
   );
@@ -252,45 +264,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
     color: "#888",
-  },
-  modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 10,
-  },
-  modalContainer: {
-    backgroundColor: "#fff",
-    width: "80%",
-    maxHeight: "70%",
-    borderRadius: 10,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  modalItem: {
-    paddingVertical: 12,
-    borderBottomColor: "#ddd",
-    borderBottomWidth: 1,
-  },
-  modalItemText: {
-    fontSize: 16,
-  },
-  closeModalButton: {
-    marginTop: 16,
-    backgroundColor: "#007AFF",
-    padding: 12,
-    alignItems: "center",
-    borderRadius: 8,
   },
 });
 

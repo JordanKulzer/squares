@@ -13,6 +13,7 @@ import {
   useColorScheme,
   TouchableOpacity,
   Alert,
+  Image,
 } from "react-native";
 import { Card, Menu } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -27,7 +28,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { useNavigation } from "@react-navigation/native";
+import { StackActions, useNavigation } from "@react-navigation/native";
 import { onAuthStateChanged } from "firebase/auth";
 import * as Clipboard from "expo-clipboard";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
@@ -47,7 +48,7 @@ const convertToDate = (deadline) => {
 };
 
 const FinalSquareScreen = ({ route }) => {
-  const { gridId, inputTitle, deadline } = route.params;
+  const { gridId, inputTitle, deadline, eventId } = route.params;
   const formattedDeadline = convertToDate(deadline);
 
   const scheme = useColorScheme();
@@ -67,14 +68,17 @@ const FinalSquareScreen = ({ route }) => {
 
   const [team1Mascot, setTeam1Mascot] = useState("");
   const [team2Mascot, setTeam2Mascot] = useState("");
-  const [showPlayers, setShowPlayers] = useState(false);
+  const [team1Logo, setTeam1Logo] = useState(null);
+  const [team2Logo, setTeam2Logo] = useState(null);
   const [maxSelections, setMaxSelections] = useState(0);
+  const [quarterScores, setQuarterScores] = useState([]);
 
   const [selectedSquares, setSelectedSquares] = useState(new Set());
   const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
   const [isAfterDeadline, setIsAfterDeadline] = useState(false);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [tempDeadline, setTempDeadline] = useState(deadlineValue);
+  const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(false);
 
   const currentUsername =
     userId && playerUsernames[userId] ? playerUsernames[userId] : "Unknown";
@@ -93,11 +97,18 @@ const FinalSquareScreen = ({ route }) => {
     navigation.setOptions({ headerTitle: inputTitle });
   }, [navigation, inputTitle]);
 
+  const quarterScoresFakeData = [
+    { quarter: "1Q", home: 7, away: 3, winner: "Buccaneers" },
+    { quarter: "2Q", home: 10, away: 10, winner: "Tie" },
+    { quarter: "3Q", home: 0, away: 14, winner: "Eagles" },
+    { quarter: "4Q", home: 6, away: 7, winner: "Eagles" },
+  ];
+
   const quarterWinners = [
-    { quarter: "1st", username: "Alice" },
-    { quarter: "2nd", username: "Bob" },
-    { quarter: "3rd", username: "Carlos" },
-    { quarter: "4th", username: "Dana" },
+    { quarter: "1", username: "Alice", square: [7, 3] },
+    { quarter: "2", username: "Bob", square: [0, 0] },
+    { quarter: "3", username: "Carlos", square: [0, 4] },
+    { quarter: "4", username: "Dana", square: [6, 7] },
   ];
 
   useEffect(() => {
@@ -137,6 +148,14 @@ const FinalSquareScreen = ({ route }) => {
           squareMap[id] = colorMapping[sel.userId] || "#999";
         });
         setSquareColors(squareMap);
+
+        if (userId && Array.isArray(data.selections)) {
+          const mySelections = data.selections.filter(
+            (sel) => sel.userId === userId
+          );
+          const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
+          setSelectedSquares(mySet);
+        }
       }
 
       if (Array.isArray(data?.xAxis) && data.xAxis.length === 10) {
@@ -163,6 +182,10 @@ const FinalSquareScreen = ({ route }) => {
       if (typeof data?.maxSelections === "number") {
         setMaxSelections(data.maxSelections);
       }
+
+      if (typeof data?.hideAxisUntilDeadline === "boolean") {
+        setHideAxisUntilDeadline(data.hideAxisUntilDeadline);
+      }
     });
 
     return unsub;
@@ -187,6 +210,60 @@ const FinalSquareScreen = ({ route }) => {
 
     return () => clearInterval(interval);
   }, [deadlineValue]);
+
+  useEffect(() => {
+    const fetchQuarterScores = async () => {
+      if (!eventId) return;
+
+      try {
+        const res = await fetch(
+          `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard`
+        );
+        const data = await res.json();
+        const game = data.events.find((e) => e.id === eventId);
+        if (!game) return;
+
+        const comp = game.competitions[0];
+        const home = comp.competitors.find((c) => c.homeAway === "home");
+        const away = comp.competitors.find((c) => c.homeAway === "away");
+
+        const homeScores = home.linescores.map((s) => s.value);
+        const awayScores = away.linescores.map((s) => s.value);
+
+        const scores = homeScores.map((homeQ, i) => ({
+          quarter: `${i + 1}Q`,
+          home: homeQ,
+          away: awayScores[i],
+          winner:
+            homeQ > awayScores[i]
+              ? home.team.displayName
+              : away.team.displayName,
+        }));
+
+        setQuarterScores(scores);
+        setTeam1Logo(home.team.logos?.[0]?.href || null);
+        setTeam2Logo(away.team.logos?.[0]?.href || null);
+      } catch (e) {
+        console.warn("Error fetching quarter scores", e);
+      }
+    };
+
+    fetchQuarterScores();
+  }, [eventId]);
+
+  useEffect(() => {
+    if (eventId) return;
+
+    setQuarterScores([
+      { quarter: "1", home: 7, away: 3, winner: "Buccaneers" },
+      { quarter: "2", home: 10, away: 10, winner: "Tie" },
+      { quarter: "3", home: 0, away: 14, winner: "Eagles" },
+      { quarter: "4", home: 6, away: 7, winner: "Eagles" },
+    ]);
+
+    setTeam1Logo("https://a.espncdn.com/i/teamlogos/nfl/500/tb.png");
+    setTeam2Logo("https://a.espncdn.com/i/teamlogos/nfl/500/phi.png");
+  }, []);
 
   const handleLeaveSquare = async () => {
     setMenuVisible(false);
@@ -275,6 +352,14 @@ const FinalSquareScreen = ({ route }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: inputTitle,
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.dispatch(StackActions.popToTop())}
+          style={{ paddingLeft: 12 }}
+        >
+          <Icon name="arrow-back" size={24} color="#000" />
+        </TouchableOpacity>
+      ),
       headerRight: () => (
         <Menu
           visible={menuVisible}
@@ -299,7 +384,7 @@ const FinalSquareScreen = ({ route }) => {
               Clipboard.setStringAsync(gridId);
               alert("Session ID copied!");
             }}
-            title="Share Session ID"
+            title="Invite Friends"
             titleStyle={{ color: "#333", fontWeight: "bold" }}
           />
           {isOwner && (
@@ -398,6 +483,24 @@ const FinalSquareScreen = ({ route }) => {
     ]
   );
 
+  useEffect(() => {
+    if (!userId) return;
+
+    const ref = doc(db, "squares", gridId);
+    const unsub = onSnapshot(ref, (docSnap) => {
+      const data = docSnap.data();
+      if (!data?.selections) return;
+
+      const mySelections = data.selections.filter(
+        (sel) => sel.userId === userId
+      );
+      const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
+      setSelectedSquares(mySet);
+    });
+
+    return unsub;
+  }, [userId, gridId]);
+
   const renderEditSquare = () => {
     console.log("Rendering edit square grid...");
     const rows = [];
@@ -409,13 +512,17 @@ const FinalSquareScreen = ({ route }) => {
         } else if (y === 0) {
           row.push(
             <View key={`x-${x}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>{xAxis[x - 1]}</Text>
+              <Text style={styles.axisText}>
+                {!hideAxisUntilDeadline || isAfterDeadline ? xAxis[x - 1] : "?"}
+              </Text>
             </View>
           );
         } else if (x === 0) {
           row.push(
             <View key={`y-${y}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>{yAxis[y - 1]}</Text>
+              <Text style={styles.axisText}>
+                {!hideAxisUntilDeadline || isAfterDeadline ? yAxis[y - 1] : "?"}
+              </Text>
             </View>
           );
         } else {
@@ -511,9 +618,27 @@ const FinalSquareScreen = ({ route }) => {
           <Card.Content>
             <Card style={styles.titleCard}>
               <Card.Content style={{ alignItems: "center" }}>
-                <Text style={styles.titleText}>{team1}</Text>
+                <View style={styles.teamRow}>
+                  {team1Logo && (
+                    <Image
+                      source={{ uri: team1Logo }}
+                      style={styles.teamLogo}
+                      resizeMode="contain"
+                    />
+                  )}
+                  <Text style={styles.titleText}>{team1}</Text>
+                </View>
                 <Text style={styles.vsText}>vs</Text>
-                <Text style={styles.titleText}>{team2}</Text>
+                <View style={styles.teamRow}>
+                  {team2Logo && (
+                    <Image
+                      source={{ uri: team2Logo }}
+                      style={styles.teamLogo}
+                      resizeMode="contain"
+                    />
+                  )}
+                  <Text style={styles.titleText}>{team2}</Text>
+                </View>
               </Card.Content>
             </Card>
             <View style={{ alignItems: "center", marginBottom: 8 }}>
@@ -630,41 +755,86 @@ const FinalSquareScreen = ({ route }) => {
         )}
       </ScrollView>
     ),
-    players: () => (
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Card>
-          <Card.Title title="Players" />
-          <Card.Content>
-            {Object.entries(playerColors).map(([uid, color]) => (
-              <View key={uid} style={styles.playerRow}>
-                <View
-                  style={[
-                    styles.colorCircle,
-                    { backgroundColor: color as string },
-                  ]}
-                />
-                <Text style={styles.playerText}>
-                  {playerUsernames[uid] || uid}
-                </Text>
-              </View>
-            ))}
-          </Card.Content>
-        </Card>
-      </ScrollView>
-    ),
+    players: () => {
+      // Build a count of squares per user
+      const userSquareCount: Record<string, number> = {};
+      Object.entries(squareColors).forEach(([_, color]) => {
+        const uid = Object.entries(playerColors).find(
+          ([id, userColor]) => userColor === color
+        )?.[0];
+        if (uid) {
+          userSquareCount[uid] = (userSquareCount[uid] || 0) + 1;
+        }
+      });
+
+      return (
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <Card>
+            <Card.Title title="Players" />
+            <Card.Content>
+              {Object.entries(playerColors).map(([uid, color]) => {
+                const username = playerUsernames[uid] || uid;
+                const count = userSquareCount[uid] || 0;
+                const isMaxed = count >= maxSelections;
+
+                return (
+                  <View key={uid} style={styles.playerRow}>
+                    <View
+                      style={[
+                        styles.colorCircle,
+                        { backgroundColor: color as string },
+                      ]}
+                    />
+                    <Text style={styles.playerText}>
+                      {username} : {count} / {maxSelections}
+                      {isMaxed && <Text> Squares Selected</Text>}
+                    </Text>
+                  </View>
+                );
+              })}
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      );
+    },
+
     winners: () => (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Card>
-          <Card.Title title="Quarter Winners" />
+          <Card.Title
+            title="🎉 Congratulations Winners!"
+            titleStyle={styles.winnerTitle}
+          />
           <Card.Content>
-            {quarterWinners.map((q, i) => (
-              <View key={i} style={styles.winnerRow}>
-                <Icon name="emoji-events" size={20} color="gold" />
-                <Text style={styles.winnerText}>
-                  {q.quarter}: {q.username}
-                </Text>
-              </View>
-            ))}
+            {quarterScores.length > 0 ? (
+              quarterScores.map((q, i) => {
+                const winner = quarterWinners[i]; // assumes same ordering
+                return (
+                  <View key={i} style={styles.winnerCard}>
+                    <Text style={styles.quarterLabel}>Quarter {q.quarter}</Text>
+                    <View style={styles.scoreColumn}>
+                      <Text style={styles.scoreText}>
+                        {team1Mascot}: {q.home}
+                      </Text>
+                      <Text style={styles.scoreText}>
+                        {team2Mascot}: {q.away}
+                      </Text>
+                    </View>
+                    <View style={styles.winnerInfo}>
+                      <Icon name="emoji-events" size={20} color="gold" />
+                      <Text style={styles.winnerText}>
+                        {winner.username} wins with square ({winner.square[0]},{" "}
+                        {winner.square[1]})
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <Text style={{ color: "#666", marginTop: 10 }}>
+                Scores not yet available.
+              </Text>
+            )}
           </Card.Content>
         </Card>
       </ScrollView>
@@ -681,7 +851,7 @@ const FinalSquareScreen = ({ route }) => {
         <TabBar
           {...(props as TabBarProps)}
           indicatorStyle={{
-            backgroundColor: "#007AFF",
+            backgroundColor: "#5e60ce",
             height: 4,
             borderRadius: 2,
           }}
@@ -692,15 +862,16 @@ const FinalSquareScreen = ({ route }) => {
             shadowOffset: { width: 0, height: 2 },
             elevation: 3,
           }}
-          activeColor="#007AFF" // 👈 Ensure active label color is applied
-          inactiveColor={isDark ? "#ccc" : "#333"} // 👈 Ensure inactive color is readable
+          activeColor="#5e60ce"
+          inactiveColor={isDark ? "#ccc" : "#333"}
           renderLabel={({ route, focused, color }) => (
             <Text
               style={{
-                color: color, // 👈 Use the `color` passed by TabBar
+                color: color,
                 fontWeight: focused ? "bold" : "500",
                 fontSize: 14,
                 textTransform: "uppercase",
+                letterSpacing: 0.5,
               }}
             >
               {route.title}
@@ -813,6 +984,49 @@ const styles = StyleSheet.create({
   playerText: {
     fontSize: 16,
     marginLeft: 10,
+  },
+  winnerCard: {
+    backgroundColor: "#fdfdfd",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+  },
+  quarterLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 6,
+    color: "#333",
+  },
+  scoreColumn: {
+    flexDirection: "column",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  scoreText: {
+    fontSize: 14,
+    color: "#555",
+  },
+  winnerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  winnerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#5e60ce",
+    textAlign: "center",
+  },
+  teamRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 4,
+    justifyContent: "center",
+  },
+  teamLogo: {
+    width: 28,
+    height: 28,
+    marginRight: 8,
   },
 });
 

@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   },
   squareItem: {
     padding: 15,
-    backgroundColor: "#457b9d",
+    backgroundColor: "#5e60ce",
     borderRadius: 8,
     marginVertical: 5,
   },

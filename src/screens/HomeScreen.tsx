@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   FlatList,
   SafeAreaView,
+  View,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
@@ -21,6 +22,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig"; // Import Firebase
 import HeaderSettingsMenu from "../components/HeaderSettingsMenu";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -65,8 +67,12 @@ const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.greeting}>Welcome back, User!</Text>
-
+      <View style={styles.greetingContainer}>
+        <Text style={styles.greetingTitle}>Welcome Back!</Text>
+        <Text style={styles.greetingSubtitle}>
+          Ready to play your next square?
+        </Text>
+      </View>
       <Text style={styles.sectionTitle}>Quick Start</Text>
 
       {/* Navigation buttons */}
@@ -74,13 +80,15 @@ const HomeScreen: React.FC = () => {
         style={styles.button}
         onPress={() => navigation.navigate("CreateSquareScreen")}
       >
+        <MaterialIcons name="add-box" size={20} color="#fff" />
         <Text style={styles.buttonText}>Create Game</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.button}
         onPress={() => navigation.navigate("JoinSquareScreen")}
       >
-        <Text style={styles.buttonText}>Join by Code</Text>
+        <MaterialIcons name="vpn-key" size={20} color="#fff" />
+        <Text style={styles.buttonText}>Join By Code</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Your Games</Text>
@@ -108,7 +116,10 @@ const HomeScreen: React.FC = () => {
             >
               <Text style={styles.gameTitle}>{item.title}</Text>
               <Text style={styles.gameSubtitle}>
-                {item.players.length} players
+                {item.players.length} players •{" "}
+                {item.deadline?.toDate?.() > new Date()
+                  ? `Ends ${item.deadline.toDate().toLocaleDateString()}`
+                  : "Finalized"}
               </Text>
             </TouchableOpacity>
           )}
@@ -134,12 +145,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#FDFCF9",
     padding: 20,
   },
-  greeting: {
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 20,
+  greetingContainer: {
+    alignItems: "center",
+    marginBottom: 10,
+    marginTop: 10,
   },
+  greetingTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#5e60ce",
+  },
+  greetingSubtitle: {
+    fontSize: 14,
+    color: "#6c757d",
+    marginTop: 4,
+  },
+
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
@@ -147,16 +168,19 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   button: {
-    backgroundColor: "#457b9d",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#5e60ce",
     paddingVertical: 14,
     borderRadius: 10,
     marginVertical: 6,
-    alignItems: "center",
   },
   buttonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+    paddingLeft: 5,
   },
   gameCard: {
     backgroundColor: "#ffffff",
@@ -180,7 +204,7 @@ const styles = StyleSheet.create({
   howToButton: {
     marginTop: 10,
     alignSelf: "center",
-    backgroundColor: "#457b9d",
+    backgroundColor: "#5e60ce",
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 10,
