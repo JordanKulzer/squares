@@ -47,50 +47,50 @@ const LoginScreen = ({ navigation }) => {
 
       <Text style={styles.title}>Welcome Back</Text>
 
-          <PaperInput
-            label="Email"
-            mode="outlined"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              if (text === "" && password === "") setError("");
-            }}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-            theme={{ colors: { primary: colors.primary } }}
-            right={
-              email ? (
-                <PaperInput.Icon
-                  icon="close"
-                  onPress={() => setEmail("")}
-                  color={colors.primary}
-                />
-              ) : null
-            }
-          />
+      <PaperInput
+        label="Email"
+        mode="outlined"
+        value={email}
+        onChangeText={(text) => {
+          setEmail(text);
+          if (text === "" && password === "") setError("");
+        }}
+        keyboardType="email-address"
+        autoCapitalize="none"
+        style={styles.input}
+        theme={{ colors: { primary: colors.primary } }}
+        right={
+          email ? (
+            <PaperInput.Icon
+              icon="close"
+              onPress={() => setEmail("")}
+              color={colors.primary}
+            />
+          ) : null
+        }
+      />
 
-          <PaperInput
-            label="Password"
-            mode="outlined"
-            secureTextEntry
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (text === "" && email === "") setError("");
-            }}
-            style={styles.input}
-            theme={{ colors: { primary: colors.primary } }}
-            right={
-              password ? (
-                <PaperInput.Icon
-                  icon="close"
-                  onPress={() => setPassword("")}
-                  color={colors.primary}
-                />
-              ) : null
-            }
-          />
+      <PaperInput
+        label="Password"
+        mode="outlined"
+        secureTextEntry
+        value={password}
+        onChangeText={(text) => {
+          setPassword(text);
+          if (text === "" && email === "") setError("");
+        }}
+        style={styles.input}
+        theme={{ colors: { primary: colors.primary } }}
+        right={
+          password ? (
+            <PaperInput.Icon
+              icon="close"
+              onPress={() => setPassword("")}
+              color={colors.primary}
+            />
+          ) : null
+        }
+      />
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <TouchableOpacity style={styles.button} onPress={handleLogin}>
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: colors.secondaryBackground,
+    backgroundColor: colors.primaryBackground,
   },
   button: {
     backgroundColor: colors.primary,

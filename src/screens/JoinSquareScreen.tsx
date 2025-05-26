@@ -20,7 +20,7 @@ import { Card, TextInput as PaperInput } from "react-native-paper";
 type JoinSquareParams = {
   gridId: string;
   inputTitle: string;
-  deadline: string; // or Date if you're passing a Date object
+  deadline: string;
   usedColors?: string[];
 };
 
@@ -104,13 +104,6 @@ const JoinSquareScreen = () => {
                     onChangeText={setUsername}
                     mode="outlined"
                     style={styles.input}
-                    // theme={{
-                    //   colors: {
-                    //     primary: "#5e60ce", // active outline
-                    //     onSurfaceVariant: "#5e60ce", // label
-                    //     surfaceVariant: "#ececff", // fill (for newer MD3 Paper versions)
-                    //   },
-                    // }}
                   />
 
                   <Text style={styles.sectionHeader}>Pick Your Color</Text>
@@ -188,7 +181,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 15,
-    backgroundColor: colors.secondaryBackground,
+    backgroundColor: colors.primaryBackground,
   },
   sectionHeader: {
     fontSize: 16,

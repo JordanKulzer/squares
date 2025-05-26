@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: colors.secondaryBackground,
+    backgroundColor: colors.primaryBackground,
   },
   button: {
     backgroundColor: colors.primary,

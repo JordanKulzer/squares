@@ -9,7 +9,7 @@ import ProfileScreen from "./src/screens/ProfileScreen";
 import JoinSquareScreen from "./src/screens/JoinSquareScreen";
 import SquareScreen from "./src/screens/SquareScreen";
 import CreateSquareScreen from "./src/screens/CreateSquareScreen";
-import HomeDrawer from "./src/navigation/DrawerNavigator";
+import AppDrawer from "./src/navigation/AppDrawer";
 import LoginScreen from "./src/screens/LoginScreen";
 import FinalSquareScreen from "./src/screens/FinalSquareScreen";
 import HeaderLogo from "./src/components/HeaderLogo";
@@ -25,7 +25,7 @@ const Stack = createNativeStackNavigator();
 /** Wrapper screen to host the drawer */
 const HomeScreen = ({ route, navigation }) => {
   const { userId, onLogout } = route.params;
-  return <HomeDrawer userId={userId} onLogout={onLogout} />;
+  return <AppDrawer userId={userId} onLogout={onLogout} />;
 };
 
 const App: React.FC = () => {

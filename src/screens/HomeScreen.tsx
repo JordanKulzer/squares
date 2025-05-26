@@ -157,7 +157,7 @@ const HomeScreen: React.FC = () => {
               setSessionCode(text);
               setError("");
             }}
-            style={{ marginBottom: 16 }}
+            style={{ marginBottom: 16, backgroundColor: "#f8f9fa" }}
           />
 
           {error ? <Text style={modalStyles.error}>{error}</Text> : null}
@@ -198,7 +198,7 @@ const HomeScreen: React.FC = () => {
                   setLoadingSession(false);
                 }
               }}
-              style={{ marginTop: 10 }}
+              style={{ marginTop: 10, backgroundColor: "#5e60ce" }}
             >
               Join
             </Button>
@@ -209,7 +209,7 @@ const HomeScreen: React.FC = () => {
             style={{ marginTop: 10 }}
             compact
           >
-            Cancel
+            <Text style={{ color: "#5e60ce" }}>Cancel</Text>
           </Button>
         </Modal>
       </Portal>
@@ -229,7 +229,7 @@ export default HomeScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FDFCF9",
+    backgroundColor: "#FFFFFF",
     padding: 20,
   },
   greetingContainer: {
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   howToButton: {
     marginTop: 10,
     alignSelf: "center",
-    backgroundColor: "#5e60ce",
+    backgroundColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 10,

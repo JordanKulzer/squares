@@ -169,6 +169,7 @@ const CreateSquareScreen = ({ navigation }) => {
           onChangeText={setInputTitle}
           mode="outlined"
           style={styles.input}
+          theme={{ colors: { primary: colors.primary } }}
         />
 
         <TouchableOpacity
@@ -209,7 +210,7 @@ const CreateSquareScreen = ({ navigation }) => {
           returnKeyType="done"
           onSubmitEditing={Keyboard.dismiss}
         />
-        <Text style={[styles.label, {marginBottom: 15, marginTop: 5}]}>
+        <Text style={[styles.label, { marginBottom: 15, marginTop: 5 }]}>
           Deadline For Your Square
         </Text>
 
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
-    backgroundColor: colors.primaryBackground,
+    backgroundColor: "#ffffff",
   },
   colorScrollContainer: { paddingVertical: 10 },
   colorRowsContainer: { marginBottom: 10 },
@@ -459,7 +460,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: colors.primaryBackground,
     borderWidth: 1,
-    borderColor: "#d0d0d0",
+    borderColor: "#e0e0e0",
     marginBottom: 15,
   },
 
