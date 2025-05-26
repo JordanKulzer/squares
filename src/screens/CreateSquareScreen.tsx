@@ -16,7 +16,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { addDoc, collection } from "firebase/firestore";
 import { db, auth } from "../../firebaseConfig";
-import colorOptions from "../../assets/constants/colorOptions";
+import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { Card, TextInput as PaperInput } from "react-native-paper";
@@ -83,7 +83,7 @@ const CreateSquareScreen = ({ navigation }) => {
           }}
           style={{ paddingLeft: 12 }}
         >
-          <Icon name="arrow-back" size={24} color="#5e60ce" />
+          <Icon name="arrow-back" size={24} color="#212529" />
         </TouchableOpacity>
       ),
     });
@@ -193,7 +193,7 @@ const CreateSquareScreen = ({ navigation }) => {
                 !(team1 && team2) && { color: "#aaa", fontStyle: "italic" },
               ]}
             >
-              {team1 && team2 ? `${team1} vs ${team2}` : "Pick an NFL game"}
+              {team1 && team2 ? `${team1} vs ${team2}` : "Pick a NFL game"}
             </Text>
             <Icon name="chevron-forward" size={20} color="#888" />
           </View>
@@ -209,8 +209,8 @@ const CreateSquareScreen = ({ navigation }) => {
           returnKeyType="done"
           onSubmitEditing={Keyboard.dismiss}
         />
-        <Text style={styles.subtext}>
-          The deadline is when the square locks and results are shown.
+        <Text style={[styles.label, {marginBottom: 15, marginTop: 5}]}>
+          Deadline For Your Square
         </Text>
 
         <DateTimePicker
@@ -220,23 +220,19 @@ const CreateSquareScreen = ({ navigation }) => {
           onChange={onDateChange}
         />
 
+        <Text style={[styles.label, { marginTop: 20 }]}>X & Y Axis</Text>
+
         <View style={styles.toggleRow}>
-          <Text style={styles.label}>Randomize Axes</Text>
+          <Text style={styles.subtext}>Randomize Axis Numbers</Text>
           <Switch value={randomizeAxis} onValueChange={setRandomizeAxis} />
         </View>
-        <Text style={styles.subtext}>
-          Randomizing shuffles the numbers on the X and Y axes.
-        </Text>
         <View style={styles.toggleRow}>
-          <Text style={styles.label}>Hide Axes Until Deadline</Text>
+          <Text style={styles.subtext}>Mask X & Y Axis Until Deadline</Text>
           <Switch
             value={hideAxisUntilDeadline}
             onValueChange={setHideAxisUntilDeadline}
           />
         </View>
-        <Text style={styles.subtext}>
-          Hide the x & y axes until the deadline has passed.
-        </Text>
       </Card>
     </ScrollView>
   );
@@ -265,10 +261,10 @@ const CreateSquareScreen = ({ navigation }) => {
           <View style={styles.colorRowsContainer}>
             {[0, 1].map((rowIndex) => (
               <View key={rowIndex} style={styles.colorRow}>
-                {colorOptions
+                {colors.colorOptions
                   .slice(
-                    rowIndex * Math.ceil(colorOptions.length / 2),
-                    (rowIndex + 1) * Math.ceil(colorOptions.length / 2)
+                    rowIndex * Math.ceil(colors.colorOptions.length / 2),
+                    (rowIndex + 1) * Math.ceil(colors.colorOptions.length / 2)
                   )
                   .map((color) => (
                     <TouchableOpacity
@@ -368,7 +364,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 15,
-    backgroundColor: "#f7f7f7",
+    backgroundColor: colors.primaryBackground,
   },
   cardSection: {
     borderRadius: 12,
@@ -379,6 +375,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    backgroundColor: colors.primaryBackground,
   },
   colorScrollContainer: { paddingVertical: 10 },
   colorRowsContainer: { marginBottom: 10 },
@@ -407,7 +404,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginVertical: 10,
+    marginVertical: 8,
   },
   label: { fontSize: 16, fontWeight: "600", color: "#333" },
   buttonContainer: {
@@ -428,7 +425,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButton: {
-    backgroundColor: "#5e60ce",
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -460,7 +457,7 @@ const styles = StyleSheet.create({
   gameCard: {
     padding: 12,
     borderRadius: 10,
-    backgroundColor: "#ffffff",
+    backgroundColor: colors.primaryBackground,
     borderWidth: 1,
     borderColor: "#d0d0d0",
     marginBottom: 15,
@@ -468,7 +465,7 @@ const styles = StyleSheet.create({
 
   gameCardLabel: {
     fontSize: 14,
-    color: "#888",
+    color: colors.primaryText,
     marginBottom: 4,
   },
 

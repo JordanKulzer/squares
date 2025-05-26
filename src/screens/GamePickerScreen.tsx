@@ -7,14 +7,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
 } from "react-native";
-import {
-  useRoute,
-  RouteProp,
-  useNavigation,
-  NavigationProp,
-} from "@react-navigation/native";
+import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Dialog, Portal, Button, Provider } from "react-native-paper";
+import colors from "../../assets/constants/colorOptions";
+import Icon from "react-native-vector-icons/MaterialIcons"; // top of file
 
 const PRESEASON_START = new Date("2025-07-28T12:00:00");
 
@@ -144,65 +143,111 @@ const GamePickerScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.weekLabel}>{formatWeekLabel(weekStart)}</Text>
-        <View style={styles.navButtons}>
-          <TouchableOpacity
-            onPress={() => weekOffset > 0 && setWeekOffset(weekOffset - 1)}
-            disabled={weekOffset <= 0}
-            style={[
-              styles.navButton,
-              weekOffset <= 0 && styles.navButtonDisabled,
-            ]}
-          >
-            <Text style={styles.navButtonText}>← Prev</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setShowWeekModal(true)}
-            style={[styles.navButton, { backgroundColor: "#555" }]}
-          >
-            <Text style={styles.navButtonText}>🗓️ Select Week</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setWeekOffset(weekOffset + 1)}
-            style={styles.navButton}
-          >
-            <Text style={styles.navButtonText}>Next →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator size="large" style={{ marginTop: 30 }} />
-      ) : games.length === 0 ? (
-        <Text style={styles.noGamesText}>
-          No NFL games scheduled for this week.
-        </Text>
-      ) : (
-        <FlatList
-          data={games}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          renderItem={({ item }) => (
+    <Provider>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.weekLabel}>{formatWeekLabel(weekStart)}</Text>
+          <View style={styles.navButtons}>
             <TouchableOpacity
-              style={styles.card}
-              onPress={() => handleSelectGame(item)}
+              onPress={() => weekOffset > 0 && setWeekOffset(weekOffset - 1)}
+              disabled={weekOffset <= 0}
+              style={[
+                styles.navButton,
+                weekOffset <= 0 && styles.navButtonDisabled,
+              ]}
             >
-              <Text style={styles.gameText}>
-                🏈 {item.awayTeam} @ {item.homeTeam}
-              </Text>
-              <Text style={styles.dateText}>
-                Kickoff: {new Date(item.date).toLocaleString()}
-              </Text>
-              <Text style={styles.statusText}>Status: {item.status}</Text>
+              <Text style={styles.navButtonText}>← Prev</Text>
             </TouchableOpacity>
-          )}
-        />
-      )}
-    </SafeAreaView>
+
+            <TouchableOpacity
+              onPress={() => setShowWeekModal(true)}
+              style={styles.navButtonAlt}
+            >
+              <View style={styles.altButtonContent}>
+                <Icon
+                  name="calendar-today"
+                  size={18}
+                  color="#333"
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.navButtonAltText}>Select Week</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setWeekOffset(weekOffset + 1)}
+              style={styles.navButton}
+            >
+              <Text style={styles.navButtonText}>Next →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {loading ? (
+          <ActivityIndicator size="large" style={{ marginTop: 30 }} />
+        ) : games.length === 0 ? (
+          <Text style={styles.noGamesText}>
+            No NFL games scheduled for this week.
+          </Text>
+        ) : (
+          <FlatList
+            data={games}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 20 }}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.card}
+                onPress={() => handleSelectGame(item)}
+              >
+                <Text style={styles.gameText}>
+                  🏈 {item.awayTeam} @ {item.homeTeam}
+                </Text>
+                <Text style={styles.dateText}>
+                  Kickoff: {new Date(item.date).toLocaleString()}
+                </Text>
+                <Text style={styles.statusText}>Status: {item.status}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </SafeAreaView>
+      <Portal>
+        <Dialog
+          visible={showWeekModal}
+          onDismiss={() => setShowWeekModal(false)}
+          style={styles.dialogContainer}
+        >
+          <Dialog.Title style={styles.dialogTitle}>
+            Select Your Week
+          </Dialog.Title>
+
+          <Dialog.ScrollArea>
+            <ScrollView style={styles.scrollArea}>
+              {Array.from({ length: 20 }, (_, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={styles.weekItem}
+                  onPress={() => {
+                    setWeekOffset(i);
+                    setShowWeekModal(false);
+                  }}
+                >
+                  <Text style={styles.weekText}>
+                    {formatWeekLabel(getStartOfWeek(i))}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Dialog.ScrollArea>
+
+          <Dialog.Actions>
+            <Button onPress={() => setShowWeekModal(false)} textColor="#5e60ce">
+              Cancel
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </Provider>
   );
 };
 
@@ -226,7 +271,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   navButton: {
-    backgroundColor: "#007AFF",
+    backgroundColor: colors.primary,
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
@@ -264,6 +309,48 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 16,
     color: "#888",
+  },
+  navButtonAlt: {
+    backgroundColor: "#eee",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  navButtonAltText: {
+    color: "#333",
+    fontWeight: "600",
+  },
+  altButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dialogContainer: {
+    backgroundColor: "#fefefe",
+    borderRadius: 16,
+    elevation: 5,
+    marginHorizontal: 20,
+  },
+  dialogTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#222",
+    textAlign: "center",
+  },
+  scrollArea: {
+    maxHeight: 320,
+    paddingHorizontal: 16,
+  },
+  weekItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+  },
+  weekText: {
+    fontSize: 16,
+    color: "#333",
   },
 });
 

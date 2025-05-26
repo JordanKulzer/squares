@@ -1,12 +1,24 @@
-// src/constants/colorOptions.ts
+const colors = {
+  primary: '#5e60ce',
+  secondary: '#adb5bd',
+  primaryText: '#212529',
+  secondaryText: '#6c757d',
+  background: '#F2F2F7',
+  cancel: '#dc3545',
+  surface: '#FFFFFF',
+  error: '#FF3B30',
+  success: '#34C759',
+  border: '#C6C6C8',
+  primaryBackground: '#f8f9fa',
+  secondaryBackground: '#ececff',
+  colorOptions: [
+    '#FF6633', '#FFB399', '#FF33FF', '#FFFF99', '#00B3E6',
+    '#E6B333', '#3366E6', '#999966', '#99FF99', '#B34D4D',
+    '#80B300', '#809900', '#E6B3B3', '#6680B3', '#66991A',
+    '#FF99E6', '#CCFF1A', '#FF1A66', '#E6331A', '#33FFCC',
+    '#66994D', '#B366CC', '#4D8000', '#B33300', '#CC80CC',
+    '#66664D', '#991AFF', '#E666FF', '#4DB3FF', '#1AB399'
+  ],
+};
 
-const colorOptions = [
-  '#FF6633', '#FFB399', '#FF33FF', '#FFFF99', '#00B3E6',
-  '#E6B333', '#3366E6', '#999966', '#99FF99', '#B34D4D',
-  '#80B300', '#809900', '#E6B3B3', '#6680B3', '#66991A',
-  '#FF99E6', '#CCFF1A', '#FF1A66', '#E6331A', '#33FFCC',
-  '#66994D', '#B366CC', '#4D8000', '#B33300', '#CC80CC',
-  '#66664D', '#991AFF', '#E666FF', '#4DB3FF', '#1AB399'
-];
-
-export default colorOptions;
+export default colors;

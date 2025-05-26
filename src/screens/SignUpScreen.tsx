@@ -1,16 +1,20 @@
 import React, { useState } from "react";
 import {
   View,
-  TextInput,
   Text,
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
   Image,
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
+import { TextInput as PaperInput } from "react-native-paper";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../firebaseConfig";
+import colors from "../../assets/constants/colorOptions";
 
 const SignupScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -36,51 +40,79 @@ const SignupScreen = ({ navigation }) => {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={{ flex: 1 }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Image
-        source={require("../../assets/icons/icon_outline3.png")}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Image
+            source={require("../../assets/icons/icon_outline3.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
 
-      <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.title}>Create Account</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        placeholderTextColor="#444"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor="#444"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
+          <PaperInput
+            label="Email"
+            mode="outlined"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+            theme={{ colors: { primary: colors.primary } }}
+            right={
+              email ? (
+                <PaperInput.Icon
+                  icon="close"
+                  onPress={() => setEmail("")}
+                  color={colors.primary}
+                />
+              ) : null
+            }
+          />
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+          <PaperInput
+            label="Password"
+            mode="outlined"
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            style={styles.input}
+            theme={{ colors: { primary: colors.primary } }}
+            right={
+              password ? (
+                <PaperInput.Icon
+                  icon="close"
+                  onPress={() => setPassword("")}
+                  color={colors.primary}
+                />
+              ) : null
+            }
+          />
 
-      <TouchableOpacity style={styles.button} onPress={handleSignup}>
-        <Text style={styles.buttonText}>Sign Up</Text>
-      </TouchableOpacity>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.linkText}>Already have an account? Log in</Text>
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={handleSignup}>
+            <Text style={styles.buttonText}>Sign Up</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.linkText}>Already have an account? Log in</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     justifyContent: "center",
     backgroundColor: "#fdfcf9",
@@ -96,19 +128,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
     marginBottom: 24,
+    color: colors.primary,
   },
   input: {
-    height: 50,
-    borderColor: "#ccc",
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
     marginBottom: 16,
-    fontSize: 16,
-    backgroundColor: "#fff",
+    backgroundColor: colors.secondaryBackground,
   },
   button: {
-    backgroundColor: "#457b9d",
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 8,
     alignItems: "center",
@@ -126,7 +153,7 @@ const styles = StyleSheet.create({
   },
   linkText: {
     textAlign: "center",
-    color: "#457b9d",
+    color: colors.primary,
     fontWeight: "500",
     fontSize: 14,
   },

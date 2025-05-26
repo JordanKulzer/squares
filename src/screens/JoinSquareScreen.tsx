@@ -11,22 +11,41 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { doc, getDoc, setDoc, arrayUnion } from "firebase/firestore";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { doc, setDoc, arrayUnion } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
-import colorOptions from "../../assets/constants/colorOptions";
+import colors from "../../assets/constants/colorOptions";
 import { Card, TextInput as PaperInput } from "react-native-paper";
 
+type JoinSquareParams = {
+  gridId: string;
+  inputTitle: string;
+  deadline: string; // or Date if you're passing a Date object
+  usedColors?: string[];
+};
+
 const JoinSquareScreen = () => {
-  const [gridId, setGridId] = useState("");
-  const [username, setUsername] = useState("");
-  const [selectedColor, setSelectedColor] = useState(null);
+  const route = useRoute<RouteProp<{ params: JoinSquareParams }, "params">>();
   const navigation = useNavigation();
   const user = auth.currentUser;
 
+  const { gridId, inputTitle, deadline, usedColors = [] } = route.params;
+
+  const [username, setUsername] = useState("");
+  const [selectedColor, setSelectedColor] = useState(null);
+
+  const availableColors = colors.colorOptions.filter(
+    (color) => !usedColors.includes(color)
+  );
+
   const joinSquare = async () => {
-    if (!gridId || !username) {
-      alert("Please enter both a Session ID and a username.");
+    if (!username) {
+      alert("Please enter a username.");
+      return;
+    }
+
+    if (!selectedColor) {
+      alert("Please select a color.");
       return;
     }
 
@@ -37,33 +56,26 @@ const JoinSquareScreen = () => {
 
     try {
       const squareRef = doc(db, "squares", gridId);
-      const squareSnap = await getDoc(squareRef);
 
-      if (squareSnap.exists()) {
-        const data = squareSnap.data();
+      await setDoc(
+        squareRef,
+        {
+          players: arrayUnion({
+            userId: user.uid,
+            username,
+            color: selectedColor,
+          }),
+          playerIds: arrayUnion(user.uid),
+        },
+        { merge: true }
+      );
 
-        await setDoc(
-          squareRef,
-          {
-            players: arrayUnion({
-              userId: user.uid,
-              username,
-              color: selectedColor || "#000000",
-            }),
-            playerIds: arrayUnion(user.uid),
-          },
-          { merge: true }
-        );
-
-        navigation.navigate("FinalSquareScreen", {
-          gridId,
-          inputTitle: data.title,
-          username,
-          deadline: data.deadline,
-        });
-      } else {
-        alert("Grid not found.");
-      }
+      navigation.navigate("FinalSquareScreen", {
+        gridId,
+        inputTitle,
+        username,
+        deadline,
+      });
     } catch (error) {
       console.error("Error joining grid:", error);
       alert("Something went wrong when trying to join.");
@@ -82,25 +94,23 @@ const JoinSquareScreen = () => {
               contentContainerStyle={{ flexGrow: 1 }}
               keyboardShouldPersistTaps="handled"
             >
-              <Text style={styles.title}>Join a Square</Text>
+              <Text style={styles.title}>Joining {inputTitle}</Text>
 
               <Card style={styles.card}>
                 <Card.Content>
-                  <PaperInput
-                    label="Session ID"
-                    value={gridId}
-                    onChangeText={setGridId}
-                    mode="outlined"
-                    style={styles.input}
-                    autoCapitalize="none"
-                  />
-
                   <PaperInput
                     label="Your Username"
                     value={username}
                     onChangeText={setUsername}
                     mode="outlined"
                     style={styles.input}
+                    // theme={{
+                    //   colors: {
+                    //     primary: "#5e60ce", // active outline
+                    //     onSurfaceVariant: "#5e60ce", // label
+                    //     surfaceVariant: "#ececff", // fill (for newer MD3 Paper versions)
+                    //   },
+                    // }}
                   />
 
                   <Text style={styles.sectionHeader}>Pick Your Color</Text>
@@ -112,11 +122,11 @@ const JoinSquareScreen = () => {
                     <View style={styles.colorRowsContainer}>
                       {[0, 1].map((rowIndex) => (
                         <View key={rowIndex} style={styles.colorRow}>
-                          {colorOptions
+                          {availableColors
                             .slice(
-                              rowIndex * Math.ceil(colorOptions.length / 2),
+                              rowIndex * Math.ceil(availableColors.length / 2),
                               (rowIndex + 1) *
-                                Math.ceil(colorOptions.length / 2)
+                                Math.ceil(availableColors.length / 2)
                             )
                             .map((color) => (
                               <TouchableOpacity
@@ -167,16 +177,18 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     marginVertical: 20,
+    paddingHorizontal: 10,
   },
   card: {
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
     elevation: 2,
+    backgroundColor: colors.primaryBackground,
   },
   input: {
     marginBottom: 15,
-    backgroundColor: "#f7f7f7",
+    backgroundColor: colors.secondaryBackground,
   },
   sectionHeader: {
     fontSize: 16,
@@ -206,7 +218,7 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
   },
   cancelButton: {
-    backgroundColor: "#dc3545",
+    backgroundColor: colors.cancel,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
@@ -215,7 +227,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveButton: {
-    backgroundColor: "#5e60ce",
+    backgroundColor: colors.primary,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,

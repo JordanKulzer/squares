@@ -19,15 +19,30 @@ import {
   where,
   getDocs,
   onSnapshot,
+  doc,
+  getDoc,
 } from "firebase/firestore";
+import {
+  Modal,
+  Portal,
+  Provider,
+  TextInput,
+  Button,
+  ActivityIndicator,
+} from "react-native-paper";
 import { auth, db } from "../../firebaseConfig"; // Import Firebase
 import HeaderSettingsMenu from "../components/HeaderSettingsMenu";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import colors from "../../assets/constants/colorOptions";
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
   const [userGames, setUserGames] = useState([]); // Store user's squares
   const [loading, setLoading] = useState(true); // Loading state
+  const [visible, setVisible] = useState(false);
+  const [sessionCode, setSessionCode] = useState("");
+  const [loadingSession, setLoadingSession] = useState(false);
+  const [error, setError] = useState("");
 
   // Fetch user squares
   useFocusEffect(
@@ -83,10 +98,7 @@ const HomeScreen: React.FC = () => {
         <MaterialIcons name="add-box" size={20} color="#fff" />
         <Text style={styles.buttonText}>Create Game</Text>
       </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() => navigation.navigate("JoinSquareScreen")}
-      >
+      <TouchableOpacity style={styles.button} onPress={() => setVisible(true)}>
         <MaterialIcons name="vpn-key" size={20} color="#fff" />
         <Text style={styles.buttonText}>Join By Code</Text>
       </TouchableOpacity>
@@ -95,6 +107,10 @@ const HomeScreen: React.FC = () => {
 
       {loading ? (
         <Text>Loading...</Text>
+      ) : userGames.length === 0 ? (
+        <Text style={styles.emptyMessage}>
+          You haven’t joined or created any games yet.
+        </Text>
       ) : (
         <FlatList
           data={userGames}
@@ -107,8 +123,6 @@ const HomeScreen: React.FC = () => {
                   gridId: item.id,
                   inputTitle: item.title,
                   username: item.username,
-                  // team1: item.team1,
-                  // team2: item.team2,
                   deadline: item.deadline,
                   disableAnimation: true,
                 })
@@ -116,7 +130,7 @@ const HomeScreen: React.FC = () => {
             >
               <Text style={styles.gameTitle}>{item.title}</Text>
               <Text style={styles.gameSubtitle}>
-                {item.players.length} players •{" "}
+                {item.playerIds?.length || 0} players •{" "}
                 {item.deadline?.toDate?.() > new Date()
                   ? `Ends ${item.deadline.toDate().toLocaleDateString()}`
                   : "Finalized"}
@@ -126,6 +140,79 @@ const HomeScreen: React.FC = () => {
           contentContainerStyle={{ paddingBottom: 20 }}
         />
       )}
+
+      <Portal>
+        <Modal
+          visible={visible}
+          onDismiss={() => setVisible(false)}
+          contentContainerStyle={modalStyles.container}
+        >
+          <Text style={modalStyles.title}>Enter Session ID</Text>
+
+          <TextInput
+            label="Session ID"
+            mode="outlined"
+            value={sessionCode}
+            onChangeText={(text) => {
+              setSessionCode(text);
+              setError("");
+            }}
+            style={{ marginBottom: 16 }}
+          />
+
+          {error ? <Text style={modalStyles.error}>{error}</Text> : null}
+
+          {loadingSession ? (
+            <ActivityIndicator animating color={colors.primary} />
+          ) : (
+            <Button
+              mode="contained"
+              onPress={async () => {
+                if (!sessionCode) return;
+                setLoadingSession(true);
+                try {
+                  const ref = doc(db, "squares", sessionCode.trim());
+                  const snap = await getDoc(ref);
+
+                  if (!snap.exists()) {
+                    setError("Session not found.");
+                    setLoadingSession(false);
+                    return;
+                  }
+
+                  const data = snap.data();
+                  const usedColors = data.players?.map((p) => p.color) || [];
+
+                  setVisible(false);
+                  setSessionCode("");
+                  navigation.navigate("JoinSquareScreen", {
+                    gridId: sessionCode.trim(),
+                    inputTitle: data.title,
+                    deadline: data.deadline,
+                    usedColors,
+                  });
+                } catch (err) {
+                  console.error(err);
+                  setError("Something went wrong.");
+                } finally {
+                  setLoadingSession(false);
+                }
+              }}
+              style={{ marginTop: 10 }}
+            >
+              Join
+            </Button>
+          )}
+
+          <Button
+            onPress={() => setVisible(false)}
+            style={{ marginTop: 10 }}
+            compact
+          >
+            Cancel
+          </Button>
+        </Modal>
+      </Portal>
 
       <TouchableOpacity
         style={styles.howToButton}
@@ -153,25 +240,25 @@ const styles = StyleSheet.create({
   greetingTitle: {
     fontSize: 22,
     fontWeight: "bold",
-    color: "#5e60ce",
+    color: colors.primaryText,
   },
   greetingSubtitle: {
     fontSize: 14,
-    color: "#6c757d",
+    color: colors.secondaryText,
     marginTop: 4,
   },
-
   sectionTitle: {
     fontSize: 16,
     fontWeight: "600",
     marginTop: 15,
     marginBottom: 10,
+    color: colors.primaryText,
   },
   button: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#5e60ce",
+    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 10,
     marginVertical: 6,
@@ -199,7 +286,7 @@ const styles = StyleSheet.create({
   },
   gameSubtitle: {
     fontSize: 14,
-    color: "#6c757d",
+    color: colors.secondaryText,
   },
   howToButton: {
     marginTop: 10,
@@ -213,5 +300,32 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  emptyMessage: {
+    textAlign: "center",
+    fontSize: 14,
+    color: colors.secondaryText,
+    marginTop: 10,
+    fontStyle: "italic",
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  container: {
+    backgroundColor: "white",
+    padding: 20,
+    margin: 20,
+    borderRadius: 12,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  error: {
+    color: "red",
+    marginBottom: 10,
+    textAlign: "center",
   },
 });

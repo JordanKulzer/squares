@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { BaseToast, ErrorToast } from "react-native-toast-message";
+import colors from "../../assets/constants/colorOptions";
 
 export const toastConfig = {
   info: (props) => (
@@ -23,7 +24,7 @@ export const toastConfig = {
 
 const styles = StyleSheet.create({
   toastContainer: {
-    borderLeftColor: "#007AFF",
+    borderLeftColor: colors.primary,
     borderLeftWidth: 6,
     backgroundColor: "#fff",
     borderRadius: 12,
