@@ -13,20 +13,45 @@ import {
 } from "react-native";
 import { TextInput as PaperInput } from "react-native-paper";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import { auth, db } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
 import { FontAwesome } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { setDoc, doc } from "firebase/firestore";
 
 const SignupScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [error, setError] = useState("");
 
   const handleSignup = async () => {
+    if (!firstName || !email || !password) {
+      setError("Please fill out all fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("Password is too short. It must be at least 6 characters.");
+      return;
+    }
+
     setError("");
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      const user = userCredential.user;
+
+      await setDoc(doc(db, "users", user.uid), {
+        firstName: firstName,
+        email: email,
+        createdAt: new Date(),
+      });
+
+      navigation.replace("Main");
     } catch (err) {
       if (err.code === "auth/email-already-in-use") {
         setError("Email already in use.");
@@ -62,7 +87,27 @@ const SignupScreen = ({ navigation }) => {
               resizeMode="contain"
             />
 
-            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.title}>Sign up to start playing!</Text>
+
+            <PaperInput
+              label="First Name"
+              mode="outlined"
+              value={firstName}
+              onChangeText={setFirstName}
+              keyboardType="default"
+              autoCapitalize="none"
+              style={styles.input}
+              theme={{ colors: { primary: colors.primary } }}
+              right={
+                email ? (
+                  <PaperInput.Icon
+                    icon="close"
+                    onPress={() => setFirstName("")}
+                    color={colors.primary}
+                  />
+                ) : null
+              }
+            />
 
             <PaperInput
               label="Email"
@@ -120,53 +165,6 @@ const SignupScreen = ({ navigation }) => {
               <FontAwesome name="arrow-left" size={16} color={colors.primary} />
               <Text style={styles.backButtonText}>Back to Login</Text>
             </TouchableOpacity>
-
-            <Text style={styles.dividerText}>or create an account with</Text>
-
-            <View style={styles.socialContainer}>
-              <View style={styles.socialSpacer}>
-                <TouchableOpacity
-                  style={[styles.socialButton, styles.googleButton]}
-                >
-                  <FontAwesome name="google" size={20} color="#EA4335" />
-                  <Text style={styles.socialButtonText}>Google</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.socialSpacer}>
-                {Platform.OS === "ios" && (
-                  <TouchableOpacity
-                    style={[styles.socialButton, styles.appleButton]}
-                  >
-                    <Image
-                      source={{
-                        uri: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/512px-Apple_logo_black.svg.png",
-                      }}
-                      style={[styles.socialIcon, { tintColor: "#fff" }]}
-                    />
-                    <Text style={[styles.socialButtonText, { color: "#fff" }]}>
-                      Apple
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <View style={styles.socialSpacer}>
-                <TouchableOpacity
-                  style={[styles.socialButton, styles.facebookButton]}
-                >
-                  <Image
-                    source={{
-                      uri: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Facebook_f_logo_%282019%29.svg/512px-Facebook_f_logo_%282019%29.svg.png",
-                    }}
-                    style={styles.socialIcon}
-                  />
-                  <Text style={[styles.socialButtonText, { color: "#fff" }]}>
-                    Facebook
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
@@ -178,6 +176,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
+    marginTop: 50,
   },
   logo: {
     width: 150,
@@ -186,13 +185,13 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   title: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "700",
     color: colors.primaryText || "#333",
     marginBottom: 10,
   },
   input: {
-    marginBottom: 16,
+    marginBottom: 10,
     backgroundColor: colors.primaryBackground,
   },
   button: {
@@ -224,64 +223,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 4,
   },
-  dividerText: {
-    textAlign: "center",
-    color: "#888",
-    marginVertical: 24,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  socialContainer: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-    gap: 12,
-    marginBottom: 20,
-  },
-  socialSpacer: {
-    marginBottom: 6,
-  },
-  socialButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    paddingVertical: 10,
-    width: "100%",
-  },
-  socialIcon: {
-    width: 20,
-    height: 20,
-    marginRight: 10,
-    resizeMode: "contain",
-    alignSelf: "center",
-  },
-  socialButtonText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-  },
-  googleButton: {
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  appleButton: {
-    backgroundColor: "#000",
-  },
-  facebookButton: {
-    backgroundColor: "#3b5998",
-  },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    // marginBottom: 12,
   },
   backButtonText: {
     color: colors.primary,

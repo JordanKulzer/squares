@@ -36,6 +36,8 @@ import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "@react-native-community/blur";
+import ProfileModal from "../components/ProfileModal";
+import JoinSessionModal from "../components/JoinSessionModal";
 
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation();
@@ -73,7 +75,7 @@ const HomeScreen: React.FC = () => {
         setLoading(false);
       });
 
-      return () => unsubscribe(); // clean up on blur
+      return () => unsubscribe();
     }, [])
   );
 
@@ -106,7 +108,6 @@ const HomeScreen: React.FC = () => {
           </Text>
         </View>
         <Text style={styles.sectionTitle}>Quick Start</Text>
-
         {/* Navigation buttons */}
         <TouchableOpacity
           style={styles.button}
@@ -122,9 +123,7 @@ const HomeScreen: React.FC = () => {
           <MaterialIcons name="vpn-key" size={20} color="#fff" />
           <Text style={styles.buttonText}>Join By Code</Text>
         </TouchableOpacity>
-
-        <Text style={styles.sectionTitle}>Your S</Text>
-
+        <Text style={styles.sectionTitle}>Your Squares</Text>
         {loading ? (
           <Text>Loading...</Text>
         ) : userGames.length === 0 ? (
@@ -160,8 +159,7 @@ const HomeScreen: React.FC = () => {
             contentContainerStyle={{ paddingBottom: 20 }}
           />
         )}
-
-        <Portal>
+        {/* <Portal>
           <Modal
             visible={visible}
             onDismiss={() => setVisible(false)}
@@ -232,95 +230,19 @@ const HomeScreen: React.FC = () => {
               <Text style={{ color: "#5e60ce" }}>Cancel</Text>
             </Button>
           </Modal>
-        </Portal>
-        <Portal>
-          <Modal
-            visible={profileVisible}
-            onDismiss={() => setProfileVisible(false)}
-            contentContainerStyle={{
-              backgroundColor: "#fff",
-              paddingVertical: 24,
-              paddingHorizontal: 20,
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              position: "absolute",
-              bottom: 0,
-              width: "100%",
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 20,
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "700",
-                  color: colors.primaryText,
-                }}
-              >
-                Your Profile
-              </Text>
-              <TouchableOpacity onPress={() => setProfileVisible(false)}>
-                <Text style={{ color: colors.primary, fontWeight: "600" }}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* User Info */}
-            <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: "600", color: "#333" }}>
-                Email:{" "}
-                <Text style={{ fontWeight: "400" }}>
-                  {auth.currentUser?.email}
-                </Text>
-              </Text>
-            </View>
-
-            {/* Stats (example) */}
-            <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 16, color: "#555", marginBottom: 4 }}>
-                Games Joined: {userGames.length}
-              </Text>
-              {/* Add these if you’re tracking */}
-              {/* <Text style={{ fontSize: 16, color: "#555" }}>Games Created: 3</Text> */}
-              {/* <Text style={{ fontSize: 16, color: "#555" }}>Games Won: 1</Text> */}
-            </View>
-
-            {/* Actions */}
-            <Button
-              icon="logout"
-              mode="outlined"
-              onPress={() => {
-                auth.signOut();
-                setProfileVisible(false);
-              }}
-              textColor="red"
-              style={{ marginBottom: 12 }}
-              labelStyle={{ fontWeight: "600" }}
-            >
-              Log Out
-            </Button>
-
-            <Button
-              icon="delete"
-              mode="contained"
-              onPress={() => Alert.alert("Coming soon")}
-              style={{ backgroundColor: colors.cancel, marginBottom: 12 }}
-            >
-              Delete Account
-            </Button>
-          </Modal>
-        </Portal>
-
+        </Portal> */}
+        <JoinSessionModal
+          visible={visible}
+          onDismiss={() => setVisible(false)}
+        />
+        <ProfileModal
+          visible={profileVisible}
+          onDismiss={() => setProfileVisible(false)}
+          userGames={userGames}
+        />
         <TouchableOpacity
           style={styles.howToButton}
-          onPress={() => navigation.navigate("HowToPlay")}
+          onPress={() => navigation.navigate("HowToScreen")}
         >
           <Text style={styles.howToText}>How to Play</Text>
         </TouchableOpacity>

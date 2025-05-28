@@ -17,6 +17,7 @@ import {
   Image,
   Animated,
   FlatList,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Card, Menu, Modal, Portal, Button } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -40,6 +41,7 @@ import Toast from "react-native-toast-message";
 import { formatDistanceToNow } from "date-fns";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
+import SessionOptionsModal from "../components/SessionOptionsModal";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -79,6 +81,7 @@ const FinalSquareScreen = ({ route }) => {
   const [team2Logo, setTeam2Logo] = useState(null);
   const [maxSelections, setMaxSelections] = useState(0);
   const [quarterScores, setQuarterScores] = useState([]);
+  const [timeLeft, setTimeLeft] = useState("");
 
   const [selectedSquares, setSelectedSquares] = useState(new Set());
   const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
@@ -86,8 +89,7 @@ const FinalSquareScreen = ({ route }) => {
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [tempDeadline, setTempDeadline] = useState(deadlineValue);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(false);
-
-  const [bottomSheetVisible, setBottomSheetVisible] = useState(false);
+  const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
 
   const currentUsername = useMemo(() => {
     return userId && playerUsernames[userId]
@@ -203,23 +205,20 @@ const FinalSquareScreen = ({ route }) => {
   }, [gridId]);
 
   useEffect(() => {
-    if (deadlineValue) {
-      setIsAfterDeadline(new Date() > deadlineValue);
-    }
-  }, [deadlineValue]);
-
-  useEffect(() => {
     if (!deadlineValue) return;
 
-    const interval = setInterval(() => {
+    const updateDeadlineState = () => {
       const now = new Date();
-      if (now > deadlineValue) {
-        setIsAfterDeadline(true);
-        clearInterval(interval);
-      }
-    }, 1000);
+      const isPast = now > deadlineValue;
+      setIsAfterDeadline(isPast);
+      setTimeLeft(isPast ? "Finalized" : formatTimeLeft(deadlineValue));
+    };
 
-    return () => clearInterval(interval);
+    updateDeadlineState(); // run immediately
+
+    const interval = setInterval(updateDeadlineState, 1000); // update every second
+
+    return () => clearInterval(interval); // cleanup on unmount
   }, [deadlineValue]);
 
   // **API for quarter scores/logos**
@@ -379,6 +378,26 @@ const FinalSquareScreen = ({ route }) => {
     }
   };
 
+  const formatTimeLeft = (targetDate: Date) => {
+    const now = new Date();
+    const diff = targetDate.getTime() - now.getTime();
+
+    if (diff <= 0) return "Finalized";
+
+    const seconds = Math.floor(diff / 1000) % 60;
+    const minutes = Math.floor(diff / (1000 * 60)) % 60;
+    const hours = Math.floor(diff / (1000 * 60 * 60)) % 24;
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0 || days > 0) parts.push(`${hours}h`);
+    if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
+    parts.push(`${seconds}s`);
+
+    return parts.join(" ");
+  };
+
   const showSquareToast = (message: string) => {
     Toast.hide(); // Hide current toast immediately
 
@@ -431,7 +450,7 @@ const FinalSquareScreen = ({ route }) => {
       ),
       headerRight: () => (
         <TouchableOpacity
-          onPress={() => setBottomSheetVisible(true)}
+          onPress={() => setSessionOptionsVisible(true)}
           style={{ paddingRight: 12 }}
         >
           <Icon name="more-vert" size={24} color="#000" />
@@ -692,10 +711,10 @@ const FinalSquareScreen = ({ route }) => {
             </View>
             {!isAfterDeadline && (
               <View style={styles.deadlineContainerCentered}>
-                <Text style={styles.deadlineLabel}>Deadline:</Text>
+                <Text style={styles.deadlineLabel}>Time Remaining:</Text>
                 <Text style={styles.deadlineValue}>
                   {deadlineValue
-                    ? formatDistanceToNow(deadlineValue, { addSuffix: true })
+                    ? formatTimeLeft(deadlineValue)
                     : "No deadline set"}
                 </Text>
               </View>
@@ -788,7 +807,12 @@ const FinalSquareScreen = ({ route }) => {
 
       return (
         <Card style={[styles.card, { margin: 16 }]}>
-          <Card.Title title="Players" />
+          <Card.Title
+            title="Players"
+            titleStyle={styles.tabSectionTitle}
+            style={{ marginBottom: 8, paddingHorizontal: 12 }}
+          />
+
           <Card.Content>
             <FlatList
               data={playerList}
@@ -806,10 +830,12 @@ const FinalSquareScreen = ({ route }) => {
                         { backgroundColor: color as string },
                       ]}
                     />
-                    <Text style={styles.playerText}>
-                      {username} : {count} / {maxSelections}
-                      {isMaxed && <Text> Squares Selected</Text>}
-                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.playerName}>{username}</Text>
+                      <Text style={styles.playerSubtext}>
+                        {count} / {maxSelections} squares selected
+                      </Text>
+                    </View>
                   </View>
                 );
               }}
@@ -911,92 +937,17 @@ const FinalSquareScreen = ({ route }) => {
           />
         )}
       />
-      <Portal>
-        <Modal
-          visible={bottomSheetVisible}
-          onDismiss={() => setBottomSheetVisible(false)}
-          contentContainerStyle={{
-            backgroundColor: "white",
-            padding: 20,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            position: "absolute",
-            bottom: 0,
-            width: "100%",
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 20,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "700",
-                color: colors.primaryText,
-              }}
-            >
-              Session Options
-            </Text>
-            <TouchableOpacity onPress={() => setBottomSheetVisible(false)}>
-              <Text style={{ color: colors.primary, fontWeight: "600" }}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-          <Button
-            icon="share-variant"
-            mode="outlined"
-            onPress={() => {
-              Clipboard.setStringAsync(gridId);
-              Toast.show({ text1: "Session ID copied to clipboard" });
-              setBottomSheetVisible(false);
-            }}
-            style={{ marginBottom: 10 }}
-          >
-            Invite Friends
-          </Button>
-
-          {isOwner && (
-            <Button
-              icon="calendar"
-              mode="outlined"
-              onPress={() => {
-                setBottomSheetVisible(false);
-                setTempDeadline(deadlineValue);
-                setShowDeadlineModal(true);
-              }}
-              style={{ marginBottom: 10 }}
-            >
-              Change Deadline
-            </Button>
-          )}
-
-          <Button
-            icon="exit-to-app"
-            mode="contained"
-            onPress={handleLeaveSquare}
-            style={{ backgroundColor: "#ff4d4f", marginBottom: 10 }}
-          >
-            Leave Square
-          </Button>
-
-          {isOwner && (
-            <Button
-              icon="delete"
-              mode="contained"
-              onPress={handleDeleteSquare}
-              style={{ backgroundColor: colors.cancel }}
-            >
-              Delete Square
-            </Button>
-          )}
-        </Modal>
-      </Portal>
+      <SessionOptionsModal
+        visible={sessionOptionsVisible}
+        onDismiss={() => setSessionOptionsVisible(false)}
+        gridId={gridId}
+        isOwner={isOwner}
+        handleLeaveSquare={handleLeaveSquare}
+        handleDeleteSquare={handleDeleteSquare}
+        setTempDeadline={setTempDeadline}
+        deadlineValue={deadlineValue}
+        setShowDeadlineModal={setShowDeadlineModal}
+      />
     </LinearGradient>
   );
 };
@@ -1168,6 +1119,21 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     marginRight: 8,
+  },
+  playerName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#222",
+  },
+  playerSubtext: {
+    fontSize: 13,
+    color: "#666",
+    marginTop: 2,
+  },
+  tabSectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.primaryText,
   },
 });
 

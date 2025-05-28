@@ -4,8 +4,8 @@
   "main": "index.tsx",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web"
   },
   "dependencies": {
@@ -28,6 +28,8 @@
     "expo": "53.0.9",
     "expo-auth-session": "~6.1.5",
     "expo-clipboard": "~7.1.4",
+    "expo-dev-client": "~5.1.8",
+    "expo-font": "^13.3.1",
     "expo-linear-gradient": "^14.1.4",
     "expo-status-bar": "~2.2.3",
     "expo-web-browser": "~14.1.6",
@@ -41,6 +43,7 @@
     "react-native-pager-view": "6.7.1",
     "react-native-paper": "^5.14.5",
     "react-native-picker-select": "^9.3.1",
+    "react-native-qrcode-svg": "^6.3.15",
     "react-native-reanimated": "~3.17.4",
     "react-native-safe-area-context": "5.4.0",
     "react-native-safe-area-view": "^2.0.0",
@@ -51,10 +54,12 @@
     "react-native-vector-icons": "^10.2.0",
     "react-native-web": "^0.20.0",
     "typescript": "~5.8.3",
-    "undefined": "\\"
+    "undefined": "\\",
+    "expo-image-picker": "~16.1.4"
   },
   "devDependencies": {
-    "@babel/core": "^7.26.0"
+    "@babel/core": "^7.26.0",
+    "@react-native-community/cli": "^18.0.0"
   },
   "private": true
 }
