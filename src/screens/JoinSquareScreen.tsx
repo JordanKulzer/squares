@@ -16,6 +16,7 @@ import { doc, setDoc, arrayUnion } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
 import { Card, TextInput as PaperInput } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
 
 type JoinSquareParams = {
   gridId: string;
@@ -83,88 +84,101 @@ const JoinSquareScreen = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={{ flex: 1 }}>
-            <ScrollView
-              contentContainerStyle={{ flexGrow: 1 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Text style={styles.title}>Joining {inputTitle}</Text>
-
-              <Card style={styles.card}>
-                <Card.Content>
-                  <PaperInput
-                    label="Your Username"
-                    value={username}
-                    onChangeText={setUsername}
-                    mode="outlined"
-                    style={styles.input}
-                  />
-
-                  <Text style={styles.sectionHeader}>Pick Your Color</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.colorScrollContainer}
-                  >
-                    <View style={styles.colorRowsContainer}>
-                      {[0, 1].map((rowIndex) => (
-                        <View key={rowIndex} style={styles.colorRow}>
-                          {availableColors
-                            .slice(
-                              rowIndex * Math.ceil(availableColors.length / 2),
-                              (rowIndex + 1) *
-                                Math.ceil(availableColors.length / 2)
-                            )
-                            .map((color) => (
-                              <TouchableOpacity
-                                key={color}
-                                onPress={() => setSelectedColor(color)}
-                                style={[
-                                  styles.colorCircle,
-                                  {
-                                    backgroundColor: color,
-                                    borderColor:
-                                      selectedColor === color ? "#000" : "#ccc",
-                                    borderWidth:
-                                      selectedColor === color ? 3 : 1,
-                                  },
-                                ]}
-                              />
-                            ))}
-                        </View>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </Card.Content>
-              </Card>
-            </ScrollView>
-
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                style={styles.cancelButton}
+    <LinearGradient
+      colors={["#fdfcf9", "#e0e7ff"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1 }}>
+              <ScrollView
+                contentContainerStyle={{ flexGrow: 1 }}
+                keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.buttonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={joinSquare} style={styles.saveButton}>
-                <Text style={styles.buttonText}>Join Square</Text>
-              </TouchableOpacity>
+                <Text style={styles.title}>Joining {inputTitle}</Text>
+
+                <Card style={styles.card}>
+                  <Card.Content>
+                    <PaperInput
+                      label="Your Username"
+                      value={username}
+                      onChangeText={setUsername}
+                      mode="outlined"
+                      style={styles.input}
+                    />
+
+                    <Text style={styles.sectionHeader}>Pick Your Color</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.colorScrollContainer}
+                    >
+                      <View style={styles.colorRowsContainer}>
+                        {[0, 1].map((rowIndex) => (
+                          <View key={rowIndex} style={styles.colorRow}>
+                            {availableColors
+                              .slice(
+                                rowIndex *
+                                  Math.ceil(availableColors.length / 2),
+                                (rowIndex + 1) *
+                                  Math.ceil(availableColors.length / 2)
+                              )
+                              .map((color) => (
+                                <TouchableOpacity
+                                  key={color}
+                                  onPress={() => setSelectedColor(color)}
+                                  style={[
+                                    styles.colorCircle,
+                                    {
+                                      backgroundColor: color,
+                                      borderColor:
+                                        selectedColor === color
+                                          ? "#000"
+                                          : "#ccc",
+                                      borderWidth:
+                                        selectedColor === color ? 3 : 1,
+                                    },
+                                  ]}
+                                />
+                              ))}
+                          </View>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  </Card.Content>
+                </Card>
+              </ScrollView>
+
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  onPress={() => navigation.goBack()}
+                  style={styles.cancelButton}
+                >
+                  <Text style={styles.buttonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={joinSquare}
+                  style={styles.saveButton}
+                >
+                  <Text style={styles.buttonText}>Join Square</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f2f4f8" },
+  container: { flex: 1 },
   title: {
     fontSize: 24,
     fontWeight: "bold",
@@ -176,8 +190,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
-    elevation: 2,
     backgroundColor: colors.primaryBackground,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   input: {
     marginBottom: 15,

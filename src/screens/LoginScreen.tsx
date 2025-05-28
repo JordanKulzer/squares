@@ -7,11 +7,14 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from "react-native";
 import { TextInput as PaperInput } from "react-native-paper";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
+import { FontAwesome } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -35,94 +38,167 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    <LinearGradient
+      colors={["#fdfcf9", "#e0e7ff"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
     >
-      <Image
-        source={require("../../assets/icons/icon_outline3.png")}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Image
+            source={require("../../assets/icons/new logo pt2.png")}
+            style={styles.logo}
+            resizeMode="contain"
+          />
 
-      <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.title}>Welcome!</Text>
 
-      <PaperInput
-        label="Email"
-        mode="outlined"
-        value={email}
-        onChangeText={(text) => {
-          setEmail(text);
-          if (text === "" && password === "") setError("");
-        }}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        style={styles.input}
-        theme={{ colors: { primary: colors.primary } }}
-        right={
-          email ? (
-            <PaperInput.Icon
-              icon="close"
-              onPress={() => setEmail("")}
-              color={colors.primary}
-            />
-          ) : null
-        }
-      />
+          <PaperInput
+            label="Email"
+            mode="outlined"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (text === "" && password === "") setError("");
+            }}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+            theme={{ colors: { primary: colors.primary } }}
+            right={
+              email ? (
+                <PaperInput.Icon
+                  icon="close"
+                  onPress={() => setEmail("")}
+                  color={colors.primary}
+                />
+              ) : null
+            }
+          />
 
-      <PaperInput
-        label="Password"
-        mode="outlined"
-        secureTextEntry
-        value={password}
-        onChangeText={(text) => {
-          setPassword(text);
-          if (text === "" && email === "") setError("");
-        }}
-        style={styles.input}
-        theme={{ colors: { primary: colors.primary } }}
-        right={
-          password ? (
-            <PaperInput.Icon
-              icon="close"
-              onPress={() => setPassword("")}
-              color={colors.primary}
-            />
-          ) : null
-        }
-      />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+          <PaperInput
+            label="Password"
+            mode="outlined"
+            secureTextEntry
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (text === "" && email === "") setError("");
+            }}
+            style={styles.input}
+            theme={{ colors: { primary: colors.primary } }}
+            right={
+              password ? (
+                <PaperInput.Icon
+                  icon="close"
+                  onPress={() => setPassword("")}
+                  color={colors.primary}
+                />
+              ) : null
+            }
+          />
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+          <TouchableOpacity style={styles.button} onPress={handleLogin}>
+            <Text style={styles.buttonText}>Login</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("ForgotPassword")}
+            style={styles.forgotPasswordContainer}
+          >
+            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Login</Text>
-      </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+            <Text style={styles.linkText}>Don't have an account? Sign up</Text>
+          </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
-        <Text style={styles.linkText}>Don't have an account? Sign up</Text>
-      </TouchableOpacity>
-    </KeyboardAvoidingView>
+          <Text style={styles.dividerText}>or continue with</Text>
+
+          <View style={styles.socialContainer}>
+            <View style={styles.socialSpacer}>
+              <TouchableOpacity
+                style={[styles.socialButton, styles.googleButton]}
+              >
+                <FontAwesome name="google" size={20} color="#EA4335" />
+
+                <Text style={styles.socialButtonText}>Google</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.socialSpacer}>
+              {Platform.OS === "ios" && (
+                <TouchableOpacity
+                  style={[styles.socialButton, styles.appleButton]}
+                >
+                  <Image
+                    source={{
+                      uri: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Apple_logo_black.svg/512px-Apple_logo_black.svg.png",
+                    }}
+                    style={[styles.socialIcon, { tintColor: "#fff" }]}
+                  />
+                  <Text style={[styles.socialButtonText, { color: "#fff" }]}>
+                    Apple
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.socialSpacer}>
+              {/* Facebook */}
+              <TouchableOpacity
+                style={[styles.socialButton, styles.facebookButton]}
+              >
+                <Image
+                  source={{
+                    uri: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Facebook_f_logo_%282019%29.svg/512px-Facebook_f_logo_%282019%29.svg.png",
+                  }}
+                  style={styles.socialIcon}
+                />
+                <Text style={[styles.socialButtonText, { color: "#fff" }]}>
+                  Facebook
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 24,
     justifyContent: "center",
     backgroundColor: "#fdfcf9",
   },
-  logo: {
-    width: 100,
-    height: 100,
-    alignSelf: "center",
-    marginBottom: 20,
+  scrollContent: {
+    flexGrow: 1,
+    padding: 24,
+    // backgroundColor: "#fdfcf9",
   },
   title: {
-    fontSize: 24,
-    fontWeight: "600",
-    textAlign: "center",
-    marginBottom: 24,
-    color: colors.primary,
+    fontSize: 22,
+    fontWeight: "700",
+    color: colors.primaryText || "#333",
+    marginBottom: 10,
+  },
+  logo: {
+    width: 150,
+    height: 150,
+    alignSelf: "center",
+    marginVertical: 15,
   },
   input: {
     marginBottom: 16,
@@ -140,16 +216,102 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontSize: 16,
   },
-  error: {
-    color: "red",
-    textAlign: "center",
+  forgotPasswordContainer: {
+    alignSelf: "center",
     marginBottom: 12,
   },
+
+  forgotPasswordText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+
+  errorBox: {
+    backgroundColor: "#ffe6e6",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  errorText: {
+    color: "#cc0000",
+    textAlign: "center",
+  },
+
   linkText: {
     textAlign: "center",
     color: colors.primary,
     fontWeight: "500",
     fontSize: 14,
+    marginTop: 4, // was 10
+  },
+
+  dividerText: {
+    textAlign: "center",
+    color: "#888",
+    marginVertical: 24, // was 40
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
+  socialContainer: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+    gap: 12,
+    marginBottom: 20,
+  },
+
+  socialSpacer: {
+    marginBottom: 6,
+  },
+
+  socialButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    paddingVertical: 10,
+    width: "100%",
+  },
+
+  socialIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
+    resizeMode: "contain",
+    alignSelf: "center",
+  },
+
+  socialButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+
+  googleButton: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+
+  appleButton: {
+    backgroundColor: "#000",
+  },
+
+  facebookButton: {
+    backgroundColor: "#3b5998",
+  },
+
+  socialText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#333",
   },
 });
 

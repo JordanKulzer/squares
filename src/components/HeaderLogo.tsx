@@ -4,7 +4,7 @@ import { Image } from "react-native";
 
 const HeaderLogo = () => (
   <Image
-    source={require("../../assets/icons/icon_outline3.png")}
+    source={require("../../assets/icons/new logo pt2.png")}
     style={{ width: 80, height: 80 }}
     resizeMode="contain"
   />

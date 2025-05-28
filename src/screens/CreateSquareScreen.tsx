@@ -20,6 +20,7 @@ import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { Card, TextInput as PaperInput } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -297,57 +298,67 @@ const CreateSquareScreen = ({ navigation }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
+    <LinearGradient
+      colors={["#fdfcf9", "#e0e7ff"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <SafeAreaView style={styles.container}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={{ flex: 1 }}>
-              {step === 0 ? renderStepOne() : renderStepTwo()}
-              {renderStepIndicator()}
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity
-                  onPress={() => setStep(Math.max(step - 1, 0))}
-                  style={[styles.cancelButton, step === 0 && { opacity: 0.5 }]}
-                  disabled={step === 0}
-                >
-                  <Text style={styles.buttonText}>Back</Text>
-                </TouchableOpacity>
-                {step === 0 ? (
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={{ flex: 1 }}>
+                {step === 0 ? renderStepOne() : renderStepTwo()}
+                {renderStepIndicator()}
+                <View style={styles.buttonContainer}>
                   <TouchableOpacity
-                    onPress={() => setStep(1)}
-                    style={styles.saveButton}
-                  >
-                    <Text style={styles.buttonText}>Next</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    onPress={createSquareSession}
+                    onPress={() => setStep(Math.max(step - 1, 0))}
                     style={[
-                      styles.saveButton,
-                      { opacity: isFormValid ? 1 : 0.5 },
+                      styles.cancelButton,
+                      step === 0 && { opacity: 0.5 },
                     ]}
-                    disabled={!isFormValid}
+                    disabled={step === 0}
                   >
-                    <Text style={styles.buttonText}>Create Square</Text>
+                    <Text style={styles.buttonText}>Back</Text>
                   </TouchableOpacity>
-                )}
+                  {step === 0 ? (
+                    <TouchableOpacity
+                      onPress={() => setStep(1)}
+                      style={styles.saveButton}
+                    >
+                      <Text style={styles.buttonText}>Next</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={createSquareSession}
+                      style={[
+                        styles.saveButton,
+                        { opacity: isFormValid ? 1 : 0.5 },
+                      ]}
+                      disabled={!isFormValid}
+                    >
+                      <Text style={styles.buttonText}>Create Square</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            </TouchableWithoutFeedback>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f2f4f8" },
+  container: { flex: 1 },
   scrollContent: {
     paddingHorizontal: 20,
   },
@@ -371,12 +382,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 20,
     padding: 16,
-    elevation: 2,
+    backgroundColor: colors.primaryBackground,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    backgroundColor: "#ffffff",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   colorScrollContainer: { paddingVertical: 10 },
   colorRowsContainer: { marginBottom: 10 },

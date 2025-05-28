@@ -2,6 +2,7 @@ import React, {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useState,
 } from "react";
 import {
@@ -14,8 +15,10 @@ import {
   TouchableOpacity,
   Alert,
   Image,
+  Animated,
+  FlatList,
 } from "react-native";
-import { Card, Menu } from "react-native-paper";
+import { Card, Menu, Modal, Portal, Button } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   arrayRemove,
@@ -34,7 +37,9 @@ import { onAuthStateChanged } from "firebase/auth";
 import * as Clipboard from "expo-clipboard";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
+import { formatDistanceToNow } from "date-fns";
 import colors from "../../assets/constants/colorOptions";
+import { LinearGradient } from "expo-linear-gradient";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -82,9 +87,13 @@ const FinalSquareScreen = ({ route }) => {
   const [tempDeadline, setTempDeadline] = useState(deadlineValue);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(false);
 
-  const currentUsername =
-    userId && playerUsernames[userId] ? playerUsernames[userId] : "Unknown";
-  console.log("FINAL");
+  const [bottomSheetVisible, setBottomSheetVisible] = useState(false);
+
+  const currentUsername = useMemo(() => {
+    return userId && playerUsernames[userId]
+      ? playerUsernames[userId]
+      : "Unknown";
+  }, [userId, playerUsernames]);
 
   const [index, setIndex] = useState(0);
   const [routes] = useState([
@@ -268,75 +277,74 @@ const FinalSquareScreen = ({ route }) => {
     setTeam2Logo("https://a.espncdn.com/i/teamlogos/nfl/500/phi.png");
   }, []);
 
-  const handleLeaveSquare = async () => {
-    setMenuVisible(false);
-    const ref = doc(db, "squares", gridId);
+  const handleLeaveSquare = () => {
+    Alert.alert("Leave Square", "Are you sure you want to leave this square?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Leave",
+        style: "destructive",
+        onPress: async () => {
+          const ref = doc(db, "squares", gridId);
+          try {
+            const docSnap = await getDoc(ref);
+            if (!docSnap.exists()) return;
 
-    try {
-      const docSnap = await getDoc(ref);
-      if (!docSnap.exists()) return;
+            const data = docSnap.data();
+            const updatedPlayerIds = (data.playerIds || []).filter(
+              (id) => id !== userId
+            );
+            const updatedPlayers = (data.players || []).filter(
+              (p) => p.userId !== userId
+            );
+            const updatedSelections = (data.selections || []).filter(
+              (sel) => sel.userId !== userId
+            );
 
-      const data = docSnap.data();
+            await updateDoc(ref, {
+              playerIds: updatedPlayerIds,
+              players: updatedPlayers,
+              selections: updatedSelections,
+            });
 
-      // 1. Remove from playerIds
-      const updatedPlayerIds = (data.playerIds || []).filter(
-        (id) => id !== userId
-      );
+            Toast.show({
+              type: "error",
+              text1: `You’ve left ${inputTitle}`,
+              position: "bottom",
+              visibilityTime: 2500,
+              bottomOffset: 60,
+              text1Style: {
+                fontSize: 16,
+                fontWeight: "600",
+                color: "#333",
+                textAlign: "center",
+              },
+            });
 
-      // 2. Remove from players array
-      const updatedPlayers = (data.players || []).filter(
-        (p) => p.userId !== userId
-      );
+            if (updatedPlayers.length === 0) {
+              await deleteDoc(ref);
+            }
 
-      // 3. Remove all of this user's selections
-      const updatedSelections = (data.selections || []).filter(
-        (sel) => sel.userId !== userId
-      );
-
-      await updateDoc(ref, {
-        playerIds: updatedPlayerIds,
-        players: updatedPlayers,
-        selections: updatedSelections,
-      });
-
-      Toast.show({
-        type: "error",
-        text1: `You’ve left ${inputTitle}`,
-        position: "bottom",
-        visibilityTime: 2500,
-        bottomOffset: 60,
-        text1Style: {
-          fontSize: 16,
-          fontWeight: "600",
-          color: "#333",
-          textAlign: "center",
+            navigation.navigate("Main");
+          } catch (err) {
+            console.error("Failed to leave square:", err);
+          }
         },
-      });
-
-      if (updatedPlayers.length === 0) {
-        await deleteDoc(ref);
-      }
-
-      navigation.navigate("Main");
-    } catch (err) {
-      console.error("Failed to leave square:", err);
-    }
+      },
+    ]);
   };
 
   const handleDeleteSquare = () => {
     Alert.alert(
       "Delete Square",
-      "Are you sure you want to delete this square?",
+      "Are you sure you want to permanently delete this square?",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            setMenuVisible(false);
             try {
               await deleteDoc(doc(db, "squares", gridId));
-
               Toast.show({
                 type: "error",
                 text1: `You’ve deleted ${inputTitle}!`,
@@ -350,7 +358,6 @@ const FinalSquareScreen = ({ route }) => {
                   textAlign: "center",
                 },
               });
-
               navigation.navigate("Main");
             } catch (err) {
               console.error("Failed to delete square:", err);
@@ -423,56 +430,12 @@ const FinalSquareScreen = ({ route }) => {
         </TouchableOpacity>
       ),
       headerRight: () => (
-        <Menu
-          visible={menuVisible}
-          onDismiss={() => setMenuVisible(false)}
-          anchor={
-            <TouchableOpacity
-              onPress={() => setMenuVisible(true)}
-              style={{ paddingRight: 12 }}
-            >
-              <Icon name="more-vert" size={24} color="#000" />
-            </TouchableOpacity>
-          }
-          contentStyle={{
-            backgroundColor: "#f0f0f0",
-            borderRadius: 10,
-            width: 200,
-          }}
-          style={{ marginTop: 40, elevation: 4 }}
+        <TouchableOpacity
+          onPress={() => setBottomSheetVisible(true)}
+          style={{ paddingRight: 12 }}
         >
-          <Menu.Item
-            onPress={() => {
-              Clipboard.setStringAsync(gridId);
-              alert("Session ID copied!");
-            }}
-            title="Invite Friends"
-            titleStyle={{ color: "#333", fontWeight: "bold" }}
-          />
-          {isOwner && (
-            <Menu.Item
-              onPress={() => {
-                setMenuVisible(false);
-                setTempDeadline(deadlineValue);
-                setShowDeadlineModal(true);
-              }}
-              title="Change Deadline"
-              titleStyle={{ color: "#333" }}
-            />
-          )}
-          <Menu.Item
-            onPress={handleLeaveSquare}
-            title="Leave Square"
-            titleStyle={{ color: "red" }}
-          />
-          {isOwner && (
-            <Menu.Item
-              onPress={handleDeleteSquare}
-              title="Delete Square"
-              titleStyle={{ color: "red" }}
-            />
-          )}
-        </Menu>
+          <Icon name="more-vert" size={24} color="#000" />
+        </TouchableOpacity>
       ),
     });
   }, [navigation, menuVisible, isOwner]);
@@ -732,7 +695,7 @@ const FinalSquareScreen = ({ route }) => {
                 <Text style={styles.deadlineLabel}>Deadline:</Text>
                 <Text style={styles.deadlineValue}>
                   {deadlineValue
-                    ? deadlineValue.toLocaleString()
+                    ? formatDistanceToNow(deadlineValue, { addSuffix: true })
                     : "No deadline set"}
                 </Text>
               </View>
@@ -821,18 +784,22 @@ const FinalSquareScreen = ({ route }) => {
         }
       });
 
+      const playerList = Object.entries(playerColors);
+
       return (
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <Card style={styles.card}>
-            <Card.Title title="Players" />
-            <Card.Content>
-              {Object.entries(playerColors).map(([uid, color]) => {
+        <Card style={[styles.card, { margin: 16 }]}>
+          <Card.Title title="Players" />
+          <Card.Content>
+            <FlatList
+              data={playerList}
+              keyExtractor={([uid]) => uid}
+              renderItem={({ item: [uid, color] }) => {
                 const username = playerUsernames[uid] || uid;
                 const count = userSquareCount[uid] || 0;
                 const isMaxed = count >= maxSelections;
 
                 return (
-                  <View key={uid} style={styles.playerRow}>
+                  <View style={styles.playerRow}>
                     <View
                       style={[
                         styles.colorCircle,
@@ -845,10 +812,10 @@ const FinalSquareScreen = ({ route }) => {
                     </Text>
                   </View>
                 );
-              })}
-            </Card.Content>
-          </Card>
-        </ScrollView>
+              }}
+            />
+          </Card.Content>
+        </Card>
       );
     },
 
@@ -900,44 +867,137 @@ const FinalSquareScreen = ({ route }) => {
   });
 
   return (
-    <TabView
-      navigationState={{ index, routes }}
-      renderScene={renderScene}
-      onIndexChange={setIndex}
-      initialLayout={{ width: Dimensions.get("window").width }}
-      renderTabBar={(props) => (
-        <TabBar
-          {...(props as TabBarProps)}
-          indicatorStyle={{
-            backgroundColor: "#5e60ce",
-            height: 4,
-            borderRadius: 2,
+    <LinearGradient
+      colors={["#fdfcf9", "#e0e7ff"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <TabView
+        navigationState={{ index, routes }}
+        renderScene={renderScene}
+        onIndexChange={setIndex}
+        initialLayout={{ width: Dimensions.get("window").width }}
+        renderTabBar={(props) => (
+          <TabBar
+            {...(props as TabBarProps)}
+            indicatorStyle={{
+              backgroundColor: "#5e60ce",
+              height: 4,
+              borderRadius: 2,
+            }}
+            style={{
+              backgroundColor: "#fff",
+              shadowColor: "#000",
+              shadowOpacity: 0.1,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 3,
+            }}
+            activeColor="#5e60ce"
+            inactiveColor={isDark ? "#ccc" : "#333"}
+            renderLabel={({ route, focused, color }) => (
+              <Text
+                style={{
+                  color: color,
+                  fontWeight: focused ? "bold" : "500",
+                  fontSize: 14,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                {route.title}
+              </Text>
+            )}
+          />
+        )}
+      />
+      <Portal>
+        <Modal
+          visible={bottomSheetVisible}
+          onDismiss={() => setBottomSheetVisible(false)}
+          contentContainerStyle={{
+            backgroundColor: "white",
+            padding: 20,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            position: "absolute",
+            bottom: 0,
+            width: "100%",
           }}
-          style={{
-            backgroundColor: "#fff",
-            shadowColor: "#000",
-            shadowOpacity: 0.1,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 3,
-          }}
-          activeColor="#5e60ce"
-          inactiveColor={isDark ? "#ccc" : "#333"}
-          renderLabel={({ route, focused, color }) => (
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 20,
+            }}
+          >
             <Text
               style={{
-                color: color,
-                fontWeight: focused ? "bold" : "500",
-                fontSize: 14,
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
+                fontSize: 18,
+                fontWeight: "700",
+                color: colors.primaryText,
               }}
             >
-              {route.title}
+              Session Options
             </Text>
+            <TouchableOpacity onPress={() => setBottomSheetVisible(false)}>
+              <Text style={{ color: colors.primary, fontWeight: "600" }}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Button
+            icon="share-variant"
+            mode="outlined"
+            onPress={() => {
+              Clipboard.setStringAsync(gridId);
+              Toast.show({ text1: "Session ID copied to clipboard" });
+              setBottomSheetVisible(false);
+            }}
+            style={{ marginBottom: 10 }}
+          >
+            Invite Friends
+          </Button>
+
+          {isOwner && (
+            <Button
+              icon="calendar"
+              mode="outlined"
+              onPress={() => {
+                setBottomSheetVisible(false);
+                setTempDeadline(deadlineValue);
+                setShowDeadlineModal(true);
+              }}
+              style={{ marginBottom: 10 }}
+            >
+              Change Deadline
+            </Button>
           )}
-        />
-      )}
-    />
+
+          <Button
+            icon="exit-to-app"
+            mode="contained"
+            onPress={handleLeaveSquare}
+            style={{ backgroundColor: "#ff4d4f", marginBottom: 10 }}
+          >
+            Leave Square
+          </Button>
+
+          {isOwner && (
+            <Button
+              icon="delete"
+              mode="contained"
+              onPress={handleDeleteSquare}
+              style={{ backgroundColor: colors.cancel }}
+            >
+              Delete Square
+            </Button>
+          )}
+        </Modal>
+      </Portal>
+    </LinearGradient>
   );
 };
 
@@ -946,6 +1006,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderRadius: 12,
     backgroundColor: colors.primaryBackground,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   square: {
     width: squareSize,
@@ -953,8 +1020,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
+    borderColor: "#ddd",
   },
-  axisCell: { backgroundColor: "#f5f5f5" },
+  axisCell: { backgroundColor: "#f3f4f6" },
   axisText: { fontSize: 15, fontWeight: "bold", textAlign: "center" },
   row: { flexDirection: "row" },
   teamLabel: {
@@ -971,7 +1039,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingRight: 5,
-    marginLeft: -5,
+    marginLeft: -10,
   },
   teamLetter: {
     fontSize: 24,
@@ -1021,10 +1089,18 @@ const styles = StyleSheet.create({
   },
   titleCard: {
     marginBottom: 24,
-    backgroundColor: colors.secondaryBackground,
+    backgroundColor: colors.highlightBackground,
     marginHorizontal: 8,
-    borderRadius: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.neutralBorder,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
     elevation: 2,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
   },
   titleText: {
     fontSize: 22,
@@ -1048,10 +1124,14 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   winnerCard: {
-    backgroundColor: colors.secondaryBackground,
-    borderRadius: 12,
+    backgroundColor: colors.highlightBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.neutralBorder,
     marginBottom: 16,
     elevation: 2,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
   },
   quarterLabel: {
     fontSize: 16,

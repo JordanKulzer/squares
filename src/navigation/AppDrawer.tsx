@@ -7,6 +7,7 @@ import {
   FlatList,
   SafeAreaView,
   StyleSheet,
+  View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import HomeScreen from "../screens/HomeScreen";
@@ -20,14 +21,20 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
 import HeaderLogo from "../components/HeaderLogo";
-import Icon from "react-native-vector-icons/MaterialIcons";
+import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
+import { Modal, Portal, Button } from "react-native-paper";
 
 const Drawer = createDrawerNavigator();
 
 /** Drawer Content Component */
 const AppDrawerContent = ({ userId, onLogout }) => {
-  const navigation = useNavigation();
   const email = auth.currentUser?.email || "Unknown";
+  const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+
+  const handleLogout = () => {
+    setLogoutConfirmVisible(false);
+    onLogout();
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -49,9 +56,41 @@ const AppDrawerContent = ({ userId, onLogout }) => {
         <Text style={styles.settingLabel}>Notifications</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.settingItem} onPress={onLogout}>
-        <Text style={styles.settingLabel}>Log Out</Text>
+      <TouchableOpacity
+        style={styles.settingItem}
+        onPress={() => setLogoutConfirmVisible(true)}
+      >
+        {/* <MaterialCommunityIcons name="logout" size={22} color="#ff4d4d" /> */}
+        <Text style={[styles.settingLabel, { color: "#ff4d4d" }]}>Log Out</Text>
       </TouchableOpacity>
+
+      {/* Logout Confirmation Modal */}
+      <Portal>
+        <Modal
+          visible={logoutConfirmVisible}
+          onDismiss={() => setLogoutConfirmVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <Text style={styles.modalTitle}>Confirm Logout</Text>
+          <Text style={styles.modalSubtitle}>
+            Are you sure you want to log out?
+          </Text>
+
+          <View style={styles.modalButtonRow}>
+            <Button onPress={() => setLogoutConfirmVisible(false)}>
+              Cancel
+            </Button>
+            <Button
+              onPress={handleLogout}
+              mode="contained"
+              buttonColor="#ff4d4d"
+              textColor="#fff"
+            >
+              Log Out
+            </Button>
+          </View>
+        </Modal>
+      </Portal>
     </SafeAreaView>
   );
 };
@@ -65,7 +104,7 @@ const AppDrawer = ({ userId, onLogout }) => (
     screenOptions={{
       headerTitle: () => (
         <Image
-          source={require("../../assets/icons/icon_outline3.png")}
+          source={require("../../assets/icons/new logo pt2.png")}
           style={{ width: 80, height: 80 }}
           resizeMode="contain"
         />
@@ -83,7 +122,7 @@ const AppDrawer = ({ userId, onLogout }) => (
             style={{ marginLeft: 10 }}
             onPress={() => navigation.toggleDrawer()}
           >
-            <Icon name="menu" size={28} color="#000" />
+            <MaterialCommunityIcons name="menu" size={28} color="#000" />
           </TouchableOpacity>
         ),
       })}
@@ -105,45 +144,46 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingTop: 80,
   },
-  logoutButton: {
-    padding: 15,
-    backgroundColor: "#ff4d4d",
-    borderRadius: 8,
-    marginTop: 20,
+  userInfo: {
     alignItems: "center",
+    marginVertical: 30,
   },
-  logoutText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  sectionHeader: {
-    marginTop: 30,
+  email: {
     fontSize: 14,
-    fontWeight: "bold",
-    color: "#888",
-    textTransform: "uppercase",
-    letterSpacing: 1,
+    color: "#555",
+    marginTop: 6,
   },
   settingItem: {
-    paddingVertical: 14,
     flexDirection: "row",
     alignItems: "center",
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderTopWidth: 1,
     borderColor: "#eee",
   },
-
   settingLabel: {
-    marginLeft: 10,
     fontSize: 16,
-    color: "#333",
+    marginLeft: 12,
   },
-
-  settingValue: {
-    fontSize: 14,
+  modalContainer: {
+    backgroundColor: "white",
+    padding: 20,
+    borderRadius: 12,
+    marginHorizontal: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  modalSubtitle: {
+    fontSize: 15,
     color: "#666",
-    marginTop: 4,
+    marginBottom: 20,
+  },
+  modalButtonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
   },
 });
 
