@@ -142,8 +142,8 @@ const FinalSquareScreen = ({ route }) => {
       setTeam1(data.team1 || "");
       setTeam2(data.team2 || "");
 
-      setTeam1Mascot(data.team1.split(" ").slice(-1)[0]); // 'Buccaneers'
-      setTeam2Mascot(data.team2.split(" ").slice(-1)[0]); // 'Eagles'
+      setTeam1Mascot(data.team1.split(" ").slice(-1)[0]);
+      setTeam2Mascot(data.team2.split(" ").slice(-1)[0]);
 
       if (data?.players) {
         data.players.forEach((p) => {
@@ -214,11 +214,11 @@ const FinalSquareScreen = ({ route }) => {
       setTimeLeft(isPast ? "Finalized" : formatTimeLeft(deadlineValue));
     };
 
-    updateDeadlineState(); // run immediately
+    updateDeadlineState();
 
-    const interval = setInterval(updateDeadlineState, 1000); // update every second
+    const interval = setInterval(updateDeadlineState, 1000);
 
-    return () => clearInterval(interval); // cleanup on unmount
+    return () => clearInterval(interval);
   }, [deadlineValue]);
 
   // **API for quarter scores/logos**
@@ -721,74 +721,6 @@ const FinalSquareScreen = ({ route }) => {
             )}
           </Card.Content>
         </Card>
-        {showDeadlineModal && (
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              justifyContent: "center",
-              alignItems: "center",
-              zIndex: 10,
-            }}
-          >
-            <View
-              style={{
-                backgroundColor: "#fff",
-                borderRadius: 12,
-                padding: 20,
-                width: "80%",
-              }}
-            >
-              <Text
-                style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}
-              >
-                Select New Deadline
-              </Text>
-
-              <DateTimePicker
-                value={tempDeadline || new Date()}
-                mode="datetime"
-                display="default"
-                onChange={(event, date) => {
-                  if (date) setTempDeadline(date);
-                }}
-              />
-
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  marginTop: 20,
-                }}
-              >
-                <TouchableOpacity
-                  onPress={() => setShowDeadlineModal(false)}
-                  style={{ padding: 10 }}
-                >
-                  <Text style={{ color: "red", fontWeight: "600" }}>
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => {
-                    setShowDeadlineModal(false);
-                    handleDeadlineChange(null, tempDeadline);
-                  }}
-                  style={{ padding: 10 }}
-                >
-                  <Text style={{ color: "#007AFF", fontWeight: "600" }}>
-                    Confirm
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
       </ScrollView>
     ),
     players: () => {
@@ -937,6 +869,70 @@ const FinalSquareScreen = ({ route }) => {
           />
         )}
       />
+      {showDeadlineModal && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 10,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: "#fff",
+              borderRadius: 12,
+              padding: 20,
+              width: "80%",
+            }}
+          >
+            <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
+              Select New Deadline
+            </Text>
+
+            <DateTimePicker
+              value={tempDeadline || new Date()}
+              mode="datetime"
+              display="default"
+              onChange={(event, date) => {
+                if (date) setTempDeadline(date);
+              }}
+            />
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                marginTop: 20,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setShowDeadlineModal(false)}
+                style={{ padding: 10 }}
+              >
+                <Text style={{ color: "red", fontWeight: "600" }}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDeadlineModal(false);
+                  handleDeadlineChange(null, tempDeadline);
+                }}
+                style={{ padding: 10 }}
+              >
+                <Text style={{ color: "#007AFF", fontWeight: "600" }}>
+                  Confirm
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
       <SessionOptionsModal
         visible={sessionOptionsVisible}
         onDismiss={() => setSessionOptionsVisible(false)}

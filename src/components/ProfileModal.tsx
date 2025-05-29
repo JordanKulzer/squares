@@ -43,6 +43,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setFirstName(data.firstName || "");
+          setImageUri(data.profileImage || null);
         }
       } catch (err) {
         console.error("Failed to fetch first name:", err);
