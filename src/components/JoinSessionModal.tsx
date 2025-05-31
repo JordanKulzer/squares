@@ -1,22 +1,23 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Alert } from "react-native";
+import { View, Text, StyleSheet } from "react-native";
 import {
   Modal,
   Portal,
   TextInput,
   Button,
   ActivityIndicator,
+  useTheme,
 } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
-import colors from "../../assets/constants/colorOptions";
 
 const JoinSessionModal = ({ visible, onDismiss }) => {
   const navigation = useNavigation();
   const [sessionCode, setSessionCode] = useState("");
   const [loadingSession, setLoadingSession] = useState(false);
   const [error, setError] = useState("");
+  const theme = useTheme();
 
   const handleJoin = async () => {
     if (!sessionCode) return;
@@ -55,9 +56,14 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
       <Modal
         visible={visible}
         onDismiss={onDismiss}
-        contentContainerStyle={styles.container}
+        contentContainerStyle={[
+          styles.container,
+          { backgroundColor: theme.colors.surface },
+        ]}
       >
-        <Text style={styles.title}>Enter Session ID</Text>
+        <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+          Enter Session ID
+        </Text>
 
         <TextInput
           label="Session ID"
@@ -67,25 +73,37 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
             setSessionCode(text);
             setError("");
           }}
-          style={{ marginBottom: 16, backgroundColor: "#f8f9fa" }}
+          style={{
+            marginBottom: 16,
+            backgroundColor: theme.colors.surface,
+          }}
+          theme={{ colors: { text: theme.colors.onSurface } }}
         />
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {error ? (
+          <Text style={[styles.error, { color: theme.colors.error }]}>
+            {error}
+          </Text>
+        ) : null}
 
         {loadingSession ? (
-          <ActivityIndicator animating color={colors.primary} />
+          <ActivityIndicator animating color={theme.colors.primary} />
         ) : (
           <Button
             mode="contained"
             onPress={handleJoin}
-            style={{ marginTop: 10, backgroundColor: "#5e60ce" }}
+            style={{ marginTop: 10 }}
           >
             Join
           </Button>
         )}
 
-        <Button onPress={onDismiss} style={{ marginTop: 10 }} compact>
-          <Text style={{ color: "#5e60ce" }}>Cancel</Text>
+        <Button
+          onPress={onDismiss}
+          style={{ marginTop: 10 }}
+          textColor={theme.colors.primary}
+        >
+          Cancel
         </Button>
       </Modal>
     </Portal>
@@ -96,7 +114,6 @@ export default JoinSessionModal;
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "white",
     padding: 20,
     margin: 20,
     borderRadius: 12,
@@ -108,7 +125,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   error: {
-    color: "red",
     marginBottom: 10,
     textAlign: "center",
   },

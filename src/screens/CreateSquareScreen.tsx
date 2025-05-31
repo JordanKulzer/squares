@@ -19,7 +19,7 @@ import { db, auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import { RouteProp, useRoute } from "@react-navigation/native";
-import { Card, TextInput as PaperInput } from "react-native-paper";
+import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 
 type CreateSquareRouteParams = {
@@ -49,6 +49,7 @@ const CreateSquareScreen = ({ navigation }) => {
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const route =
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
+  const theme = useTheme();
 
   const onDateChange = (event, selectedDate) => {
     if (selectedDate) {
@@ -58,7 +59,6 @@ const CreateSquareScreen = ({ navigation }) => {
 
   useEffect(() => {
     const params = route.params || {};
-
     if (params.team1) setTeam1(params.team1);
     if (params.team2) setTeam2(params.team2);
     if (params.deadline) setDeadline(new Date(params.deadline));
@@ -66,9 +66,7 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.username) setUsername(params.username);
     if (params.maxSelections) setMaxSelections(String(params.maxSelections));
     if (params.selectedColor) setSelectedColor(params.selectedColor);
-    if (params.eventId) {
-      setEventId(params.eventId);
-    }
+    if (params.eventId) setEventId(params.eventId);
   }, [route.params]);
 
   useLayoutEffect(() => {
@@ -84,7 +82,7 @@ const CreateSquareScreen = ({ navigation }) => {
           }}
           style={{ paddingLeft: 12 }}
         >
-          <Icon name="arrow-back" size={24} color="#212529" />
+          <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
       ),
     });
@@ -160,17 +158,22 @@ const CreateSquareScreen = ({ navigation }) => {
 
   const renderStepOne = () => (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.title}>Create a New Square</Text>
+      <Text style={[styles.title, { color: theme.colors.onBackground }]}>
+        Create a New Square
+      </Text>
 
-      <Card style={[styles.cardSection]}>
-        <Text style={styles.sectionHeader}>Game Settings</Text>
+      <Card
+        style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
+      >
+        <Text style={[styles.sectionHeader, { color: theme.colors.onSurface }]}>
+          Game Settings
+        </Text>
         <PaperInput
           label="Square Title"
           value={inputTitle}
           onChangeText={setInputTitle}
           mode="outlined"
           style={styles.input}
-          theme={{ colors: { primary: colors.primary } }}
         />
 
         <TouchableOpacity
@@ -178,26 +181,30 @@ const CreateSquareScreen = ({ navigation }) => {
             navigation.replace("GamePickerScreen", {
               team1,
               team2,
-              deadline: deadline.toISOString(), // optional if using
+              deadline: deadline.toISOString(),
               inputTitle,
               username,
               maxSelections,
               selectedColor,
             })
           }
-          style={styles.gameCard}
+          style={[
+            styles.gameCard,
+            { backgroundColor: theme.colors.elevation.level1 },
+          ]}
         >
-          <Text style={styles.gameCardLabel}>NFL Game</Text>
+          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+            NFL Game
+          </Text>
           <View style={styles.gameCardRow}>
-            <Text
-              style={[
-                styles.gameCardText,
-                !(team1 && team2) && { color: "#aaa", fontStyle: "italic" },
-              ]}
-            >
+            <Text style={{ color: theme.colors.onSurface }}>
               {team1 && team2 ? `${team1} vs ${team2}` : "Pick a NFL game"}
             </Text>
-            <Icon name="chevron-forward" size={20} color="#888" />
+            <Icon
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.onSurface}
+            />
           </View>
         </TouchableOpacity>
 
@@ -211,10 +218,16 @@ const CreateSquareScreen = ({ navigation }) => {
           returnKeyType="done"
           onSubmitEditing={Keyboard.dismiss}
         />
-        <Text style={[styles.label, { marginBottom: 15, marginTop: 5 }]}>
+
+        <Text
+          style={{
+            color: theme.colors.onSurface,
+            fontWeight: "600",
+            marginBottom: 10,
+          }}
+        >
           Deadline For Your Square
         </Text>
-
         <DateTimePicker
           value={deadline}
           mode="datetime"
@@ -222,14 +235,25 @@ const CreateSquareScreen = ({ navigation }) => {
           onChange={onDateChange}
         />
 
-        <Text style={[styles.label, { marginTop: 20 }]}>X & Y Axis</Text>
-
+        <Text
+          style={{
+            color: theme.colors.onSurface,
+            fontWeight: "600",
+            marginTop: 20,
+          }}
+        >
+          X & Y Axis
+        </Text>
         <View style={styles.toggleRow}>
-          <Text style={styles.subtext}>Randomize Axis Numbers</Text>
+          <Text style={{ color: theme.colors.onSurface }}>
+            Randomize Axis Numbers
+          </Text>
           <Switch value={randomizeAxis} onValueChange={setRandomizeAxis} />
         </View>
         <View style={styles.toggleRow}>
-          <Text style={styles.subtext}>Mask X & Y Axis Until Deadline</Text>
+          <Text style={{ color: theme.colors.onSurface }}>
+            Mask X & Y Axis Until Deadline
+          </Text>
           <Switch
             value={hideAxisUntilDeadline}
             onValueChange={setHideAxisUntilDeadline}
@@ -241,10 +265,16 @@ const CreateSquareScreen = ({ navigation }) => {
 
   const renderStepTwo = () => (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.title}>Create a New Square</Text>
+      <Text style={[styles.title, { color: theme.colors.onBackground }]}>
+        Create a New Square
+      </Text>
 
-      <Card style={[styles.cardSection]}>
-        <Text style={styles.sectionHeader}>Player Settings</Text>
+      <Card
+        style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
+      >
+        <Text style={[styles.sectionHeader, { color: theme.colors.onSurface }]}>
+          Player Settings
+        </Text>
         <PaperInput
           label="Your Username"
           value={username}
@@ -252,7 +282,7 @@ const CreateSquareScreen = ({ navigation }) => {
           mode="outlined"
           style={styles.input}
         />
-        <Text style={styles.subtext}>
+        <Text style={{ color: theme.colors.onSurface }}>
           Choose a color to represent your selected squares on the board.
         </Text>
         <ScrollView
@@ -272,15 +302,15 @@ const CreateSquareScreen = ({ navigation }) => {
                     <TouchableOpacity
                       key={color}
                       onPress={() => setSelectedColor(color)}
-                      style={[
-                        styles.colorCircle,
-                        {
-                          backgroundColor: color,
-                          borderColor:
-                            selectedColor === color ? "#000" : "#ccc",
-                          borderWidth: selectedColor === color ? 3 : 1,
-                        },
-                      ]}
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        margin: 6,
+                        backgroundColor: color,
+                        borderColor: selectedColor === color ? "#000" : "#ccc",
+                        borderWidth: selectedColor === color ? 3 : 1,
+                      }}
                     >
                       {selectedColor === color && (
                         <View style={styles.checkMarkOverlay}>
@@ -299,7 +329,7 @@ const CreateSquareScreen = ({ navigation }) => {
 
   return (
     <LinearGradient
-      colors={["#fdfcf9", "#e0e7ff"]}
+      colors={theme.dark ? ["#1e1e1e", "#121212"] : ["#fdfcf9", "#e0e7ff"]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
@@ -317,11 +347,20 @@ const CreateSquareScreen = ({ navigation }) => {
               <View style={{ flex: 1 }}>
                 {step === 0 ? renderStepOne() : renderStepTwo()}
                 {renderStepIndicator()}
-                <View style={styles.buttonContainer}>
+                <View
+                  style={[
+                    styles.buttonContainer,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      shadowColor: theme.dark ? "#000" : "#aaa",
+                    },
+                  ]}
+                >
                   <TouchableOpacity
                     onPress={() => setStep(Math.max(step - 1, 0))}
                     style={[
                       styles.cancelButton,
+                      { backgroundColor: theme.colors.error },
                       step === 0 && { opacity: 0.5 },
                     ]}
                     disabled={step === 0}
@@ -331,7 +370,10 @@ const CreateSquareScreen = ({ navigation }) => {
                   {step === 0 ? (
                     <TouchableOpacity
                       onPress={() => setStep(1)}
-                      style={styles.saveButton}
+                      style={[
+                        styles.saveButton,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
                     >
                       <Text style={styles.buttonText}>Next</Text>
                     </TouchableOpacity>
@@ -340,6 +382,7 @@ const CreateSquareScreen = ({ navigation }) => {
                       onPress={createSquareSession}
                       style={[
                         styles.saveButton,
+                        { backgroundColor: theme.colors.primary },
                         { opacity: isFormValid ? 1 : 0.5 },
                       ]}
                       disabled={!isFormValid}
@@ -359,60 +402,28 @@ const CreateSquareScreen = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 20,
-  },
+  scrollContent: { paddingHorizontal: 20 },
   title: {
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
     marginVertical: 20,
   },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    color: "#222",
-  },
-  input: {
-    marginBottom: 15,
-    backgroundColor: colors.primaryBackground,
-  },
+  sectionHeader: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
+  input: { marginBottom: 15 },
   cardSection: {
     borderRadius: 12,
     marginBottom: 20,
     padding: 16,
-    backgroundColor: colors.primaryBackground,
     borderLeftWidth: 5,
     borderLeftColor: colors.primary,
+    borderWidth: 1.5, // Increased border all around
+    borderColor: "rgba(94, 96, 206, 0.4)", // Semi-transparent highlight color
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  colorScrollContainer: { paddingVertical: 10 },
-  colorRowsContainer: { marginBottom: 10 },
-  colorRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-    flexWrap: "wrap",
-  },
-  colorCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    margin: 6,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  checkMarkOverlay: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    borderRadius: 12,
-    padding: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   toggleRow: {
     flexDirection: "row",
@@ -420,30 +431,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginVertical: 8,
   },
-  label: { fontSize: 16, fontWeight: "600", color: "#333" },
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 20,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderColor: "#ddd",
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#ccc",
+    elevation: 8,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   cancelButton: {
-    backgroundColor: "#dc3545",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
     flex: 1,
-    marginRight: 10,
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: "center",
+    marginRight: 10,
   },
   saveButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
     flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: "center",
   },
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
@@ -461,38 +470,32 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#5e60ce",
   },
-  subtext: {
-    fontSize: 13,
-    color: "#666",
-    marginTop: 0,
-    marginBottom: 5,
-    lineHeight: 0,
+  colorScrollContainer: { paddingVertical: 10 },
+  colorRowsContainer: { marginBottom: 10 },
+  colorRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    flexWrap: "wrap",
+  },
+  checkMarkOverlay: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 12,
+    padding: 2,
   },
   gameCard: {
     padding: 12,
     borderRadius: 10,
-    backgroundColor: colors.primaryBackground,
     borderWidth: 1,
     borderColor: "#e0e0e0",
     marginBottom: 15,
   },
-
-  gameCardLabel: {
-    fontSize: 14,
-    color: colors.primaryText,
-    marginBottom: 4,
-  },
-
   gameCardRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-
-  gameCardText: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "500",
   },
 });
 

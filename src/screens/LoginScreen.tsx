@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,18 +8,21 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useColorScheme,
 } from "react-native";
-import { TextInput as PaperInput } from "react-native-paper";
+import { TextInput as PaperInput, useTheme } from "react-native-paper";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
-import { FontAwesome } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const theme = useTheme();
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
 
   const handleLogin = async () => {
     try {
@@ -37,9 +40,15 @@ const LoginScreen = ({ navigation }) => {
     }
   };
 
+  const gradientColors = useMemo(() => {
+    return theme.dark
+      ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
+      : (["#fdfcf9", "#e0e7ff"] as const);
+  }, [theme.dark]);
+
   return (
     <LinearGradient
-      colors={["#fdfcf9", "#e0e7ff"]}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
@@ -58,7 +67,9 @@ const LoginScreen = ({ navigation }) => {
             resizeMode="contain"
           />
 
-          <Text style={styles.title}>Welcome!</Text>
+          <Text style={[styles.title, { color: theme.colors.onBackground }]}>
+            Welcome!
+          </Text>
 
           <PaperInput
             label="Email"
@@ -105,8 +116,20 @@ const LoginScreen = ({ navigation }) => {
             }
           />
           {error ? (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{error}</Text>
+            <View
+              style={[
+                styles.errorBox,
+                { backgroundColor: isDark ? "#331111" : "#ffe6e6" },
+              ]}
+            >
+              <Text
+                style={{
+                  color: isDark ? "#ff6666" : "#cc0000",
+                  textAlign: "center",
+                }}
+              >
+                {error}
+              </Text>
             </View>
           ) : null}
           <TouchableOpacity style={styles.button} onPress={handleLogin}>
@@ -116,7 +139,15 @@ const LoginScreen = ({ navigation }) => {
             onPress={() => navigation.navigate("ForgotPassword")}
             style={styles.forgotPasswordContainer}
           >
-            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+            <Text
+              style={{
+                color: colors.primary,
+                fontSize: 13,
+                fontWeight: "500",
+              }}
+            >
+              Forgot password?
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
@@ -137,9 +168,8 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: "700",
-    color: colors.primaryText || "#333",
     marginBottom: 10,
-    fontFamily: "Poppins-SemiBold", //
+    fontFamily: "Poppins-SemiBold",
   },
   logo: {
     width: 150,
@@ -149,7 +179,7 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
-    backgroundColor: colors.primaryBackground,
+    backgroundColor: "transparent",
   },
   button: {
     backgroundColor: colors.primary,
@@ -167,30 +197,17 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: 12,
   },
-
-  forgotPasswordText: {
-    color: colors.primary,
-    fontSize: 13,
-    fontWeight: "500",
-  },
-
   errorBox: {
-    backgroundColor: "#ffe6e6",
     padding: 10,
     borderRadius: 8,
     marginBottom: 12,
   },
-  errorText: {
-    color: "#cc0000",
-    textAlign: "center",
-  },
-
   linkText: {
     textAlign: "center",
     color: colors.primary,
     fontWeight: "500",
     fontSize: 14,
-    marginTop: 4, // was 10
+    marginTop: 4,
   },
 });
 

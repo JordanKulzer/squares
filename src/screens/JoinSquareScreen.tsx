@@ -14,9 +14,9 @@ import {
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { doc, setDoc, arrayUnion } from "firebase/firestore";
 import { auth, db } from "../../firebaseConfig";
-import colors from "../../assets/constants/colorOptions";
-import { Card, TextInput as PaperInput } from "react-native-paper";
+import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
+import colors from "../../assets/constants/colorOptions";
 
 type JoinSquareParams = {
   gridId: string;
@@ -29,11 +29,16 @@ const JoinSquareScreen = () => {
   const route = useRoute<RouteProp<{ params: JoinSquareParams }, "params">>();
   const navigation = useNavigation();
   const user = auth.currentUser;
+  const theme = useTheme();
 
   const { gridId, inputTitle, deadline, usedColors = [] } = route.params;
 
   const [username, setUsername] = useState("");
   const [selectedColor, setSelectedColor] = useState(null);
+
+  const gradientColors = theme.dark
+    ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
+    : (["#fdfcf9", "#e0e7ff"] as const);
 
   const availableColors = colors.colorOptions.filter(
     (color) => !usedColors.includes(color)
@@ -57,7 +62,6 @@ const JoinSquareScreen = () => {
 
     try {
       const squareRef = doc(db, "squares", gridId);
-
       await setDoc(
         squareRef,
         {
@@ -85,7 +89,7 @@ const JoinSquareScreen = () => {
 
   return (
     <LinearGradient
-      colors={["#fdfcf9", "#e0e7ff"]}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
@@ -101,9 +105,18 @@ const JoinSquareScreen = () => {
                 contentContainerStyle={{ flexGrow: 1 }}
                 keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.title}>Joining {inputTitle}</Text>
+                <Text
+                  style={[styles.title, { color: theme.colors.onBackground }]}
+                >
+                  Joining {inputTitle}
+                </Text>
 
-                <Card style={styles.card}>
+                <Card
+                  style={[
+                    styles.card,
+                    { backgroundColor: theme.colors.surface },
+                  ]}
+                >
                   <Card.Content>
                     <PaperInput
                       label="Your Username"
@@ -113,7 +126,14 @@ const JoinSquareScreen = () => {
                       style={styles.input}
                     />
 
-                    <Text style={styles.sectionHeader}>Pick Your Color</Text>
+                    <Text
+                      style={[
+                        styles.sectionHeader,
+                        { color: theme.colors.onSurface },
+                      ]}
+                    >
+                      Pick Your Color
+                    </Text>
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
@@ -133,18 +153,19 @@ const JoinSquareScreen = () => {
                                 <TouchableOpacity
                                   key={color}
                                   onPress={() => setSelectedColor(color)}
-                                  style={[
-                                    styles.colorCircle,
-                                    {
-                                      backgroundColor: color,
-                                      borderColor:
-                                        selectedColor === color
-                                          ? "#000"
-                                          : "#ccc",
-                                      borderWidth:
-                                        selectedColor === color ? 3 : 1,
-                                    },
-                                  ]}
+                                  style={{
+                                    width: 36,
+                                    height: 36,
+                                    borderRadius: 18,
+                                    margin: 6,
+                                    backgroundColor: color,
+                                    borderColor:
+                                      selectedColor === color
+                                        ? theme.colors.onBackground
+                                        : "#ccc",
+                                    borderWidth:
+                                      selectedColor === color ? 3 : 1,
+                                  }}
                                 />
                               ))}
                           </View>
@@ -155,16 +176,30 @@ const JoinSquareScreen = () => {
                 </Card>
               </ScrollView>
 
-              <View style={styles.buttonContainer}>
+              <View
+                style={[
+                  styles.buttonContainer,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    shadowColor: theme.dark ? "#000" : "#aaa",
+                  },
+                ]}
+              >
                 <TouchableOpacity
                   onPress={() => navigation.goBack()}
-                  style={styles.cancelButton}
+                  style={[
+                    styles.cancelButton,
+                    { backgroundColor: theme.colors.error },
+                  ]}
                 >
                   <Text style={styles.buttonText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={joinSquare}
-                  style={styles.saveButton}
+                  style={[
+                    styles.saveButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
                 >
                   <Text style={styles.buttonText}>Join Square</Text>
                 </TouchableOpacity>
@@ -190,23 +225,23 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 20,
     borderRadius: 12,
-    backgroundColor: colors.primaryBackground,
     borderLeftWidth: 5,
     borderLeftColor: colors.primary,
+    borderWidth: 1.5,
+    borderColor: "rgba(94, 96, 206, 0.4)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
+
   input: {
     marginBottom: 15,
-    backgroundColor: colors.primaryBackground,
   },
   sectionHeader: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#444",
     marginBottom: 8,
   },
   colorScrollContainer: { paddingVertical: 10 },
@@ -216,37 +251,31 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexWrap: "wrap",
   },
-  colorCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    margin: 6,
-  },
   buttonContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 20,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderColor: "#ddd",
+    padding: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "#ccc",
+    elevation: 8,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
   },
   cancelButton: {
-    backgroundColor: colors.cancel,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
     flex: 1,
-    marginRight: 10,
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: "center",
+    marginRight: 10,
   },
   saveButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
     flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: "center",
   },
+
   buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 });
 

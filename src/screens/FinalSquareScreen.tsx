@@ -15,11 +15,9 @@ import {
   TouchableOpacity,
   Alert,
   Image,
-  Animated,
   FlatList,
-  TouchableWithoutFeedback,
 } from "react-native";
-import { Card, Menu, Modal, Portal, Button } from "react-native-paper";
+import { Card, useTheme } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   arrayRemove,
@@ -35,10 +33,8 @@ import { auth, db } from "../../firebaseConfig";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import { onAuthStateChanged } from "firebase/auth";
-import * as Clipboard from "expo-clipboard";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
-import { formatDistanceToNow } from "date-fns";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 import SessionOptionsModal from "../components/SessionOptionsModal";
@@ -62,6 +58,7 @@ const FinalSquareScreen = ({ route }) => {
 
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
+  const theme = useTheme();
 
   const [squareColors, setSquareColors] = useState({});
   const [playerColors, setPlayerColors] = useState({});
@@ -103,6 +100,10 @@ const FinalSquareScreen = ({ route }) => {
     { key: "players", title: "Players" },
     { key: "winners", title: "Winners" },
   ]);
+
+  const gradientColors = theme.dark
+    ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
+    : (["#fdfcf9", "#e0e7ff"] as const);
 
   const navigation = useNavigation();
 
@@ -445,7 +446,7 @@ const FinalSquareScreen = ({ route }) => {
           onPress={() => navigation.dispatch(StackActions.popToTop())}
           style={{ paddingLeft: 12 }}
         >
-          <Icon name="arrow-back" size={24} color="#000" />
+          <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
       ),
       headerRight: () => (
@@ -453,7 +454,7 @@ const FinalSquareScreen = ({ route }) => {
           onPress={() => setSessionOptionsVisible(true)}
           style={{ paddingRight: 12 }}
         >
-          <Icon name="more-vert" size={24} color="#000" />
+          <Icon name="more-vert" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
       ),
     });
@@ -665,9 +666,18 @@ const FinalSquareScreen = ({ route }) => {
   const renderScene = SceneMap({
     squares: () => (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Card style={styles.card}>
+        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
-            <Card style={styles.titleCard}>
+            <Card
+              style={[
+                styles.winnerCard,
+                {
+                  backgroundColor: theme.colors.elevation.level1,
+                  borderColor: theme.colors.outline,
+                  borderWidth: StyleSheet.hairlineWidth,
+                },
+              ]}
+            >
               <Card.Content style={{ alignItems: "center" }}>
                 <View style={styles.teamRow}>
                   {team1Logo && (
@@ -677,9 +687,20 @@ const FinalSquareScreen = ({ route }) => {
                       resizeMode="contain"
                     />
                   )}
-                  <Text style={styles.titleText}>{team1}</Text>
+                  <Text
+                    style={[
+                      styles.titleText,
+                      { color: theme.colors.onSurface },
+                    ]}
+                  >
+                    {team1}
+                  </Text>
                 </View>
-                <Text style={styles.vsText}>vs</Text>
+                <Text
+                  style={[styles.vsText, { color: theme.colors.onSurface }]}
+                >
+                  vs
+                </Text>
                 <View style={styles.teamRow}>
                   {team2Logo && (
                     <Image
@@ -688,17 +709,34 @@ const FinalSquareScreen = ({ route }) => {
                       resizeMode="contain"
                     />
                   )}
-                  <Text style={styles.titleText}>{team2}</Text>
+                  <Text
+                    style={[
+                      styles.titleText,
+                      { color: theme.colors.onSurface },
+                    ]}
+                  >
+                    {team2}
+                  </Text>
                 </View>
               </Card.Content>
             </Card>
             <View style={{ alignItems: "center", marginBottom: 8 }}>
-              <Text style={styles.teamLabel}>{team2Mascot}</Text>
+              <Text
+                style={[styles.teamLabel, { color: theme.colors.onSurface }]}
+              >
+                {team2Mascot}
+              </Text>
             </View>
             <View style={{ flexDirection: "row", marginBottom: 15 }}>
               <View style={styles.teamColumn}>
                 {splitTeamName(team1Mascot).map((letter, i) => (
-                  <Text key={i} style={styles.teamLetter}>
+                  <Text
+                    key={i}
+                    style={[
+                      styles.teamLetter,
+                      { color: theme.colors.onSurface },
+                    ]}
+                  >
                     {letter}
                   </Text>
                 ))}
@@ -711,8 +749,20 @@ const FinalSquareScreen = ({ route }) => {
             </View>
             {!isAfterDeadline && (
               <View style={styles.deadlineContainerCentered}>
-                <Text style={styles.deadlineLabel}>Time Remaining:</Text>
-                <Text style={styles.deadlineValue}>
+                <Text
+                  style={[
+                    styles.deadlineLabel,
+                    { color: theme.colors.onSurface },
+                  ]}
+                >
+                  Time Remaining:
+                </Text>
+                <Text
+                  style={[
+                    styles.deadlineValue,
+                    { color: theme.colors.onSurface },
+                  ]}
+                >
                   {deadlineValue
                     ? formatTimeLeft(deadlineValue)
                     : "No deadline set"}
@@ -738,10 +788,19 @@ const FinalSquareScreen = ({ route }) => {
       const playerList = Object.entries(playerColors);
 
       return (
-        <Card style={[styles.card, { margin: 16 }]}>
+        <Card
+          style={[
+            styles.card,
+            { backgroundColor: theme.colors.surface },
+            { margin: 16 },
+          ]}
+        >
           <Card.Title
             title="Players"
-            titleStyle={styles.tabSectionTitle}
+            titleStyle={[
+              styles.tabSectionTitle,
+              { color: theme.colors.onSurface },
+            ]}
             style={{ marginBottom: 8, paddingHorizontal: 12 }}
           />
 
@@ -763,8 +822,21 @@ const FinalSquareScreen = ({ route }) => {
                       ]}
                     />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.playerName}>{username}</Text>
-                      <Text style={styles.playerSubtext}>
+                      <Text
+                        style={[
+                          styles.playerName,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
+                        {username}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.playerSubtext,
+                          ,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
                         {count} / {maxSelections} squares selected
                       </Text>
                     </View>
@@ -779,32 +851,62 @@ const FinalSquareScreen = ({ route }) => {
 
     winners: () => (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        <Card style={styles.card}>
+        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Title
             title="🎉 Congratulations Winners!"
-            titleStyle={styles.winnerTitle}
+            titleStyle={[styles.winnerTitle, { color: theme.colors.onSurface }]}
           />
           <Card.Content>
             {quarterScores.length > 0 ? (
               quarterScores.map((q, i) => {
-                const winner = quarterWinners[i]; // assumes same ordering
+                const winner = quarterWinners[i];
                 return (
-                  <Card key={i} style={styles.winnerCard}>
+                  <Card
+                    key={i}
+                    style={[
+                      styles.winnerCard,
+                      {
+                        backgroundColor: theme.colors.elevation.level1,
+                        borderColor: theme.colors.outline,
+                        borderWidth: StyleSheet.hairlineWidth,
+                      },
+                    ]}
+                  >
                     <Card.Content>
-                      <Text style={styles.quarterLabel}>
+                      <Text
+                        style={[
+                          styles.quarterLabel,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
                         Quarter {q.quarter}
                       </Text>
                       <View style={styles.scoreColumn}>
-                        <Text style={styles.scoreText}>
+                        <Text
+                          style={[
+                            styles.scoreText,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
                           {team1Mascot}: {q.home}
                         </Text>
-                        <Text style={styles.scoreText}>
+                        <Text
+                          style={[
+                            styles.scoreText,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
                           {team2Mascot}: {q.away}
                         </Text>
                       </View>
                       <View style={styles.winnerInfo}>
                         <Icon name="emoji-events" size={20} color="gold" />
-                        <Text style={styles.winnerText}>
+                        <Text
+                          style={[
+                            styles.winnerText,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
                           {winner.username} wins with square ({winner.square[0]}
                           , {winner.square[1]})
                         </Text>
@@ -814,7 +916,7 @@ const FinalSquareScreen = ({ route }) => {
                 );
               })
             ) : (
-              <Text style={{ color: "#666", marginTop: 10 }}>
+              <Text style={{ color: theme.colors.onSurface, marginTop: 10 }}>
                 Scores not yet available.
               </Text>
             )}
@@ -826,7 +928,7 @@ const FinalSquareScreen = ({ route }) => {
 
   return (
     <LinearGradient
-      colors={["#fdfcf9", "#e0e7ff"]}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
@@ -845,14 +947,14 @@ const FinalSquareScreen = ({ route }) => {
               borderRadius: 2,
             }}
             style={{
-              backgroundColor: "#fff",
+              backgroundColor: theme.colors.surface,
               shadowColor: "#000",
               shadowOpacity: 0.1,
               shadowOffset: { width: 0, height: 2 },
               elevation: 3,
             }}
             activeColor="#5e60ce"
-            inactiveColor={isDark ? "#ccc" : "#333"}
+            inactiveColor={theme.dark ? theme.colors.onSurface : "#333333"}
             renderLabel={({ route, focused, color }) => (
               <Text
                 style={{
@@ -954,7 +1056,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.primaryBackground,
     borderLeftWidth: 5,
+    borderWidth: 1.5,
+
     borderLeftColor: colors.primary,
+    borderColor: "rgba(94, 96, 206, 0.4)",
+
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1040,14 +1146,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.neutralBorder,
+    borderLeftColor: colors.primary,
+    borderColor: "rgba(94, 96, 206, 0.4)",
+
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
     borderLeftWidth: 5,
-    borderLeftColor: colors.primary,
   },
   titleText: {
     fontSize: 22,

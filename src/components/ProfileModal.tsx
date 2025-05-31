@@ -8,9 +8,8 @@ import {
   ScrollView,
   TouchableWithoutFeedback,
 } from "react-native";
-import { Modal, Portal, Button, Dialog } from "react-native-paper";
+import { Modal, Portal, Button, Dialog, useTheme } from "react-native-paper";
 import { auth, db } from "../../firebaseConfig";
-import colors from "../../assets/constants/colorOptions";
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { deleteDoc, doc, getDoc, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -21,8 +20,8 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [firstName, setFirstName] = useState("");
   const [imageUri, setImageUri] = useState(null);
-
   const slideAnim = useRef(new Animated.Value(600)).current;
+  const theme = useTheme();
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -36,17 +35,15 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
     const fetchFirstName = async () => {
       const user = auth.currentUser;
       if (!user) return;
-
       try {
-        const docRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(docRef);
+        const docSnap = await getDoc(doc(db, "users", user.uid));
         if (docSnap.exists()) {
           const data = docSnap.data();
           setFirstName(data.firstName || "");
           setImageUri(data.profileImage || null);
         }
       } catch (err) {
-        console.error("Failed to fetch first name:", err);
+        console.error("Failed to fetch user data:", err);
       }
     };
 
@@ -58,9 +55,8 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   const deleteUserData = async (uid) => {
     try {
       await deleteDoc(doc(db, "users", uid));
-      console.log("User Firestore data deleted");
     } catch (err) {
-      console.error("Failed to delete Firestore user data:", err);
+      console.error("Failed to delete user data:", err);
     }
   };
 
@@ -87,7 +83,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
       quality: 0.7,
     });
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
+    if (!result.canceled && result.assets.length > 0) {
       const uri = result.assets[0].uri;
       setImageUri(uri);
       await uploadProfileImage(uri);
@@ -100,13 +96,10 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
 
     const response = await fetch(uri);
     const blob = await response.blob();
-    const storage = getStorage();
-    const storageRef = ref(storage, `profileImages/${user.uid}.jpg`);
-
+    const storageRef = ref(getStorage(), `profileImages/${user.uid}.jpg`);
     await uploadBytes(storageRef, blob);
     const downloadURL = await getDownloadURL(storageRef);
 
-    // Save to Firestore
     await updateDoc(doc(db, "users", user.uid), {
       profileImage: downloadURL,
     });
@@ -140,20 +133,23 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
           <Animated.View
             style={{
               transform: [{ translateY: slideAnim }],
-              backgroundColor: "#fff",
+              backgroundColor: theme.colors.surface,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               width: "100%",
               position: "absolute",
               bottom: 0,
-              maxHeight: 500,
+              maxHeight: "68%",
               paddingHorizontal: 20,
               paddingTop: 24,
               paddingBottom: 32,
               elevation: 12,
             }}
           >
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingBottom: 100 }}
+            >
               <View
                 style={{
                   flexDirection: "row",
@@ -166,7 +162,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                   style={{
                     fontSize: 20,
                     fontWeight: "700",
-                    color: colors.primaryText,
+                    color: theme.colors.onSurface,
                   }}
                 >
                   Your Profile
@@ -176,7 +172,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                     style={{
                       fontSize: 14,
                       fontWeight: "600",
-                      color: colors.primary,
+                      color: theme.colors.primary,
                     }}
                   >
                     Close
@@ -185,21 +181,50 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
               </View>
 
               <View
-                style={{ height: 1, backgroundColor: "#eee", marginBottom: 20 }}
+                style={{
+                  height: 1,
+                  backgroundColor: theme.colors.outlineVariant,
+                  marginBottom: 20,
+                }}
               />
 
               <View style={{ marginBottom: 24 }}>
-                <Text style={{ fontSize: 15, fontWeight: "600" }}>Name</Text>
-                <Text style={{ fontSize: 15, color: "#444", marginTop: 4 }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: theme.colors.onSurface,
+                  }}
+                >
+                  Name
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    color: theme.colors.onSurface,
+                    marginTop: 4,
+                  }}
+                >
                   {firstName}
                 </Text>
 
                 <Text
-                  style={{ marginTop: 16, fontSize: 15, fontWeight: "600" }}
+                  style={{
+                    marginTop: 16,
+                    fontSize: 15,
+                    fontWeight: "600",
+                    color: theme.colors.onSurface,
+                  }}
                 >
                   Games Joined
                 </Text>
-                <Text style={{ fontSize: 15, color: "#444", marginTop: 4 }}>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    color: theme.colors.onSurface,
+                    marginTop: 4,
+                  }}
+                >
                   {userGames.length}
                 </Text>
               </View>
@@ -214,7 +239,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                       borderRadius: 40,
                       marginBottom: 12,
                       borderWidth: 2,
-                      borderColor: colors.primary,
+                      borderColor: theme.colors.primary,
                     }}
                   />
                 ) : (
@@ -224,9 +249,11 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                       height: 80,
                       borderRadius: 40,
                       marginBottom: 12,
-                      backgroundColor: "#ccc",
+                      backgroundColor: theme.colors.backdrop,
                       alignItems: "center",
                       justifyContent: "center",
+                      borderWidth: 2,
+                      borderColor: theme.colors.onSurface,
                     }}
                   >
                     <Text
@@ -241,17 +268,17 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                   mode="outlined"
                   onPress={pickImage}
                   style={{
-                    borderColor: colors.primary,
+                    borderColor: theme.colors.primary,
                     borderRadius: 20,
                     paddingHorizontal: 12,
                   }}
                   labelStyle={{
                     fontWeight: "600",
-                    color: colors.primary,
+                    color: theme.colors.primary,
                     textTransform: "none",
                   }}
                 >
-                  Upload Profile Icon
+                  Edit Profile Icon
                 </Button>
               </View>
 
@@ -259,19 +286,28 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                 icon="logout"
                 mode="outlined"
                 onPress={() => setLogoutVisible(true)}
-                textColor="red"
-                style={{ marginBottom: 12 }}
-                labelStyle={{ fontWeight: "600" }}
+                textColor={theme.colors.error}
+                style={{
+                  backgroundColor: theme.colors.error,
+                  marginBottom: 12,
+                }}
+                labelStyle={{
+                  fontWeight: "600",
+                  color: theme.colors.onPrimary,
+                }}
               >
                 Log Out
               </Button>
 
               <Button
                 icon="delete"
-                mode="contained"
+                mode="outlined"
                 onPress={() => setConfirmVisible(true)}
-                style={{ backgroundColor: colors.cancel }}
-                labelStyle={{ fontWeight: "600", color: "#fff" }}
+                style={{ backgroundColor: "#ff4d4f", marginBottom: 12 }}
+                labelStyle={{
+                  fontWeight: "600",
+                  color: "#fff",
+                }}
               >
                 Delete Account
               </Button>
@@ -280,71 +316,64 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
         </Modal>
       </Portal>
 
-      {/* Confirmation Dialog */}
+      {/* Dialogs */}
       <Portal>
         <Dialog
           visible={confirmVisible}
           onDismiss={() => setConfirmVisible(false)}
-          style={{ backgroundColor: "#fff", borderRadius: 12 }}
+          style={{ backgroundColor: theme.colors.surface, borderRadius: 12 }}
         >
-          <Dialog.Title style={{ fontWeight: "700", color: "#000" }}>
+          <Dialog.Title
+            style={{ fontWeight: "700", color: theme.colors.onSurface }}
+          >
             Delete Account
           </Dialog.Title>
           <Dialog.Content>
-            <Text style={{ fontSize: 15, color: "#333" }}>
+            <Text style={{ fontSize: 15, color: theme.colors.onSurface }}>
               Are you sure you want to permanently delete your account? This
               action cannot be undone.
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button
-              onPress={() => setConfirmVisible(false)}
-              labelStyle={{ fontWeight: "600" }}
-            >
-              Cancel
-            </Button>
+            <Button onPress={() => setConfirmVisible(false)}>Cancel</Button>
             <Button
               onPress={async () => {
                 setConfirmVisible(false);
                 await deleteAccount();
                 onDismiss();
               }}
-              textColor="red"
+              textColor={theme.colors.error}
               labelStyle={{ fontWeight: "700" }}
             >
               Delete
             </Button>
           </Dialog.Actions>
         </Dialog>
-      </Portal>
-      <Portal>
+
         <Dialog
           visible={logoutVisible}
           onDismiss={() => setLogoutVisible(false)}
-          style={{ backgroundColor: "#fff", borderRadius: 12 }}
+          style={{ backgroundColor: theme.colors.surface, borderRadius: 12 }}
         >
-          <Dialog.Title style={{ fontWeight: "700", color: "#000" }}>
+          <Dialog.Title
+            style={{ fontWeight: "700", color: theme.colors.onSurface }}
+          >
             Log Out
           </Dialog.Title>
           <Dialog.Content>
-            <Text style={{ fontSize: 15, color: "#333" }}>
+            <Text style={{ fontSize: 15, color: theme.colors.onSurface }}>
               Are you sure you want to log out of your account?
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button
-              onPress={() => setLogoutVisible(false)}
-              labelStyle={{ fontWeight: "600" }}
-            >
-              Cancel
-            </Button>
+            <Button onPress={() => setLogoutVisible(false)}>Cancel</Button>
             <Button
               onPress={() => {
                 setLogoutVisible(false);
                 auth.signOut();
                 onDismiss();
               }}
-              textColor="red"
+              textColor={theme.colors.error}
               labelStyle={{ fontWeight: "700" }}
             >
               Log Out

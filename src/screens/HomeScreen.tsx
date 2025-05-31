@@ -1,9 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useLayoutEffect,
-} from "react";
+import React, { useState, useCallback, useLayoutEffect } from "react";
 import {
   Text,
   StyleSheet,
@@ -11,45 +6,29 @@ import {
   FlatList,
   SafeAreaView,
   View,
-  Alert,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  onSnapshot,
-  doc,
-  getDoc,
-} from "firebase/firestore";
-import {
-  Modal,
-  Portal,
-  IconButton,
-  TextInput,
-  Button,
-  ActivityIndicator,
-} from "react-native-paper";
-import { auth, db } from "../../firebaseConfig"; // Import Firebase
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { IconButton, useTheme } from "react-native-paper";
+import { auth, db } from "../../firebaseConfig";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
-import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "@react-native-community/blur";
 import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
 
-const HomeScreen: React.FC = () => {
+const HomeScreen = () => {
   const navigation = useNavigation();
-  const [userGames, setUserGames] = useState([]); // Store user's squares
-  const [loading, setLoading] = useState(true); // Loading state
+  const theme = useTheme();
+
+  const gradientColors = theme.dark
+    ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
+    : (["#fdfcf9", "#e0e7ff"] as const);
+
+  const [userGames, setUserGames] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
-  const [sessionCode, setSessionCode] = useState("");
-  const [loadingSession, setLoadingSession] = useState(false);
-  const [error, setError] = useState("");
   const [profileVisible, setProfileVisible] = useState(false);
 
-  // Fetch user squares
   useFocusEffect(
     useCallback(() => {
       const user = auth.currentUser;
@@ -81,53 +60,102 @@ const HomeScreen: React.FC = () => {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      headerStyle: {
+        backgroundColor: theme.colors.surface, // dynamically changes!
+      },
       headerRight: () => (
         <IconButton
           icon="account-circle"
           size={24}
           onPress={() => setProfileVisible(true)}
-          iconColor={colors.primaryText}
+          iconColor={theme.colors.onBackground}
           style={{ marginRight: 8 }}
         />
       ),
     });
-  }, [navigation]);
+  }, [navigation, theme]);
 
   return (
     <LinearGradient
-      colors={["#fdfcf9", "#e0e7ff"]}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
     >
-      <SafeAreaView style={styles.container}>
-        <View style={styles.greetingContainer}>
-          <Text style={styles.greetingTitle}>Welcome Back!</Text>
-          <Text style={styles.greetingSubtitle}>
+      <SafeAreaView style={{ flex: 1, padding: 20 }}>
+        <View style={{ alignItems: "center", marginVertical: 10 }}>
+          <Text
+            style={{
+              fontSize: 22,
+              fontWeight: "bold",
+              color: theme.colors.onBackground,
+            }}
+          >
+            Welcome Back!
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: theme.colors.onSurfaceVariant,
+              marginTop: 4,
+            }}
+          >
             Ready to play your next square?
           </Text>
         </View>
-        <Text style={styles.sectionTitle}>Quick Start</Text>
-        {/* Navigation buttons */}
+
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "600",
+            marginTop: 15,
+            marginBottom: 10,
+            color: theme.colors.onBackground,
+          }}
+        >
+          Quick Start
+        </Text>
+
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, { backgroundColor: theme.colors.primary }]}
           onPress={() => navigation.navigate("CreateSquareScreen")}
         >
           <MaterialIcons name="add-box" size={20} color="#fff" />
           <Text style={styles.buttonText}>Create Game</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
-          style={styles.button}
+          style={[styles.button, { backgroundColor: theme.colors.primary }]}
           onPress={() => setVisible(true)}
         >
           <MaterialIcons name="vpn-key" size={20} color="#fff" />
           <Text style={styles.buttonText}>Join By Code</Text>
         </TouchableOpacity>
-        <Text style={styles.sectionTitle}>Your Squares</Text>
+
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "600",
+            marginTop: 15,
+            marginBottom: 10,
+            color: theme.colors.onBackground,
+          }}
+        >
+          Your Squares
+        </Text>
+
         {loading ? (
-          <Text>Loading...</Text>
+          <Text style={{ color: theme.colors.onBackground }}>Loading...</Text>
         ) : userGames.length === 0 ? (
-          <Text style={styles.emptyMessage}>
+          <Text
+            style={{
+              textAlign: "center",
+              fontSize: 14,
+              color: theme.colors.onSurfaceVariant,
+              marginTop: 10,
+              fontStyle: "italic",
+            }}
+          >
             You haven’t joined or created any games yet.
           </Text>
         ) : (
@@ -136,7 +164,13 @@ const HomeScreen: React.FC = () => {
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={styles.gameCard}
+                style={[
+                  styles.gameCard,
+                  {
+                    backgroundColor: theme.colors.elevation.level2,
+                    borderLeftColor: theme.colors.primary,
+                  },
+                ]}
                 onPress={() =>
                   navigation.navigate("FinalSquareScreen", {
                     gridId: item.id,
@@ -147,8 +181,16 @@ const HomeScreen: React.FC = () => {
                   })
                 }
               >
-                <Text style={styles.gameTitle}>{item.title}</Text>
-                <Text style={styles.gameSubtitle}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "600",
+                    color: theme.colors.onBackground,
+                  }}
+                >
+                  {item.title}
+                </Text>
+                <Text style={{ fontSize: 14, color: theme.colors.onSurface }}>
                   {item.playerIds?.length || 0} players •{" "}
                   {item.deadline?.toDate?.() > new Date()
                     ? `Ends ${item.deadline.toDate().toLocaleDateString()}`
@@ -159,78 +201,7 @@ const HomeScreen: React.FC = () => {
             contentContainerStyle={{ paddingBottom: 20 }}
           />
         )}
-        {/* <Portal>
-          <Modal
-            visible={visible}
-            onDismiss={() => setVisible(false)}
-            contentContainerStyle={modalStyles.container}
-          >
-            <Text style={modalStyles.title}>Enter Session ID</Text>
 
-            <TextInput
-              label="Session ID"
-              mode="outlined"
-              value={sessionCode}
-              onChangeText={(text) => {
-                setSessionCode(text);
-                setError("");
-              }}
-              style={{ marginBottom: 16, backgroundColor: "#f8f9fa" }}
-            />
-
-            {error ? <Text style={modalStyles.error}>{error}</Text> : null}
-
-            {loadingSession ? (
-              <ActivityIndicator animating color={colors.primary} />
-            ) : (
-              <Button
-                mode="contained"
-                onPress={async () => {
-                  if (!sessionCode) return;
-                  setLoadingSession(true);
-                  try {
-                    const ref = doc(db, "squares", sessionCode.trim());
-                    const snap = await getDoc(ref);
-
-                    if (!snap.exists()) {
-                      setError("Session not found.");
-                      setLoadingSession(false);
-                      return;
-                    }
-
-                    const data = snap.data();
-                    const usedColors = data.players?.map((p) => p.color) || [];
-
-                    setVisible(false);
-                    setSessionCode("");
-                    navigation.navigate("JoinSquareScreen", {
-                      gridId: sessionCode.trim(),
-                      inputTitle: data.title,
-                      deadline: data.deadline,
-                      usedColors,
-                    });
-                  } catch (err) {
-                    console.error(err);
-                    setError("Something went wrong.");
-                  } finally {
-                    setLoadingSession(false);
-                  }
-                }}
-                style={{ marginTop: 10, backgroundColor: "#5e60ce" }}
-              >
-                Join
-              </Button>
-            )}
-
-            <Button
-              onPress={() => setVisible(false)}
-              style={{ marginTop: 10 }}
-              compact
-            >
-              <Text style={{ color: "#5e60ce" }}>Cancel</Text>
-            </Button>
-          </Modal>
-        </Portal> */}
         <JoinSessionModal
           visible={visible}
           onDismiss={() => setVisible(false)}
@@ -240,8 +211,12 @@ const HomeScreen: React.FC = () => {
           onDismiss={() => setProfileVisible(false)}
           userGames={userGames}
         />
+
         <TouchableOpacity
-          style={styles.howToButton}
+          style={[
+            styles.howToButton,
+            { backgroundColor: theme.colors.primary },
+          ]}
           onPress={() => navigation.navigate("HowToScreen")}
         >
           <Text style={styles.howToText}>How to Play</Text>
@@ -254,38 +229,10 @@ const HomeScreen: React.FC = () => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    // backgroundColor: "#FFFFFF",
-    padding: 20,
-  },
-  greetingContainer: {
-    alignItems: "center",
-    marginBottom: 10,
-    marginTop: 10,
-  },
-  greetingTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: colors.primaryText,
-  },
-  greetingSubtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginTop: 15,
-    marginBottom: 10,
-    color: colors.primaryText,
-  },
   button: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 10,
     marginVertical: 6,
@@ -297,7 +244,6 @@ const styles = StyleSheet.create({
     paddingLeft: 5,
   },
   gameCard: {
-    backgroundColor: "rgba(255, 255, 255, 0.85)", // ✅ valid in React Native
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
@@ -307,20 +253,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-  },
-  gameTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  gameSubtitle: {
-    fontSize: 14,
-    color: colors.secondaryText,
   },
   howToButton: {
     marginTop: 10,
     alignSelf: "center",
-    backgroundColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 10,
@@ -329,32 +265,5 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
-  },
-  emptyMessage: {
-    textAlign: "center",
-    fontSize: 14,
-    color: colors.secondaryText,
-    marginTop: 10,
-    fontStyle: "italic",
-  },
-});
-
-const modalStyles = StyleSheet.create({
-  container: {
-    backgroundColor: "white",
-    padding: 20,
-    margin: 20,
-    borderRadius: 12,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  error: {
-    color: "red",
-    marginBottom: 10,
-    textAlign: "center",
   },
 });

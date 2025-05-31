@@ -8,7 +8,7 @@ import {
   Animated,
   Share,
 } from "react-native";
-import { Modal, Portal, Button } from "react-native-paper";
+import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import * as Clipboard from "expo-clipboard";
 import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
@@ -25,6 +25,7 @@ const SessionOptionsModal = ({
   deadlineValue,
   setShowDeadlineModal,
 }) => {
+  const theme = useTheme();
   const slideAnim = useRef(new Animated.Value(600)).current;
   const [showInviteModal, setShowInviteModal] = useState(false);
 
@@ -35,6 +36,10 @@ const SessionOptionsModal = ({
       useNativeDriver: true,
     }).start();
   }, [visible]);
+
+  const surfaceColor = theme.colors.surface;
+  const onSurfaceColor = theme.colors.onSurface;
+  const dividerColor = theme.dark ? "#333" : "#eee";
 
   return (
     <>
@@ -48,7 +53,6 @@ const SessionOptionsModal = ({
             backgroundColor: "transparent",
           }}
         >
-          {/* Backdrop */}
           <TouchableWithoutFeedback onPress={onDismiss}>
             <View
               style={{
@@ -62,11 +66,10 @@ const SessionOptionsModal = ({
             />
           </TouchableWithoutFeedback>
 
-          {/* Bottom Sheet Content */}
           <Animated.View
             style={{
               transform: [{ translateY: slideAnim }],
-              backgroundColor: "#fff",
+              backgroundColor: surfaceColor,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               width: "100%",
@@ -84,7 +87,6 @@ const SessionOptionsModal = ({
             }}
           >
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Header */}
               <View
                 style={{
                   flexDirection: "row",
@@ -97,7 +99,7 @@ const SessionOptionsModal = ({
                   style={{
                     fontSize: 20,
                     fontWeight: "700",
-                    color: colors.primaryText,
+                    color: onSurfaceColor,
                   }}
                 >
                   Session Options
@@ -107,7 +109,7 @@ const SessionOptionsModal = ({
                     style={{
                       fontSize: 14,
                       fontWeight: "600",
-                      color: colors.primary,
+                      color: theme.colors.primary,
                     }}
                   >
                     Cancel
@@ -115,23 +117,20 @@ const SessionOptionsModal = ({
                 </TouchableOpacity>
               </View>
 
-              {/* Divider */}
               <View
-                style={{ height: 1, backgroundColor: "#eee", marginBottom: 20 }}
+                style={{
+                  height: 1,
+                  backgroundColor: dividerColor,
+                  marginBottom: 20,
+                }}
               />
 
-              {/* Options */}
               <Button
                 icon="share-variant"
                 mode="outlined"
-                // onPress={() => {
-                //   Clipboard.setStringAsync(gridId);
-                //   Toast.show({ text1: "Session ID copied to clipboard" });
-                //   onDismiss();
-                // }}
                 onPress={() => setShowInviteModal(true)}
                 style={{ marginBottom: 12 }}
-                labelStyle={{ fontWeight: "600" }}
+                labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
               >
                 Invite Friends
               </Button>
@@ -145,8 +144,17 @@ const SessionOptionsModal = ({
                     setTempDeadline(deadlineValue);
                     setShowDeadlineModal(true);
                   }}
-                  style={{ marginBottom: 12 }}
-                  labelStyle={{ fontWeight: "600" }}
+                  style={{
+                    marginBottom: 12,
+                    borderColor: theme.colors.primary,
+                    borderRadius: 20,
+                    paddingHorizontal: 12,
+                  }}
+                  labelStyle={{
+                    fontWeight: "600",
+                    color: theme.colors.primary,
+                    textTransform: "none",
+                  }}
                 >
                   Change Deadline
                 </Button>
@@ -154,10 +162,17 @@ const SessionOptionsModal = ({
 
               <Button
                 icon="exit-to-app"
-                mode="contained"
+                mode="outlined"
                 onPress={handleLeaveSquare}
-                style={{ backgroundColor: "#ff4d4f", marginBottom: 12 }}
-                labelStyle={{ fontWeight: "600", color: "#fff" }}
+                textColor={theme.colors.error}
+                style={{
+                  backgroundColor: theme.colors.error,
+                  marginBottom: 12,
+                }}
+                labelStyle={{
+                  fontWeight: "600",
+                  color: theme.colors.onPrimary,
+                }}
               >
                 Leave Square
               </Button>
@@ -165,10 +180,13 @@ const SessionOptionsModal = ({
               {isOwner && (
                 <Button
                   icon="delete"
-                  mode="contained"
+                  mode="outlined"
                   onPress={handleDeleteSquare}
-                  style={{ backgroundColor: colors.cancel }}
-                  labelStyle={{ fontWeight: "600", color: "#fff" }}
+                  style={{ backgroundColor: "#ff4d4f", marginBottom: 12 }}
+                  labelStyle={{
+                    fontWeight: "600",
+                    color: "#fff",
+                  }}
                 >
                   Delete Square
                 </Button>
@@ -177,27 +195,41 @@ const SessionOptionsModal = ({
           </Animated.View>
         </Modal>
       </Portal>
+
       <Portal>
         <Modal
           visible={showInviteModal}
           onDismiss={() => setShowInviteModal(false)}
           contentContainerStyle={{
-            backgroundColor: "white",
+            backgroundColor: surfaceColor,
             padding: 24,
             margin: 20,
             borderRadius: 12,
           }}
         >
-          <Text style={{ fontSize: 18, fontWeight: "bold", marginBottom: 16 }}>
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "bold",
+              color: onSurfaceColor,
+              marginBottom: 16,
+            }}
+          >
             Invite Friends
           </Text>
+
           <View
-            style={{ height: 1, backgroundColor: "#eee", marginBottom: 20 }}
+            style={{
+              height: 1,
+              backgroundColor: dividerColor,
+              marginBottom: 20,
+            }}
           />
 
           <View style={{ alignItems: "center", marginBottom: 16 }}>
             <QRCode value={`squares://join/${gridId}`} size={180} />
           </View>
+
           <TouchableOpacity
             onPress={async () => {
               await Clipboard.setStringAsync(gridId);
@@ -210,7 +242,7 @@ const SessionOptionsModal = ({
               marginTop: 20,
               padding: 12,
               borderRadius: 8,
-              backgroundColor: "#5e60ce",
+              backgroundColor: theme.colors.primary,
               alignItems: "center",
             }}
           >
@@ -229,18 +261,27 @@ const SessionOptionsModal = ({
               marginTop: 12,
               padding: 12,
               borderRadius: 8,
-              backgroundColor: "#ddd",
+              backgroundColor: theme.dark ? "#555" : "#ddd",
               alignItems: "center",
             }}
           >
-            <Text style={{ fontWeight: "600" }}>Send Session ID</Text>
+            <Text
+              style={{
+                fontWeight: "600",
+                color: onSurfaceColor,
+              }}
+            >
+              Send Session ID
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => setShowInviteModal(false)}
             style={{ marginTop: 16, alignItems: "center" }}
           >
-            <Text style={{ color: "red", fontWeight: "600" }}>Close</Text>
+            <Text style={{ color: theme.colors.error, fontWeight: "600" }}>
+              Close
+            </Text>
           </TouchableOpacity>
         </Modal>
       </Portal>
