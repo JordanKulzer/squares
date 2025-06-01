@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useRoute, RouteProp, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { Dialog, Portal, Button, Provider } from "react-native-paper";
+import { Dialog, Portal, Button, Provider, useTheme } from "react-native-paper";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/MaterialIcons"; // top of file
 
@@ -67,6 +67,8 @@ const GamePickerScreen = () => {
   const [weekStart, setWeekStart] = useState(getStartOfWeek(0));
   const [showWeekModal, setShowWeekModal] = useState(false);
   const [deadline, setDeadline] = useState(new Date());
+  const theme = useTheme();
+  const isDarkMode = theme.dark;
 
   const {
     inputTitle = "",
@@ -144,16 +146,30 @@ const GamePickerScreen = () => {
 
   return (
     <Provider>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.weekLabel}>{formatWeekLabel(weekStart)}</Text>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <View
+          style={[
+            styles.header,
+            {
+              backgroundColor: theme.colors.elevation.level2,
+              borderColor: isDarkMode ? "#444" : "#ddd",
+            },
+          ]}
+        >
+          <Text
+            style={[styles.weekLabel, { color: theme.colors.onBackground }]}
+          >
+            {formatWeekLabel(weekStart)}
+          </Text>
           <View style={styles.navButtons}>
             <TouchableOpacity
               onPress={() => weekOffset > 0 && setWeekOffset(weekOffset - 1)}
               disabled={weekOffset <= 0}
               style={[
                 styles.navButton,
-                weekOffset <= 0 && styles.navButtonDisabled,
+                weekOffset <= 0 && { backgroundColor: theme.colors.error }, // ✅ inline dynamic style
               ]}
             >
               <Text style={styles.navButtonText}>← Prev</Text>
@@ -161,16 +177,27 @@ const GamePickerScreen = () => {
 
             <TouchableOpacity
               onPress={() => setShowWeekModal(true)}
-              style={styles.navButtonAlt}
+              style={[
+                styles.navButtonAlt,
+                { backgroundColor: theme.colors.elevation.level1 },
+              ]}
             >
               <View style={styles.altButtonContent}>
                 <Icon
                   name="calendar-today"
                   size={18}
-                  color="#333"
+                  color={theme.colors.onSurface}
                   style={{ marginRight: 6 }}
                 />
-                <Text style={styles.navButtonAltText}>Select Week</Text>
+
+                <Text
+                  style={[
+                    styles.navButtonAltText,
+                    { color: theme.colors.onSurface },
+                  ]}
+                >
+                  Select Week
+                </Text>
               </View>
             </TouchableOpacity>
 
@@ -186,7 +213,12 @@ const GamePickerScreen = () => {
         {loading ? (
           <ActivityIndicator size="large" style={{ marginTop: 30 }} />
         ) : games.length === 0 ? (
-          <Text style={styles.noGamesText}>
+          <Text
+            style={[
+              styles.noGamesText,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
             No NFL games scheduled for this week.
           </Text>
         ) : (
@@ -196,16 +228,30 @@ const GamePickerScreen = () => {
             contentContainerStyle={{ paddingBottom: 20 }}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={styles.card}
+                style={[styles.card, { backgroundColor: theme.colors.surface }]}
                 onPress={() => handleSelectGame(item)}
               >
-                <Text style={styles.gameText}>
+                <Text
+                  style={[styles.gameText, { color: theme.colors.onSurface }]}
+                >
                   🏈 {item.awayTeam} @ {item.homeTeam}
                 </Text>
-                <Text style={styles.dateText}>
+                <Text
+                  style={[
+                    styles.dateText,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
                   Kickoff: {new Date(item.date).toLocaleString()}
                 </Text>
-                <Text style={styles.statusText}>Status: {item.status}</Text>
+                <Text
+                  style={[
+                    styles.statusText,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  Status: {item.status}
+                </Text>
               </TouchableOpacity>
             )}
           />
@@ -215,9 +261,14 @@ const GamePickerScreen = () => {
         <Dialog
           visible={showWeekModal}
           onDismiss={() => setShowWeekModal(false)}
-          style={styles.dialogContainer}
+          style={[
+            styles.dialogContainer,
+            { backgroundColor: theme.colors.surface },
+          ]}
         >
-          <Dialog.Title style={styles.dialogTitle}>
+          <Dialog.Title
+            style={[styles.dialogTitle, { color: theme.colors.onSurface }]}
+          >
             Select Your Week
           </Dialog.Title>
 
@@ -232,7 +283,9 @@ const GamePickerScreen = () => {
                     setShowWeekModal(false);
                   }}
                 >
-                  <Text style={styles.weekText}>
+                  <Text
+                    style={[styles.weekText, { color: theme.colors.onSurface }]}
+                  >
                     {formatWeekLabel(getStartOfWeek(i))}
                   </Text>
                 </TouchableOpacity>
@@ -241,7 +294,10 @@ const GamePickerScreen = () => {
           </Dialog.ScrollArea>
 
           <Dialog.Actions>
-            <Button onPress={() => setShowWeekModal(false)} textColor="#5e60ce">
+            <Button
+              onPress={() => setShowWeekModal(false)}
+              textColor={theme.colors.primary}
+            >
               Cancel
             </Button>
           </Dialog.Actions>
@@ -275,9 +331,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 8,
-  },
-  navButtonDisabled: {
-    backgroundColor: "#ccc",
   },
   navButtonText: {
     color: "#fff",

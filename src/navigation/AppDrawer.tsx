@@ -7,17 +7,20 @@ import {
   SafeAreaView,
   StyleSheet,
   View,
+  Alert,
 } from "react-native";
 import HomeScreen from "../screens/HomeScreen";
-import HeaderLogo from "../components/HeaderLogo";
+import * as Linking from "expo-linking";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import NotificationsModal from "../components/NotificationsModal";
 import ThemeToggle from "../components/ThemeToggle";
+import { deleteUser, getAuth } from "firebase/auth";
+import { doc, deleteDoc } from "firebase/firestore";
+import { db } from "../../firebaseConfig";
 
 const Drawer = createDrawerNavigator();
 
-/** Drawer Content Component */
 const AppDrawerContent = ({
   userId,
   onLogout,
@@ -31,12 +34,41 @@ const AppDrawerContent = ({
 }) => {
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const theme = useTheme();
 
   const handleLogout = () => {
     setLogoutConfirmVisible(false);
     onLogout();
   };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setDeleteConfirmVisible(false);
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (user) {
+        await deleteDoc(doc(db, "users", user.uid));
+        await deleteUser(user);
+        onLogout();
+      }
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      Alert.alert("Error", "Failed to delete account. Try again later.");
+    }
+  };
+
+  const renderItemWithIcon = (
+    iconName: string,
+    label: string,
+    onPress?: () => void,
+    labelColor = theme.colors.onBackground
+  ) => (
+    <TouchableOpacity style={styles.settingItem} onPress={onPress}>
+      <MaterialCommunityIcons name={iconName} size={20} color={labelColor} />
+      <Text style={[styles.settingLabel, { color: labelColor }]}>{label}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <SafeAreaView
@@ -45,53 +77,54 @@ const AppDrawerContent = ({
       <Text style={[styles.header, { color: theme.colors.onBackground }]}>
         Settings
       </Text>
+      <View style={styles.divider} />
 
-      <TouchableOpacity style={styles.settingItem}>
-        <Text
-          style={[styles.settingLabel, { color: theme.colors.onBackground }]}
-        >
-          Account Information
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.settingItem}>
-        <Text
-          style={[styles.settingLabel, { color: theme.colors.onBackground }]}
-        >
-          Dark Mode
-        </Text>
-        <View style={{ flex: 1, alignItems: "flex-end" }}>
-          <ThemeToggle isDarkTheme={isDarkTheme} toggleTheme={toggleTheme} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.settingItem}>
+          <MaterialCommunityIcons
+            name="weather-night"
+            size={20}
+            color={theme.colors.onBackground}
+          />
+          <Text
+            style={[styles.settingLabel, { color: theme.colors.onBackground }]}
+          >
+            Dark Mode
+          </Text>
+          <View style={{ flex: 1, alignItems: "flex-end", paddingRight: 20 }}>
+            <ThemeToggle isDarkTheme={isDarkTheme} toggleTheme={toggleTheme} />
+          </View>
         </View>
+
+        {renderItemWithIcon("bell-outline", "Notifications")}
+
+        {renderItemWithIcon("help-circle-outline", "Get Help", () =>
+          Linking.openURL("mailto:support@squaresapp.com")
+        )}
+
+        {renderItemWithIcon(
+          "logout",
+          "Log Out",
+          () => setLogoutConfirmVisible(true),
+          theme.colors.error
+        )}
       </View>
 
-      <TouchableOpacity style={styles.settingItem}>
-        <Text
-          style={[styles.settingLabel, { color: theme.colors.onBackground }]}
+      <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+        <Button
+          mode="contained"
+          onPress={() => setDeleteConfirmVisible(true)}
+          buttonColor={theme.colors.error}
+          textColor={theme.colors.onPrimary}
+          style={styles.deleteAccountButton}
+          contentStyle={{ paddingVertical: 8 }}
+          labelStyle={{ fontWeight: "700", fontSize: 16 }}
+          icon="delete"
         >
-          Get Help
-        </Text>
-      </TouchableOpacity>
+          Delete Account
+        </Button>
+      </View>
 
-      <TouchableOpacity style={styles.settingItem}>
-        <Text
-          style={[styles.settingLabel, { color: theme.colors.onBackground }]}
-        >
-          Notifications
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.settingItem}
-        onPress={() => setLogoutConfirmVisible(true)}
-      >
-        {/* <MaterialCommunityIcons name="logout" size={22} color="#ff4d4d" /> */}
-        <Text style={[styles.settingLabel, { color: theme.colors.error }]}>
-          Log Out
-        </Text>
-      </TouchableOpacity>
-
-      {/* Logout Confirmation Modal */}
       <Portal>
         <Modal
           visible={logoutConfirmVisible}
@@ -112,7 +145,6 @@ const AppDrawerContent = ({
           >
             Are you sure you want to log out?
           </Text>
-
           <View style={styles.modalButtonRow}>
             <Button onPress={() => setLogoutConfirmVisible(false)}>
               Cancel
@@ -127,7 +159,42 @@ const AppDrawerContent = ({
             </Button>
           </View>
         </Modal>
+
+        <Modal
+          visible={deleteConfirmVisible}
+          onDismiss={() => setDeleteConfirmVisible(false)}
+          contentContainerStyle={[
+            styles.modalContainer,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
+          <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+            Delete Account
+          </Text>
+          <Text
+            style={[
+              styles.modalSubtitle,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
+            This will permanently delete your account and data. Continue?
+          </Text>
+          <View style={styles.modalButtonRow}>
+            <Button onPress={() => setDeleteConfirmVisible(false)}>
+              Cancel
+            </Button>
+            <Button
+              onPress={handleDeleteAccount}
+              mode="contained"
+              buttonColor={theme.colors.error}
+              textColor="#fff"
+            >
+              Delete
+            </Button>
+          </View>
+        </Modal>
       </Portal>
+
       <NotificationsModal
         visible={notifModalVisible}
         onDismiss={() => setNotifModalVisible(false)}
@@ -137,7 +204,6 @@ const AppDrawerContent = ({
   );
 };
 
-/** Drawer Navigator */
 const AppDrawer = ({
   userId,
   onLogout,
@@ -192,7 +258,6 @@ const AppDrawer = ({
   );
 };
 
-/** Styles */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -208,13 +273,15 @@ const styles = StyleSheet.create({
   settingItem: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-start",
     paddingVertical: 14,
+    paddingHorizontal: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(180,180,180,0.3)",
+    gap: 12,
   },
   settingLabel: {
     fontSize: 16,
-    marginLeft: 12,
   },
   modalContainer: {
     padding: 20,
@@ -234,6 +301,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: 12,
+  },
+  deleteAccountButton: {
+    borderRadius: 28,
+    elevation: 2,
+  },
+  divider: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "rgba(180,180,180,0.3)",
   },
 });
 

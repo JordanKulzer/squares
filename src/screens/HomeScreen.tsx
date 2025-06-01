@@ -1,4 +1,9 @@
-import React, { useState, useCallback, useLayoutEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useLayoutEffect,
+  useEffect,
+} from "react";
 import {
   Text,
   StyleSheet,
@@ -8,13 +13,21 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { collection, query, where, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import { IconButton, useTheme } from "react-native-paper";
 import { auth, db } from "../../firebaseConfig";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
+import colors from "../../assets/constants/colorOptions";
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -28,6 +41,7 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
   const [profileVisible, setProfileVisible] = useState(false);
+  const [firstName, setFirstName] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -58,6 +72,25 @@ const HomeScreen = () => {
     }, [])
   );
 
+  useEffect(() => {
+    const fetchFirstName = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+      try {
+        const userDocRef = doc(db, "users", user.uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const userData = userDocSnap.data();
+          setFirstName(userData.firstName || "");
+        }
+      } catch (err) {
+        console.error("Error fetching user name:", err);
+      }
+    };
+
+    fetchFirstName();
+  }, []);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerStyle: {
@@ -75,6 +108,15 @@ const HomeScreen = () => {
     });
   }, [navigation, theme]);
 
+  const isNewUser = !loading && userGames.length === 0;
+  const welcomeTitle = isNewUser
+    ? `Welcome${firstName ? `, ${firstName}` : ""}!`
+    : `Welcome back${firstName ? `, ${firstName}` : ""}!`;
+
+  const welcomeSubtitle = isNewUser
+    ? "Let's get started by joining or creating a square."
+    : "Ready to play your next square?";
+
   return (
     <LinearGradient
       colors={gradientColors}
@@ -91,7 +133,7 @@ const HomeScreen = () => {
               color: theme.colors.onBackground,
             }}
           >
-            Welcome Back!
+            {welcomeTitle}
           </Text>
           <Text
             style={{
@@ -100,7 +142,7 @@ const HomeScreen = () => {
               marginTop: 4,
             }}
           >
-            Ready to play your next square?
+            {welcomeSubtitle}
           </Text>
         </View>
 
@@ -181,21 +223,39 @@ const HomeScreen = () => {
                   })
                 }
               >
-                <Text
+                <View
                   style={{
-                    fontSize: 16,
-                    fontWeight: "600",
-                    color: theme.colors.onBackground,
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    alignItems: "center",
                   }}
                 >
-                  {item.title}
-                </Text>
-                <Text style={{ fontSize: 14, color: theme.colors.onSurface }}>
-                  {item.playerIds?.length || 0} players •{" "}
-                  {item.deadline?.toDate?.() > new Date()
-                    ? `Ends ${item.deadline.toDate().toLocaleDateString()}`
-                    : "Finalized"}
-                </Text>
+                  <View>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: theme.colors.onBackground,
+                      }}
+                    >
+                      {item.title}
+                    </Text>
+                    <Text
+                      style={{ fontSize: 14, color: theme.colors.onSurface }}
+                    >
+                      {item.playerIds?.length || 0} players •{" "}
+                      {item.deadline?.toDate?.() > new Date()
+                        ? `Ends ${item.deadline.toDate().toLocaleDateString()}`
+                        : "Finalized"}
+                    </Text>
+                  </View>
+
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={24}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                </View>
               </TouchableOpacity>
             )}
             contentContainerStyle={{ paddingBottom: 20 }}
@@ -244,16 +304,21 @@ const styles = StyleSheet.create({
     paddingLeft: 5,
   },
   gameCard: {
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    marginBottom: 0,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
+    borderColor: "rgba(94, 96, 206, 0.4)",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderLeftWidth: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
+
   howToButton: {
     marginTop: 10,
     alignSelf: "center",

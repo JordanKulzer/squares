@@ -11,7 +11,6 @@ import {
   StyleSheet,
   ScrollView,
   Dimensions,
-  useColorScheme,
   TouchableOpacity,
   Alert,
   Image,
@@ -56,9 +55,8 @@ const FinalSquareScreen = ({ route }) => {
   const { gridId, inputTitle, deadline, eventId } = route.params;
   const formattedDeadline = convertToDate(deadline);
 
-  const scheme = useColorScheme();
-  const isDark = scheme === "dark";
   const theme = useTheme();
+  const isDark = theme.dark;
 
   const [squareColors, setSquareColors] = useState({});
   const [playerColors, setPlayerColors] = useState({});
@@ -285,6 +283,7 @@ const FinalSquareScreen = ({ route }) => {
         style: "destructive",
         onPress: async () => {
           const ref = doc(db, "squares", gridId);
+          setSessionOptionsVisible(false);
           try {
             const docSnap = await getDoc(ref);
             if (!docSnap.exists()) return;
@@ -344,6 +343,7 @@ const FinalSquareScreen = ({ route }) => {
           style: "destructive",
           onPress: async () => {
             try {
+              setSessionOptionsVisible(false);
               await deleteDoc(doc(db, "squares", gridId));
               Toast.show({
                 type: "error",
@@ -556,30 +556,47 @@ const FinalSquareScreen = ({ route }) => {
   const renderEditSquare = () => {
     console.log("Rendering edit square grid...");
     const rows = [];
+    const numberColor = isDark ? "#eee" : "#222";
+    const axisSquareColor = isDark ? "#1e1e1e" : "#f2f2f2";
+    const selectedBorderColor = isDark ? "#9fa8ff" : "#5e60ce";
+
     for (let y = 0; y <= 10; y++) {
       const row = [];
       for (let x = 0; x <= 10; x++) {
         if (x === 0 && y === 0) {
-          row.push(<View key="corner" style={styles.square} />);
+          row.push(
+            <View
+              key="corner"
+              style={[styles.square, { backgroundColor: axisSquareColor }]}
+            />
+          );
         } else if (y === 0) {
           row.push(
-            <View key={`x-${x}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>
+            <View
+              key={`x-${x}`}
+              style={[styles.square, { backgroundColor: axisSquareColor }]}
+            >
+              <Text style={[styles.axisText, { color: numberColor }]}>
                 {!hideAxisUntilDeadline || isAfterDeadline ? xAxis[x - 1] : "?"}
               </Text>
             </View>
           );
         } else if (x === 0) {
           row.push(
-            <View key={`y-${y}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>
+            <View
+              key={`y-${y}`}
+              style={[styles.square, { backgroundColor: axisSquareColor }]}
+            >
+              <Text style={[styles.axisText, { color: numberColor }]}>
                 {!hideAxisUntilDeadline || isAfterDeadline ? yAxis[y - 1] : "?"}
               </Text>
             </View>
           );
         } else {
           const key = `${x - 1},${y - 1}`;
-          const color = squareColors[key] || "#fff";
+          // const color = squareColors[key] || "#fff";
+          const defaultSquareColor = isDark ? "#1e1e1e" : "#fff";
+          const color = squareColors[key] || defaultSquareColor;
           const isSelected = selectedSquares.has(key);
           row.push(
             <TouchableOpacity
@@ -588,9 +605,13 @@ const FinalSquareScreen = ({ route }) => {
                 styles.square,
                 {
                   backgroundColor: color,
-                  borderColor: isSelected ? colors.primary : "#ccc",
+                  borderColor: isSelected
+                    ? selectedBorderColor
+                    : isDark
+                    ? "#444"
+                    : "#ccc",
                   borderWidth: isSelected ? 2 : 1,
-                  shadowColor: isSelected ? colors.primary : "transparent",
+                  shadowColor: isSelected ? selectedBorderColor : "transparent",
                   shadowOpacity: isSelected ? 0.5 : 0,
                   shadowRadius: isSelected ? 6 : 0,
                   elevation: isSelected ? 5 : 1,
@@ -612,28 +633,49 @@ const FinalSquareScreen = ({ route }) => {
 
   const renderFinalSquare = () => {
     console.log("Rendering final square view");
+    const numberColor = isDark ? "#eee" : "#222";
+    const axisSquareColor = isDark ? "#1e1e1e" : "#f2f2f2";
+    const selectedBorderColor = isDark ? "#9fa8ff" : "#5e60ce";
+
     const rows = [];
     for (let y = 0; y <= 10; y++) {
       const row = [];
       for (let x = 0; x <= 10; x++) {
         if (x === 0 && y === 0) {
-          row.push(<View key="corner" style={styles.square} />);
+          row.push(
+            <View
+              key="corner"
+              style={[styles.square, { backgroundColor: axisSquareColor }]}
+            />
+          );
         } else if (y === 0) {
           row.push(
-            <View key={`x-${x}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>{xAxis[x - 1]}</Text>
+            <View
+              key={`x-${x}`}
+              style={[styles.square, { backgroundColor: axisSquareColor }]}
+            >
+              <Text style={[styles.axisText, { color: numberColor }]}>
+                {!hideAxisUntilDeadline || isAfterDeadline ? xAxis[x - 1] : "?"}
+              </Text>
             </View>
           );
         } else if (x === 0) {
           row.push(
-            <View key={`y-${y}`} style={[styles.square, styles.axisCell]}>
-              <Text style={styles.axisText}>{yAxis[y - 1]}</Text>
+            <View
+              key={`y-${y}`}
+              style={[styles.square, { backgroundColor: axisSquareColor }]}
+            >
+              <Text style={[styles.axisText, { color: numberColor }]}>
+                {!hideAxisUntilDeadline || isAfterDeadline ? yAxis[y - 1] : "?"}
+              </Text>
             </View>
           );
         } else {
           const key = `${x - 1},${y - 1}`;
-          const color = squareColors[key] || "#fff";
-          const isSelected = selectedSquare === key;
+          // const color = squareColors[key] || "#fff";
+          const defaultSquareColor = isDark ? "#1e1e1e" : "#fff";
+          const color = squareColors[key] || defaultSquareColor;
+          const isSelected = selectedSquares.has(key);
           row.push(
             <TouchableOpacity
               key={key}
@@ -641,9 +683,13 @@ const FinalSquareScreen = ({ route }) => {
                 styles.square,
                 {
                   backgroundColor: color,
-                  borderColor: isSelected ? "#007AFF" : "#ccc",
+                  borderColor: isSelected
+                    ? selectedBorderColor
+                    : isDark
+                    ? "#444"
+                    : "#ccc",
                   borderWidth: isSelected ? 2 : 1,
-                  shadowColor: isSelected ? "#007AFF" : "transparent",
+                  shadowColor: isSelected ? selectedBorderColor : "transparent",
                   shadowOpacity: isSelected ? 0.5 : 0,
                   shadowRadius: isSelected ? 6 : 0,
                   elevation: isSelected ? 5 : 1,
@@ -1148,7 +1194,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftColor: colors.primary,
     borderColor: "rgba(94, 96, 206, 0.4)",
-
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,

@@ -1,15 +1,11 @@
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  ActivityIndicator,
-  TouchableOpacity,
-  useColorScheme,
-} from "react-native";
+import { View, ActivityIndicator, TouchableOpacity } from "react-native";
 import {
   NavigationContainer,
   DefaultTheme,
   DarkTheme as NavigationDarkTheme,
 } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -25,9 +21,8 @@ import HeaderLogo from "./src/components/HeaderLogo";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import SignupScreen from "./src/screens/SignUpScreen";
 import { Provider as PaperProvider } from "react-native-paper";
-import type { MD3Theme } from "react-native-paper";
 import Toast from "react-native-toast-message";
-import { toastConfig } from "./src/components/ToastConfig";
+import { getToastConfig } from "./src/components/ToastConfig";
 import GamePickerScreen from "./src/screens/GamePickerScreen";
 import HowToScreen from "./src/screens/HowToScreen";
 import { updateDoc, doc } from "firebase/firestore";
@@ -54,6 +49,7 @@ const App: React.FC = () => {
 
   const paperTheme = isDarkTheme ? DarkTheme : LightTheme;
   const navigationTheme = isDarkTheme ? NavigationDarkTheme : DefaultTheme;
+  const toastConfig = getToastConfig(isDarkTheme);
 
   // Load saved theme preference on startup
   useEffect(() => {
@@ -145,98 +141,106 @@ const App: React.FC = () => {
   }
 
   return (
-    <PaperProvider theme={paperTheme}>
-      <NavigationContainer theme={navigationTheme}>
-        <Stack.Navigator>
-          {user ? (
-            <>
-              {/* Screen that doesn't have the back button in the header */}
-              <Stack.Screen name="Main" options={{ headerShown: false }}>
-                {() => (
-                  <HomeScreen
-                    userId={user.uid}
-                    onLogout={handleLogout}
-                    isDarkTheme={isDarkTheme}
-                    toggleTheme={toggleTheme}
-                  />
-                )}
-              </Stack.Screen>
+    <>
+      <StatusBar
+        style={isDarkTheme ? "light" : "dark"}
+        backgroundColor={
+          isDarkTheme ? DarkTheme.colors.surface : LightTheme.colors.surface
+        }
+      />
+      <PaperProvider theme={paperTheme}>
+        <NavigationContainer theme={navigationTheme}>
+          <Stack.Navigator>
+            {user ? (
+              <>
+                {/* Screen that doesn't have the back button in the header */}
+                <Stack.Screen name="Main" options={{ headerShown: false }}>
+                  {() => (
+                    <HomeScreen
+                      userId={user.uid}
+                      onLogout={handleLogout}
+                      isDarkTheme={isDarkTheme}
+                      toggleTheme={toggleTheme}
+                    />
+                  )}
+                </Stack.Screen>
 
-              {/* Other screens with back + animation */}
-              {[
-                {
-                  name: "JoinSquareScreen",
-                  component: JoinSquareScreen,
-                  title: "Join Game",
-                },
-                {
-                  name: "HowToScreen",
-                  component: HowToScreen,
-                  title: "How To Play",
-                },
-                {
-                  name: "CreateSquareScreen",
-                  component: CreateSquareScreen,
-                  title: "Create Game",
-                },
-                {
-                  name: "GamePickerScreen",
-                  component: GamePickerScreen,
-                  title: "Create Game",
-                },
-                {
-                  name: "FinalSquareScreen",
-                  component: FinalSquareScreen,
-                  title: null,
-                },
-              ].map(({ name, component, title }) => (
+                {/* Other screens with back + animation */}
+                {[
+                  {
+                    name: "JoinSquareScreen",
+                    component: JoinSquareScreen,
+                    title: "Join Game",
+                  },
+                  {
+                    name: "HowToScreen",
+                    component: HowToScreen,
+                    title: "How To Play",
+                  },
+                  {
+                    name: "CreateSquareScreen",
+                    component: CreateSquareScreen,
+                    title: "Create Game",
+                  },
+                  {
+                    name: "GamePickerScreen",
+                    component: GamePickerScreen,
+                    title: "Create Game",
+                  },
+                  {
+                    name: "FinalSquareScreen",
+                    component: FinalSquareScreen,
+                    title: null,
+                  },
+                ].map(({ name, component, title }) => (
+                  <Stack.Screen
+                    key={name}
+                    name={name}
+                    component={component}
+                    options={({ navigation }) => ({
+                      animation: "slide_from_right",
+                      headerTitle: () => <HeaderLogo />,
+                      headerStyle: {
+                        backgroundColor: paperTheme.colors.surface, // ✅ use surface for consistent header background
+                      },
+                      headerBackTitleVisible: false,
+                      headerTintColor: paperTheme.colors.onBackground, // ✅ adapt text/icon color
+                      title: title || undefined,
+                      headerLeft: () => (
+                        <TouchableOpacity
+                          style={{ marginLeft: 10 }}
+                          onPress={() => navigation.goBack()}
+                        >
+                          <Icon
+                            name="arrow-back"
+                            size={24}
+                            color={paperTheme.colors.onBackground}
+                          />
+                        </TouchableOpacity>
+                      ),
+                    })}
+                  />
+                ))}
+              </>
+            ) : (
+              <>
                 <Stack.Screen
-                  key={name}
-                  name={name}
-                  component={component}
-                  options={({ navigation }) => ({
-                    animation: "slide_from_right",
-                    headerTitle: () => <HeaderLogo />,
-                    headerStyle: {
-                      backgroundColor: paperTheme.colors.surface, // ✅ use surface for consistent header background
-                    },
-                    headerBackTitleVisible: false,
-                    headerTintColor: paperTheme.colors.onBackground, // ✅ adapt text/icon color
-                    title: title || undefined,
-                    headerLeft: () => (
-                      <TouchableOpacity
-                        style={{ marginLeft: 10 }}
-                        onPress={() => navigation.goBack()}
-                      >
-                        <Icon
-                          name="arrow-back"
-                          size={24}
-                          color={paperTheme.colors.onBackground}
-                        />
-                      </TouchableOpacity>
-                    ),
-                  })}
+                  name="Login"
+                  component={LoginScreen}
+                  options={{ headerShown: false }}
                 />
-              ))}
-            </>
-          ) : (
-            <>
-              <Stack.Screen
-                name="Login"
-                component={LoginScreen}
-                options={{ headerShown: false }}
-              />
-              <Stack.Screen
-                name="Signup"
-                component={SignupScreen}
-                options={{ headerShown: false }}
-              />
-            </>
-          )}
-        </Stack.Navigator>
-      </NavigationContainer>
-      <Toast config={toastConfig} position="bottom" bottomOffset={60} />
-    </PaperProvider>
+                <Stack.Screen
+                  name="Signup"
+                  component={SignupScreen}
+                  options={{ headerShown: false }}
+                />
+              </>
+            )}
+          </Stack.Navigator>
+        </NavigationContainer>
+        <Toast config={toastConfig} position="bottom" bottomOffset={60} />
+      </PaperProvider>
+    </>
   );
 };
 

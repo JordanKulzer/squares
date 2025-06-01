@@ -52,6 +52,14 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
     }
   }, [visible]);
 
+  const getWinCount = () => {
+    const uid = auth.currentUser?.uid;
+    return userGames.reduce((count, game) => {
+      const winners = game.winners || [];
+      return winners.includes(uid) ? count + 1 : count;
+    }, 0);
+  };
+
   const deleteUserData = async (uid) => {
     try {
       await deleteDoc(doc(db, "users", uid));
@@ -208,25 +216,54 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                   {firstName}
                 </Text>
 
-                <Text
+                <View
                   style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
                     marginTop: 16,
-                    fontSize: 15,
-                    fontWeight: "600",
-                    color: theme.colors.onSurface,
                   }}
                 >
-                  Games Joined
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 15,
-                    color: theme.colors.onSurface,
-                    marginTop: 4,
-                  }}
-                >
-                  {userGames.length}
-                </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        fontWeight: "600",
+                        color: theme.colors.onSurface,
+                      }}
+                    >
+                      Games Joined
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        color: theme.colors.onSurface,
+                        marginTop: 4,
+                      }}
+                    >
+                      {userGames.length}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        fontWeight: "600",
+                        color: theme.colors.onSurface,
+                      }}
+                    >
+                      Squares Won
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        color: theme.colors.onSurface,
+                        marginTop: 4,
+                      }}
+                    >
+                      {getWinCount()}
+                    </Text>
+                  </View>
+                </View>
               </View>
 
               <View style={{ alignItems: "center", marginVertical: 16 }}>
@@ -288,12 +325,14 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                 onPress={() => setLogoutVisible(true)}
                 textColor={theme.colors.error}
                 style={{
-                  backgroundColor: theme.colors.error,
+                  backgroundColor: theme.dark ? theme.colors.error : "#ffe5e5",
                   marginBottom: 12,
                 }}
                 labelStyle={{
                   fontWeight: "600",
-                  color: theme.colors.onPrimary,
+                  color: theme.dark
+                    ? theme.colors.onPrimary
+                    : theme.colors.error,
                 }}
               >
                 Log Out
