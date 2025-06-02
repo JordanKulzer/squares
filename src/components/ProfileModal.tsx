@@ -8,10 +8,16 @@ import {
   ScrollView,
   TouchableWithoutFeedback,
 } from "react-native";
-import { Modal, Portal, Button, Dialog, useTheme } from "react-native-paper";
+import {
+  Modal,
+  Portal,
+  Button,
+  Dialog,
+  useTheme,
+  TextInput,
+} from "react-native-paper";
 import { auth, db } from "../../firebaseConfig";
-import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
-import { deleteDoc, doc, getDoc, updateDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import * as ImagePicker from "expo-image-picker";
 
@@ -19,6 +25,9 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [logoutVisible, setLogoutVisible] = useState(false);
   const [firstName, setFirstName] = useState("");
+  const [editNameVisible, setEditNameVisible] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [isEditingName, setIsEditingName] = useState(false);
   const [imageUri, setImageUri] = useState(null);
   const slideAnim = useRef(new Animated.Value(600)).current;
   const theme = useTheme();
@@ -51,6 +60,24 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
       fetchFirstName();
     }
   }, [visible]);
+
+  const updateUserName = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      await setDoc(
+        doc(db, "users", user.uid),
+        { firstName: newName.trim() },
+        { merge: true }
+      );
+      setFirstName(newName.trim());
+      setIsEditingName(false);
+    } catch (error) {
+      console.error("Error updating name:", error);
+      alert("Failed to update your name.");
+    }
+  };
 
   const getWinCount = () => {
     const uid = auth.currentUser?.uid;
@@ -102,15 +129,22 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
     const user = auth.currentUser;
     if (!user) return;
 
-    const response = await fetch(uri);
-    const blob = await response.blob();
-    const storageRef = ref(getStorage(), `profileImages/${user.uid}.jpg`);
-    await uploadBytes(storageRef, blob);
-    const downloadURL = await getDownloadURL(storageRef);
+    try {
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const storageRef = ref(getStorage(), `profileImages/${user.uid}.jpg`);
+      await uploadBytes(storageRef, blob);
+      const downloadURL = await getDownloadURL(storageRef);
 
-    await updateDoc(doc(db, "users", user.uid), {
-      profileImage: downloadURL,
-    });
+      await updateDoc(doc(db, "users", user.uid), {
+        profileImage: downloadURL,
+      });
+
+      setImageUri(downloadURL);
+    } catch (err) {
+      console.error("Error uploading profile image:", err);
+      alert("Failed to upload profile image.");
+    }
   };
 
   return (
@@ -147,7 +181,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
               width: "100%",
               position: "absolute",
               bottom: 0,
-              maxHeight: "68%",
+              maxHeight: "48%", //68 when reintroduce profile pic
               paddingHorizontal: 20,
               paddingTop: 24,
               paddingBottom: 32,
@@ -206,15 +240,69 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                 >
                   Name
                 </Text>
-                <Text
-                  style={{
-                    fontSize: 15,
-                    color: theme.colors.onSurface,
-                    marginTop: 4,
-                  }}
-                >
-                  {firstName}
-                </Text>
+                {isEditingName ? (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: 4,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        color: theme.colors.onSurface,
+                      }}
+                    >
+                      {firstName}
+                    </Text>
+                    <Button
+                      mode="text"
+                      onPress={() => {
+                        setNewName(firstName);
+                        setEditNameVisible(true);
+                      }}
+                      labelStyle={{
+                        fontWeight: "600",
+                        color: theme.colors.primary,
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </View>
+                ) : (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginTop: 4,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 15,
+                        color: theme.colors.onSurface,
+                      }}
+                    >
+                      {firstName}
+                    </Text>
+                    <Button
+                      mode="text"
+                      onPress={() => {
+                        setNewName(firstName);
+                        setIsEditingName(true);
+                      }}
+                      labelStyle={{
+                        fontWeight: "600",
+                        color: theme.colors.primary,
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </View>
+                )}
 
                 <View
                   style={{
@@ -266,58 +354,59 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                 </View>
               </View>
 
-              <View style={{ alignItems: "center", marginVertical: 16 }}>
-                {imageUri ? (
-                  <Image
-                    source={{ uri: imageUri }}
+              {/* Need Firebase storage!  */}
+              {/* <View style={{ alignItems: "center", marginVertical: 24 }}>
+                <TouchableOpacity
+                  onPress={pickImage}
+                  style={{ alignItems: "center" }}
+                >
+                  {imageUri ? (
+                    <Image
+                      source={{ uri: imageUri }}
+                      style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 40,
+                        borderWidth: 2,
+                        borderColor: theme.colors.primary,
+                      }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: 40,
+                        backgroundColor: theme.colors.backdrop,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderWidth: 2,
+                        borderColor: theme.colors.onSurface,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 28,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {firstName?.[0]?.toUpperCase() || "?"}
+                      </Text>
+                    </View>
+                  )}
+                  <Text
                     style={{
-                      width: 80,
-                      height: 80,
-                      borderRadius: 40,
-                      marginBottom: 12,
-                      borderWidth: 2,
-                      borderColor: theme.colors.primary,
-                    }}
-                  />
-                ) : (
-                  <View
-                    style={{
-                      width: 80,
-                      height: 80,
-                      borderRadius: 40,
-                      marginBottom: 12,
-                      backgroundColor: theme.colors.backdrop,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      borderWidth: 2,
-                      borderColor: theme.colors.onSurface,
+                      color: theme.colors.primary,
+                      marginTop: 8,
+                      fontWeight: "600",
+                      fontSize: 14,
                     }}
                   >
-                    <Text
-                      style={{ color: "#fff", fontSize: 28, fontWeight: "700" }}
-                    >
-                      {firstName?.[0]?.toUpperCase() || "?"}
-                    </Text>
-                  </View>
-                )}
-
-                <Button
-                  mode="outlined"
-                  onPress={pickImage}
-                  style={{
-                    borderColor: theme.colors.primary,
-                    borderRadius: 20,
-                    paddingHorizontal: 12,
-                  }}
-                  labelStyle={{
-                    fontWeight: "600",
-                    color: theme.colors.primary,
-                    textTransform: "none",
-                  }}
-                >
-                  Edit Profile Icon
-                </Button>
-              </View>
+                    Edit Profile Icon
+                  </Text>
+                </TouchableOpacity>
+              </View> */}
 
               <Button
                 icon="logout"
@@ -416,6 +505,47 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
               labelStyle={{ fontWeight: "700" }}
             >
               Log Out
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+      {/* Edit Name Modal - show above everything */}
+      <Portal>
+        <Dialog
+          visible={editNameVisible}
+          onDismiss={() => setEditNameVisible(false)}
+          style={{ backgroundColor: theme.colors.surface, borderRadius: 12 }}
+        >
+          <Dialog.Title
+            style={{ fontWeight: "700", color: theme.colors.onSurface }}
+          >
+            Edit Name
+          </Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              mode="outlined"
+              dense
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="Enter your name"
+              style={{ backgroundColor: theme.colors.background }}
+              theme={{ colors: { primary: theme.colors.primary } }}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setEditNameVisible(false)}>Cancel</Button>
+            <Button
+              onPress={async () => {
+                if (!newName.trim()) {
+                  alert("Name cannot be empty.");
+                  return;
+                }
+                await updateUserName();
+                setEditNameVisible(false);
+              }}
+              labelStyle={{ fontWeight: "700" }}
+            >
+              Save
             </Button>
           </Dialog.Actions>
         </Dialog>
