@@ -77,6 +77,9 @@ const FinalSquareScreen = ({ route }) => {
   const [maxSelections, setMaxSelections] = useState(0);
   const [quarterScores, setQuarterScores] = useState([]);
   const [timeLeft, setTimeLeft] = useState("");
+  const [quarterWinners, setQuarterWinners] = useState([]);
+
+  const fallbackLogo = "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png";
 
   const [selectedSquares, setSelectedSquares] = useState(new Set());
   const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
@@ -109,19 +112,58 @@ const FinalSquareScreen = ({ route }) => {
     navigation.setOptions({ headerTitle: inputTitle });
   }, [navigation, inputTitle]);
 
-  const quarterScoresFakeData = [
-    { quarter: "1Q", home: 7, away: 3, winner: "Buccaneers" },
-    { quarter: "2Q", home: 10, away: 10, winner: "Tie" },
-    { quarter: "3Q", home: 0, away: 14, winner: "Eagles" },
-    { quarter: "4Q", home: 6, away: 7, winner: "Eagles" },
-  ];
+  useEffect(() => {
+    if (!eventId) {
+      setQuarterScores([
+        { quarter: "1Q", home: 7, away: 3, winner: "Buccaneers" },
+        { quarter: "2Q", home: 10, away: 10, winner: "Tie" },
+        { quarter: "3Q", home: 0, away: 14, winner: "Eagles" },
+        { quarter: "4Q", home: 6, away: 7, winner: "Eagles" },
+      ]);
+    }
+  }, []);
 
-  const quarterWinners = [
-    { quarter: "1", username: "Alice", square: [7, 3] },
-    { quarter: "2", username: "Bob", square: [0, 0] },
-    { quarter: "3", username: "Carlos", square: [0, 4] },
-    { quarter: "4", username: "Dana", square: [6, 7] },
-  ];
+  // const quarterWinners = [
+  //   { quarter: "1", username: "Alice", square: [7, 3] },
+  //   { quarter: "2", username: "Bob", square: [0, 0] },
+  //   { quarter: "3", username: "Carlos", square: [0, 4] },
+  //   { quarter: "4", username: "Dana", square: [6, 7] },
+  // ];
+
+  const determineQuarterWinners = (scores, selections, xAxis, yAxis) => {
+    return scores.map(({ home, away }, i) => {
+      const x = xAxis.findIndex((val) => val === away % 10);
+      const y = yAxis.findIndex((val) => val === home % 10);
+      const matchingSelection = selections.find(
+        (sel) => sel.x === x && sel.y === y
+      );
+      return {
+        quarter: `${i + 1}`,
+        username: matchingSelection
+          ? playerUsernames[matchingSelection.userId]
+          : "No Winner",
+        square: [away % 10, home % 10],
+      };
+    });
+  };
+
+  useEffect(() => {
+    if (quarterScores.length > 0 && xAxis.length && yAxis.length) {
+      const ref = doc(db, "squares", gridId);
+      getDoc(ref).then((docSnap) => {
+        const data = docSnap.data();
+        if (data?.selections) {
+          const winners = determineQuarterWinners(
+            quarterScores,
+            data.selections,
+            xAxis,
+            yAxis
+          );
+          setQuarterWinners(winners);
+        }
+      });
+    }
+  }, [quarterScores, xAxis, yAxis]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -223,9 +265,6 @@ const FinalSquareScreen = ({ route }) => {
   // **API for quarter scores/logos**
   useEffect(() => {
     const fetchQuarterScores = async () => {
-      console.log("ROUTE eventId:", eventId);
-
-      console.log("try2");
       if (!eventId) return;
 
       try {
@@ -233,24 +272,38 @@ const FinalSquareScreen = ({ route }) => {
           `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard`
         );
         const data = await res.json();
+        const game = data.events.find((e) => e.id === eventId.toLocaleString());
 
         console.log(
-          "Available event IDs:",
+          "Fetched games:",
           data.events.map((e) => e.id)
         );
-        console.log("Expected eventId:", eventId);
-        console.log("Type of eventId:", typeof eventId);
-        const game = data.events.find((e) => e.id === eventId.toLocaleString());
-        console.log("game : ", game);
 
         if (!game) return;
 
-        const comp = game.competitions[0];
-        const home = comp.competitors.find((c) => c.homeAway === "home");
-        const away = comp.competitors.find((c) => c.homeAway === "away");
+        const competition = game.competitions?.[0];
+        if (!competition) {
+          console.warn("No competition found in game");
+          return;
+        }
 
-        const homeScores = home.linescores.map((s) => s.value);
-        const awayScores = away.linescores.map((s) => s.value);
+        const home = competition.competitors?.find(
+          (c) => c.homeAway === "home"
+        );
+        const away = competition.competitors?.find(
+          (c) => c.homeAway === "away"
+        );
+
+        const homeScores = Array.isArray(home?.linescores)
+          ? home.linescores.map((s) => s.value)
+          : [];
+
+        const awayScores = Array.isArray(away?.linescores)
+          ? away.linescores.map((s) => s.value)
+          : [];
+
+        console.log("home team object:", home);
+        console.log("home linescores:", home?.linescores);
 
         const scores = homeScores.map((homeQ, i) => ({
           quarter: `${i + 1}Q`,
@@ -261,12 +314,33 @@ const FinalSquareScreen = ({ route }) => {
               ? home.team.displayName
               : away.team.displayName,
         }));
+        console.log("Quarter Scores:", scores);
+
+        if (!home?.team?.logo?.[0]?.href || !away?.team?.logo?.[0]?.href) {
+          console.warn("Logo(s) missing", {
+            homeTeam: home?.team,
+            awayTeam: away?.team,
+          });
+        }
+
+        // MOCK DATA //
+        if (homeScores.length === 0 || awayScores.length === 0) {
+          console.warn("Linescores missing — using mock data for testing");
+          setQuarterScores([
+            // { quarter: "1Q", home: 7, away: 3, winner: "Eagles" },
+            // { quarter: "2Q", home: 10, away: 10, winner: "Tie" },
+            // { quarter: "3Q", home: 0, away: 14, winner: "Cowboys" },
+            // { quarter: "4Q", home: 6, away: 7, winner: "Cowboys" },
+          ]);
+          setTeam1Logo(home?.team?.logo || fallbackLogo);
+          setTeam2Logo(away?.team?.logo || fallbackLogo);
+          return; // prevent setting empty scores below
+        }
+        // END OF MOCK DATA //
 
         setQuarterScores(scores);
-        setTeam1Logo(home.team.logos?.[0]?.href || null);
-        setTeam2Logo(away.team.logos?.[0]?.href || null);
-        console.log("Home Team Logos:", home.team.logos);
-        console.log("Away Team Logos:", away.team.logos);
+        setTeam1Logo(home?.team?.logo || fallbackLogo);
+        setTeam2Logo(away?.team?.logo || fallbackLogo);
       } catch (e) {
         console.warn("Error fetching quarter scores", e);
       }
@@ -274,20 +348,6 @@ const FinalSquareScreen = ({ route }) => {
 
     fetchQuarterScores();
   }, [eventId]);
-
-  // useEffect(() => {
-  //   if (eventId) return;
-
-  //   setQuarterScores([
-  //     { quarter: "1", home: 7, away: 3, winner: "Buccaneers" },
-  //     { quarter: "2", home: 10, away: 10, winner: "Tie" },
-  //     { quarter: "3", home: 0, away: 14, winner: "Eagles" },
-  //     { quarter: "4", home: 6, away: 7, winner: "Eagles" },
-  //   ]);
-
-  //   setTeam1Logo("https://a.espncdn.com/i/teamlogos/nfl/500/tb.png");
-  //   setTeam2Logo("https://a.espncdn.com/i/teamlogos/nfl/500/phi.png");
-  // }, []);
 
   const handleLeaveSquare = () => {
     Alert.alert("Leave Square", "Are you sure you want to leave this square?", [
@@ -568,7 +628,6 @@ const FinalSquareScreen = ({ route }) => {
   }, [userId, gridId]);
 
   const renderEditSquare = () => {
-    console.log("Rendering edit square grid...");
     const rows = [];
     const numberColor = isDark ? "#eee" : "#222";
     const axisSquareColor = isDark ? "#1e1e1e" : "#f2f2f2";
@@ -740,13 +799,11 @@ const FinalSquareScreen = ({ route }) => {
             >
               <Card.Content style={{ alignItems: "center" }}>
                 <View style={styles.teamRow}>
-                  {team1Logo && (
-                    <Image
-                      source={{ uri: team1Logo }}
-                      style={styles.teamLogo}
-                      resizeMode="contain"
-                    />
-                  )}
+                  <Image
+                    source={{ uri: team1Logo || fallbackLogo }}
+                    style={styles.teamLogo}
+                    resizeMode="contain"
+                  />
                   <Text
                     style={[
                       styles.titleText,
@@ -762,13 +819,11 @@ const FinalSquareScreen = ({ route }) => {
                   vs
                 </Text>
                 <View style={styles.teamRow}>
-                  {team2Logo && (
-                    <Image
-                      source={{ uri: team2Logo }}
-                      style={styles.teamLogo}
-                      resizeMode="contain"
-                    />
-                  )}
+                  <Image
+                    source={{ uri: team2Logo || fallbackLogo }}
+                    style={styles.teamLogo}
+                    resizeMode="contain"
+                  />
                   <Text
                     style={[
                       styles.titleText,
@@ -913,13 +968,21 @@ const FinalSquareScreen = ({ route }) => {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Title
-            title="🎉 Congratulations Winners!"
+            title={
+              quarterWinners.some(
+                (w) => w?.username && w.username !== "No Winner"
+              )
+                ? "Congratulations Winners!"
+                : "No Winners Yet.  Be patient"
+            }
             titleStyle={[styles.winnerTitle, { color: theme.colors.onSurface }]}
           />
           <Card.Content>
             {quarterScores.length > 0 ? (
               quarterScores.map((q, i) => {
                 const winner = quarterWinners[i];
+                const username = winner?.username ?? "No Winner";
+                const square = winner?.square ?? ["-", "-"];
                 return (
                   <Card
                     key={i}
@@ -960,16 +1023,29 @@ const FinalSquareScreen = ({ route }) => {
                         </Text>
                       </View>
                       <View style={styles.winnerInfo}>
-                        <Icon name="emoji-events" size={20} color="gold" />
-                        <Text
-                          style={[
-                            styles.winnerText,
-                            { color: theme.colors.onSurface },
-                          ]}
-                        >
-                          {winner.username} wins with square ({winner.square[0]}
-                          , {winner.square[1]})
-                        </Text>
+                        {username !== "No Winner" ? (
+                          <>
+                            <Icon name="emoji-events" size={20} color="gold" />
+                            <Text
+                              style={[
+                                styles.winnerText,
+                                { color: theme.colors.onSurface },
+                              ]}
+                            >
+                              {username} wins with square ({square[0]},{" "}
+                              {square[1]})
+                            </Text>
+                          </>
+                        ) : (
+                          <Text
+                            style={[
+                              styles.winnerText,
+                              { color: theme.colors.onSurface },
+                            ]}
+                          >
+                            ❌ No winner for this quarter
+                          </Text>
+                        )}
                       </View>
                     </Card.Content>
                   </Card>
