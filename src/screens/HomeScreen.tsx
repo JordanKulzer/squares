@@ -219,6 +219,7 @@ const HomeScreen = () => {
                     inputTitle: item.title,
                     username: item.username,
                     deadline: item.deadline,
+                    eventId: item.eventId, // ✅ add this line
                     disableAnimation: true,
                   })
                 }

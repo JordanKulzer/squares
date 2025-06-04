@@ -240,69 +240,33 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                 >
                   Name
                 </Text>
-                {isEditingName ? (
-                  <View
+                <View style={{ marginTop: 4 }}>
+                  <Text
                     style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginTop: 4,
+                      fontSize: 15,
+                      color: theme.colors.onSurface,
                     }}
+                  >
+                    {firstName}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setNewName(firstName);
+                      setEditNameVisible(true);
+                    }}
+                    style={{ marginTop: 4 }}
                   >
                     <Text
                       style={{
-                        fontSize: 15,
-                        color: theme.colors.onSurface,
-                      }}
-                    >
-                      {firstName}
-                    </Text>
-                    <Button
-                      mode="text"
-                      onPress={() => {
-                        setNewName(firstName);
-                        setEditNameVisible(true);
-                      }}
-                      labelStyle={{
+                        fontSize: 14,
                         fontWeight: "600",
                         color: theme.colors.primary,
                       }}
                     >
-                      Edit
-                    </Button>
-                  </View>
-                ) : (
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginTop: 4,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        color: theme.colors.onSurface,
-                      }}
-                    >
-                      {firstName}
+                      Edit Name
                     </Text>
-                    <Button
-                      mode="text"
-                      onPress={() => {
-                        setNewName(firstName);
-                        setIsEditingName(true);
-                      }}
-                      labelStyle={{
-                        fontWeight: "600",
-                        color: theme.colors.primary,
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </View>
-                )}
+                  </TouchableOpacity>
+                </View>
 
                 <View
                   style={{
@@ -410,18 +374,15 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
 
               <Button
                 icon="logout"
-                mode="outlined"
+                mode="contained"
                 onPress={() => setLogoutVisible(true)}
-                textColor={theme.colors.error}
+                buttonColor={theme.colors.primary} // or a specific color like "#5e60ce"
                 style={{
-                  backgroundColor: theme.dark ? theme.colors.error : "#ffe5e5",
                   marginBottom: 12,
                 }}
                 labelStyle={{
                   fontWeight: "600",
-                  color: theme.dark
-                    ? theme.colors.onPrimary
-                    : theme.colors.error,
+                  color: "#fff",
                 }}
               >
                 Log Out
@@ -431,10 +392,17 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                 icon="delete"
                 mode="outlined"
                 onPress={() => setConfirmVisible(true)}
-                style={{ backgroundColor: "#ff4d4f", marginBottom: 12 }}
+                textColor={theme.colors.error}
+                style={{
+                  backgroundColor: theme.dark ? theme.colors.error : "#ffe5e5",
+                  marginBottom: 12,
+                  borderColor: theme.colors.error,
+                }}
                 labelStyle={{
                   fontWeight: "600",
-                  color: "#fff",
+                  color: theme.dark
+                    ? theme.colors.onPrimary
+                    : theme.colors.error,
                 }}
               >
                 Delete Account

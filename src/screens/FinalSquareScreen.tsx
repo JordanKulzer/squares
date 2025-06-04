@@ -221,59 +221,73 @@ const FinalSquareScreen = ({ route }) => {
   }, [deadlineValue]);
 
   // **API for quarter scores/logos**
-  // useEffect(() => {
-  //   const fetchQuarterScores = async () => {
-  //     if (!eventId) return;
-
-  //     try {
-  //       const res = await fetch(
-  //         `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard`
-  //       );
-  //       const data = await res.json();
-  //       const game = data.events.find((e) => e.id === eventId);
-  //       if (!game) return;
-
-  //       const comp = game.competitions[0];
-  //       const home = comp.competitors.find((c) => c.homeAway === "home");
-  //       const away = comp.competitors.find((c) => c.homeAway === "away");
-
-  //       const homeScores = home.linescores.map((s) => s.value);
-  //       const awayScores = away.linescores.map((s) => s.value);
-
-  //       const scores = homeScores.map((homeQ, i) => ({
-  //         quarter: `${i + 1}Q`,
-  //         home: homeQ,
-  //         away: awayScores[i],
-  //         winner:
-  //           homeQ > awayScores[i]
-  //             ? home.team.displayName
-  //             : away.team.displayName,
-  //       }));
-
-  //       setQuarterScores(scores);
-  //       setTeam1Logo(home.team.logos?.[0]?.href || null);
-  //       setTeam2Logo(away.team.logos?.[0]?.href || null);
-  //     } catch (e) {
-  //       console.warn("Error fetching quarter scores", e);
-  //     }
-  //   };
-
-  //   fetchQuarterScores();
-  // }, [eventId]);
-
   useEffect(() => {
-    if (eventId) return;
+    const fetchQuarterScores = async () => {
+      console.log("ROUTE eventId:", eventId);
 
-    setQuarterScores([
-      { quarter: "1", home: 7, away: 3, winner: "Buccaneers" },
-      { quarter: "2", home: 10, away: 10, winner: "Tie" },
-      { quarter: "3", home: 0, away: 14, winner: "Eagles" },
-      { quarter: "4", home: 6, away: 7, winner: "Eagles" },
-    ]);
+      console.log("try2");
+      if (!eventId) return;
 
-    setTeam1Logo("https://a.espncdn.com/i/teamlogos/nfl/500/tb.png");
-    setTeam2Logo("https://a.espncdn.com/i/teamlogos/nfl/500/phi.png");
-  }, []);
+      try {
+        const res = await fetch(
+          `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard`
+        );
+        const data = await res.json();
+
+        console.log(
+          "Available event IDs:",
+          data.events.map((e) => e.id)
+        );
+        console.log("Expected eventId:", eventId);
+        console.log("Type of eventId:", typeof eventId);
+        const game = data.events.find((e) => e.id === eventId.toLocaleString());
+        console.log("game : ", game);
+
+        if (!game) return;
+
+        const comp = game.competitions[0];
+        const home = comp.competitors.find((c) => c.homeAway === "home");
+        const away = comp.competitors.find((c) => c.homeAway === "away");
+
+        const homeScores = home.linescores.map((s) => s.value);
+        const awayScores = away.linescores.map((s) => s.value);
+
+        const scores = homeScores.map((homeQ, i) => ({
+          quarter: `${i + 1}Q`,
+          home: homeQ,
+          away: awayScores[i],
+          winner:
+            homeQ > awayScores[i]
+              ? home.team.displayName
+              : away.team.displayName,
+        }));
+
+        setQuarterScores(scores);
+        setTeam1Logo(home.team.logos?.[0]?.href || null);
+        setTeam2Logo(away.team.logos?.[0]?.href || null);
+        console.log("Home Team Logos:", home.team.logos);
+        console.log("Away Team Logos:", away.team.logos);
+      } catch (e) {
+        console.warn("Error fetching quarter scores", e);
+      }
+    };
+
+    fetchQuarterScores();
+  }, [eventId]);
+
+  // useEffect(() => {
+  //   if (eventId) return;
+
+  //   setQuarterScores([
+  //     { quarter: "1", home: 7, away: 3, winner: "Buccaneers" },
+  //     { quarter: "2", home: 10, away: 10, winner: "Tie" },
+  //     { quarter: "3", home: 0, away: 14, winner: "Eagles" },
+  //     { quarter: "4", home: 6, away: 7, winner: "Eagles" },
+  //   ]);
+
+  //   setTeam1Logo("https://a.espncdn.com/i/teamlogos/nfl/500/tb.png");
+  //   setTeam2Logo("https://a.espncdn.com/i/teamlogos/nfl/500/phi.png");
+  // }, []);
 
   const handleLeaveSquare = () => {
     Alert.alert("Leave Square", "Are you sure you want to leave this square?", [

@@ -112,14 +112,20 @@ const AppDrawerContent = ({
 
       <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
         <Button
-          mode="contained"
-          onPress={() => setDeleteConfirmVisible(true)}
-          buttonColor={theme.colors.error}
-          textColor={theme.colors.onPrimary}
-          style={styles.deleteAccountButton}
-          contentStyle={{ paddingVertical: 8 }}
-          labelStyle={{ fontWeight: "700", fontSize: 16 }}
           icon="delete"
+          mode="outlined"
+          onPress={() => setDeleteConfirmVisible(true)}
+          textColor={theme.colors.error}
+          style={{
+            backgroundColor: theme.dark ? theme.colors.error : "#ffe5e5",
+            marginBottom: 12,
+            borderColor: theme.colors.error,
+          }}
+          contentStyle={{ paddingVertical: 8 }}
+          labelStyle={{
+            fontWeight: "600",
+            color: theme.dark ? theme.colors.onPrimary : theme.colors.error,
+          }}
         >
           Delete Account
         </Button>
