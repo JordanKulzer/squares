@@ -627,11 +627,19 @@ const FinalSquareScreen = ({ route }) => {
     return unsub;
   }, [userId, gridId]);
 
-  const renderEditSquare = () => {
-    const rows = [];
+  const renderSquareGrid = ({
+    editable,
+    onSquarePress,
+  }: {
+    editable: boolean;
+    onSquarePress: (x: number, y: number) => void;
+  }) => {
     const numberColor = isDark ? "#eee" : "#222";
     const axisSquareColor = isDark ? "#1e1e1e" : "#f2f2f2";
     const selectedBorderColor = isDark ? "#9fa8ff" : "#5e60ce";
+    const defaultSquareColor = isDark ? "#1e1e1e" : "#fff";
+
+    const rows = [];
 
     for (let y = 0; y <= 10; y++) {
       const row = [];
@@ -667,10 +675,9 @@ const FinalSquareScreen = ({ route }) => {
           );
         } else {
           const key = `${x - 1},${y - 1}`;
-          // const color = squareColors[key] || "#fff";
-          const defaultSquareColor = isDark ? "#1e1e1e" : "#fff";
           const color = squareColors[key] || defaultSquareColor;
           const isSelected = selectedSquares.has(key);
+
           row.push(
             <TouchableOpacity
               key={key}
@@ -690,7 +697,11 @@ const FinalSquareScreen = ({ route }) => {
                   elevation: isSelected ? 5 : 1,
                 },
               ]}
-              onPress={() => handlePress(x - 1, y - 1)}
+              onPress={() => {
+                if (editable || onSquarePress === handleSquarePress) {
+                  onSquarePress(x - 1, y - 1);
+                }
+              }}
             />
           );
         }
@@ -701,84 +712,7 @@ const FinalSquareScreen = ({ route }) => {
         </View>
       );
     }
-    return rows;
-  };
 
-  const renderFinalSquare = () => {
-    console.log("Rendering final square view");
-    const numberColor = isDark ? "#eee" : "#222";
-    const axisSquareColor = isDark ? "#1e1e1e" : "#f2f2f2";
-    const selectedBorderColor = isDark ? "#9fa8ff" : "#5e60ce";
-
-    const rows = [];
-    for (let y = 0; y <= 10; y++) {
-      const row = [];
-      for (let x = 0; x <= 10; x++) {
-        if (x === 0 && y === 0) {
-          row.push(
-            <View
-              key="corner"
-              style={[styles.square, { backgroundColor: axisSquareColor }]}
-            />
-          );
-        } else if (y === 0) {
-          row.push(
-            <View
-              key={`x-${x}`}
-              style={[styles.square, { backgroundColor: axisSquareColor }]}
-            >
-              <Text style={[styles.axisText, { color: numberColor }]}>
-                {!hideAxisUntilDeadline || isAfterDeadline ? xAxis[x - 1] : "?"}
-              </Text>
-            </View>
-          );
-        } else if (x === 0) {
-          row.push(
-            <View
-              key={`y-${y}`}
-              style={[styles.square, { backgroundColor: axisSquareColor }]}
-            >
-              <Text style={[styles.axisText, { color: numberColor }]}>
-                {!hideAxisUntilDeadline || isAfterDeadline ? yAxis[y - 1] : "?"}
-              </Text>
-            </View>
-          );
-        } else {
-          const key = `${x - 1},${y - 1}`;
-          // const color = squareColors[key] || "#fff";
-          const defaultSquareColor = isDark ? "#1e1e1e" : "#fff";
-          const color = squareColors[key] || defaultSquareColor;
-          const isSelected = selectedSquares.has(key);
-          row.push(
-            <TouchableOpacity
-              key={key}
-              style={[
-                styles.square,
-                {
-                  backgroundColor: color,
-                  borderColor: isSelected
-                    ? selectedBorderColor
-                    : isDark
-                    ? "#444"
-                    : "#ccc",
-                  borderWidth: isSelected ? 2 : 1,
-                  shadowColor: isSelected ? selectedBorderColor : "transparent",
-                  shadowOpacity: isSelected ? 0.5 : 0,
-                  shadowRadius: isSelected ? 6 : 0,
-                  elevation: isSelected ? 5 : 1,
-                },
-              ]}
-              onPress={() => handleSquarePress(x - 1, y - 1)}
-            />
-          );
-        }
-      }
-      rows.push(
-        <View key={y} style={styles.row}>
-          {row}
-        </View>
-      );
-    }
     return rows;
   };
 
@@ -858,7 +792,12 @@ const FinalSquareScreen = ({ route }) => {
               </View>
               <ScrollView horizontal>
                 <ScrollView>
-                  {isAfterDeadline ? renderFinalSquare() : renderEditSquare()}
+                  {renderSquareGrid({
+                    editable: !isAfterDeadline,
+                    onSquarePress: isAfterDeadline
+                      ? handleSquarePress
+                      : handlePress,
+                  })}
                 </ScrollView>
               </ScrollView>
             </View>
