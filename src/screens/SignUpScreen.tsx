@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Text,
   TouchableOpacity,
@@ -10,8 +10,9 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
   View,
+  useColorScheme,
 } from "react-native";
-import { TextInput as PaperInput } from "react-native-paper";
+import { TextInput as PaperInput, useTheme } from "react-native-paper";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
@@ -24,6 +25,16 @@ const SignupScreen = ({ navigation }) => {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [error, setError] = useState("");
+
+  const theme = useTheme();
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
+
+  const gradientColors = useMemo(() => {
+    return theme.dark
+      ? ["#121212", "#1d1d1d", "#2b2b2d"]
+      : ["#fdfcf9", "#e0e7ff"];
+  }, [theme.dark]);
 
   const handleSignup = async () => {
     if (!firstName || !email || !password) {
@@ -67,7 +78,7 @@ const SignupScreen = ({ navigation }) => {
 
   return (
     <LinearGradient
-      colors={["#fdfcf9", "#e0e7ff"]}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
@@ -87,7 +98,9 @@ const SignupScreen = ({ navigation }) => {
               resizeMode="contain"
             />
 
-            <Text style={styles.title}>Sign up to start playing!</Text>
+            <Text style={[styles.title, { color: theme.colors.onBackground }]}>
+              Sign up to start playing!
+            </Text>
 
             <PaperInput
               label="First Name"
@@ -96,10 +109,16 @@ const SignupScreen = ({ navigation }) => {
               onChangeText={setFirstName}
               keyboardType="default"
               autoCapitalize="none"
-              style={styles.input}
-              theme={{ colors: { primary: colors.primary } }}
+              style={[styles.input, { backgroundColor: "transparent" }]}
+              theme={{
+                colors: {
+                  primary: colors.primary,
+                  text: isDark ? "#fff" : "#000",
+                  placeholder: isDark ? "#aaa" : "#666",
+                },
+              }}
               right={
-                email ? (
+                firstName ? (
                   <PaperInput.Icon
                     icon="close"
                     onPress={() => setFirstName("")}
@@ -116,8 +135,14 @@ const SignupScreen = ({ navigation }) => {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              style={styles.input}
-              theme={{ colors: { primary: colors.primary } }}
+              style={[styles.input, { backgroundColor: "transparent" }]}
+              theme={{
+                colors: {
+                  primary: colors.primary,
+                  text: isDark ? "#fff" : "#000",
+                  placeholder: isDark ? "#aaa" : "#666",
+                },
+              }}
               right={
                 email ? (
                   <PaperInput.Icon
@@ -135,8 +160,14 @@ const SignupScreen = ({ navigation }) => {
               secureTextEntry
               value={password}
               onChangeText={setPassword}
-              style={styles.input}
-              theme={{ colors: { primary: colors.primary } }}
+              style={[styles.input, { backgroundColor: "transparent" }]}
+              theme={{
+                colors: {
+                  primary: colors.primary,
+                  text: isDark ? "#fff" : "#000",
+                  placeholder: isDark ? "#aaa" : "#666",
+                },
+              }}
               right={
                 password ? (
                   <PaperInput.Icon
@@ -149,8 +180,20 @@ const SignupScreen = ({ navigation }) => {
             />
 
             {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
+              <View
+                style={[
+                  styles.errorBox,
+                  { backgroundColor: isDark ? "#331111" : "#ffe6e6" },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: isDark ? "#ff6666" : "#cc0000",
+                    textAlign: "center",
+                  }}
+                >
+                  {error}
+                </Text>
               </View>
             ) : null}
 
@@ -187,12 +230,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "700",
-    color: colors.primaryText || "#333",
     marginBottom: 10,
   },
   input: {
     marginBottom: 10,
-    backgroundColor: colors.primaryBackground,
   },
   button: {
     backgroundColor: colors.primary,
@@ -207,21 +248,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   errorBox: {
-    backgroundColor: "#ffe6e6",
     padding: 10,
     borderRadius: 8,
     marginBottom: 12,
-  },
-  errorText: {
-    color: "#cc0000",
-    textAlign: "center",
-  },
-  linkText: {
-    textAlign: "center",
-    color: colors.primary,
-    fontWeight: "500",
-    fontSize: 14,
-    marginTop: 4,
   },
   backButton: {
     flexDirection: "row",

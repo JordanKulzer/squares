@@ -27,6 +27,7 @@ import GamePickerScreen from "./src/screens/GamePickerScreen";
 import HowToScreen from "./src/screens/HowToScreen";
 import { updateDoc, doc } from "firebase/firestore";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
+import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 
 const Stack = createNativeStackNavigator();
 
@@ -232,6 +233,11 @@ const App: React.FC = () => {
                 <Stack.Screen
                   name="Signup"
                   component={SignupScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="ForgotPassword"
+                  component={ForgotPasswordScreen}
                   options={{ headerShown: false }}
                 />
               </>
