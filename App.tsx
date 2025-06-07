@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { View, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, ActivityIndicator, TouchableOpacity, StatusBar } from "react-native";
 import {
   NavigationContainer,
   DefaultTheme,
   DarkTheme as NavigationDarkTheme,
 } from "@react-navigation/native";
-import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -143,12 +142,12 @@ const App: React.FC = () => {
 
   return (
     <>
-      <StatusBar
-        style={isDarkTheme ? "light" : "dark"}
-        backgroundColor={
-          isDarkTheme ? DarkTheme.colors.surface : LightTheme.colors.surface
-        }
-      />
+ <StatusBar
+  barStyle={isDarkTheme ? "light-content" : "dark-content"}
+  backgroundColor={
+    isDarkTheme ? DarkTheme.colors.surface : LightTheme.colors.surface
+  }
+/>
       <PaperProvider theme={paperTheme}>
         <NavigationContainer theme={navigationTheme}>
           <Stack.Navigator>
@@ -201,8 +200,11 @@ const App: React.FC = () => {
                     options={({ navigation }) => ({
                       animation: "slide_from_right",
                       headerTitle: () => <HeaderLogo />,
+                      headerTitleAlign: "center",
                       headerStyle: {
-                        backgroundColor: paperTheme.colors.surface, // ✅ use surface for consistent header background
+                        backgroundColor: paperTheme.colors.surface,
+                        borderBottomWidth: 2,
+                        borderBottomColor: 'red'
                       },
                       headerBackTitleVisible: false,
                       headerTintColor: paperTheme.colors.onBackground, // ✅ adapt text/icon color

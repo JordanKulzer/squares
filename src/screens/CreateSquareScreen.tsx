@@ -8,12 +8,12 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
-  Animated,
   StyleSheet,
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+
+
 import { addDoc, collection } from "firebase/firestore";
 import { db, auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
@@ -21,6 +21,7 @@ import Icon from "react-native-vector-icons/Ionicons";
 import { RouteProp, useRoute } from "@react-navigation/native";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
+import DeadlinePickerModal from "../components/DeadlinePickerModal";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -47,6 +48,8 @@ const CreateSquareScreen = ({ navigation }) => {
   const [eventId, setEventId] = useState("");
   const [step, setStep] = useState(0);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
+  const [showPicker, setShowPicker] = useState(false);
+
   const route =
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
   const theme = useTheme();
@@ -158,10 +161,6 @@ const CreateSquareScreen = ({ navigation }) => {
 
   const renderStepOne = () => (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.title, { color: theme.colors.onBackground }]}>
-        Create a New Square
-      </Text>
-
       <Card
         style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
       >
@@ -169,7 +168,7 @@ const CreateSquareScreen = ({ navigation }) => {
           Game Settings
         </Text>
         <PaperInput
-          label="Square Title"
+          label="Enter Your Square Title"
           value={inputTitle}
           onChangeText={setInputTitle}
           mode="outlined"
@@ -209,7 +208,7 @@ const CreateSquareScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         <PaperInput
-          label="Max Squares per Player"
+          label="Enter Max Squares Per Player"
           keyboardType="numeric"
           value={maxSelections}
           onChangeText={setMaxSelections}
@@ -228,11 +227,34 @@ const CreateSquareScreen = ({ navigation }) => {
         >
           Deadline For Your Square
         </Text>
-        <DateTimePicker
-          value={deadline}
-          mode="datetime"
-          display="default"
-          onChange={onDateChange}
+        <TouchableOpacity
+          onPress={() => setShowPicker(true)}
+          style={[
+            styles.deadlinePickerButton,
+            { backgroundColor: theme.colors.elevation.level1 },
+          ]}
+        >
+          <Text
+            style={{
+              color: theme.colors.onSurface,
+              fontSize: 16,
+              fontWeight: "500",
+            }}
+          >
+            {deadline.toLocaleString()}
+          </Text>
+          <Icon
+            name="chevron-forward"
+            size={20}
+            color={theme.colors.onSurface}
+          />
+        </TouchableOpacity>
+
+        <DeadlinePickerModal
+          visible={showPicker}
+          onDismiss={() => setShowPicker(false)}
+          date={deadline}
+          onConfirm={(date) => setDeadline(date)}
         />
 
         <Text
@@ -248,7 +270,17 @@ const CreateSquareScreen = ({ navigation }) => {
           <Text style={{ color: theme.colors.onSurface }}>
             Randomize Axis Numbers
           </Text>
-          <Switch value={randomizeAxis} onValueChange={setRandomizeAxis} />
+          <Switch
+            value={randomizeAxis}
+            onValueChange={setRandomizeAxis}
+            trackColor={{
+              false: theme.colors.outlineVariant,
+              true: theme.colors.primary,
+            }}
+            thumbColor={
+              randomizeAxis ? theme.colors.primary : theme.colors.surface
+            }
+          />
         </View>
         <View style={styles.toggleRow}>
           <Text style={{ color: theme.colors.onSurface }}>
@@ -257,6 +289,15 @@ const CreateSquareScreen = ({ navigation }) => {
           <Switch
             value={hideAxisUntilDeadline}
             onValueChange={setHideAxisUntilDeadline}
+            trackColor={{
+              false: theme.colors.outlineVariant,
+              true: theme.colors.primary,
+            }}
+            thumbColor={
+              hideAxisUntilDeadline
+                ? theme.colors.primary
+                : theme.colors.surface
+            }
           />
         </View>
       </Card>
@@ -265,10 +306,6 @@ const CreateSquareScreen = ({ navigation }) => {
 
   const renderStepTwo = () => (
     <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Text style={[styles.title, { color: theme.colors.onBackground }]}>
-        Create a New Square
-      </Text>
-
       <Card
         style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
       >
@@ -276,7 +313,7 @@ const CreateSquareScreen = ({ navigation }) => {
           Player Settings
         </Text>
         <PaperInput
-          label="Your Username"
+          label="Enter Your Username"
           value={username}
           onChangeText={setUsername}
           mode="outlined"
@@ -308,16 +345,17 @@ const CreateSquareScreen = ({ navigation }) => {
                         borderRadius: 18,
                         margin: 6,
                         backgroundColor: color,
-                        borderColor: selectedColor === color ? "#000" : "#ccc",
-                        borderWidth: selectedColor === color ? 3 : 1,
+                        borderWidth: selectedColor === color ? 4 : 0,
+                        borderColor:
+                          selectedColor === color ? "#5e60ce" : "transparent",
+                        shadowColor:
+                          selectedColor === color ? "#5e60ce" : "transparent",
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: selectedColor === color ? 0.9 : 0,
+                        shadowRadius: selectedColor === color ? 8 : 0,
+                        elevation: selectedColor === color ? 6 : 0,
                       }}
-                    >
-                      {selectedColor === color && (
-                        <View style={styles.checkMarkOverlay}>
-                          <Icon name="checkmark" size={18} color="#fff" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
+                    />
                   ))}
               </View>
             ))}
@@ -335,6 +373,9 @@ const CreateSquareScreen = ({ navigation }) => {
       style={{ flex: 1 }}
     >
       <SafeAreaView style={styles.container}>
+        <Text style={[styles.title, { color: theme.colors.onBackground }]}>
+          Create a New Square
+        </Text>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -496,6 +537,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  deadlinePickerButton: {
+    borderWidth: 1,
+    borderRadius: 10,
+    borderColor: "#e0e0e0",
+    padding: 12,
+    marginBottom: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
 });
 

@@ -70,6 +70,10 @@ const SessionOptionsModal = ({
             style={{
               transform: [{ translateY: slideAnim }],
               backgroundColor: surfaceColor,
+              elevation: 12,
+              shadowColor: theme.colors.backdrop,
+              borderTopWidth: 1,
+              borderTopColor: dividerColor,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               width: "100%",
@@ -79,8 +83,6 @@ const SessionOptionsModal = ({
               paddingHorizontal: 20,
               paddingTop: 24,
               paddingBottom: 32,
-              elevation: 12,
-              shadowColor: "#000",
               shadowOffset: { width: 0, height: -4 },
               shadowOpacity: 0.15,
               shadowRadius: 6,
@@ -205,6 +207,10 @@ const SessionOptionsModal = ({
             padding: 24,
             margin: 20,
             borderRadius: 12,
+            elevation: 6,
+            shadowColor: theme.colors.backdrop,
+            borderColor: theme.dark ? "#444" : "#ccc",
+            borderWidth: 1,
           }}
         >
           <Text

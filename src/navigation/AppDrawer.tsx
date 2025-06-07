@@ -1,10 +1,13 @@
 import React, { useState } from "react";
-import { createDrawerNavigator } from "@react-navigation/drawer";
+import {
+  createDrawerNavigator,
+  DrawerContentComponentProps,
+  DrawerContentScrollView,
+} from "@react-navigation/drawer";
 import {
   Image,
   TouchableOpacity,
   Text,
-  SafeAreaView,
   StyleSheet,
   View,
   Alert,
@@ -19,7 +22,18 @@ import { deleteUser, getAuth } from "firebase/auth";
 import { doc, deleteDoc } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
 
-const Drawer = createDrawerNavigator();
+const Drawer = createDrawerNavigator<DrawerParamList>();
+
+type DrawerParamList = {
+  Home: undefined;
+};
+
+type AppDrawerContentProps = DrawerContentComponentProps & {
+  userId: string;
+  onLogout: () => void;
+  isDarkTheme: boolean;
+  toggleTheme: () => void;
+};
 
 const AppDrawerContent = ({
   userId,
@@ -71,44 +85,52 @@ const AppDrawerContent = ({
   );
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
-      <Text style={[styles.header, { color: theme.colors.onBackground }]}>
-        Settings
-      </Text>
-      <View style={styles.divider} />
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+      <DrawerContentScrollView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <Text style={[styles.header, { color: theme.colors.onBackground }]}>
+          Settings
+        </Text>
+        <View style={styles.divider} />
 
-      <View style={{ flex: 1 }}>
-        <View style={styles.settingItem}>
-          <MaterialCommunityIcons
-            name="weather-night"
-            size={20}
-            color={theme.colors.onBackground}
-          />
-          <Text
-            style={[styles.settingLabel, { color: theme.colors.onBackground }]}
-          >
-            Dark Mode
-          </Text>
-          <View style={{ flex: 1, alignItems: "flex-end", paddingRight: 20 }}>
-            <ThemeToggle isDarkTheme={isDarkTheme} toggleTheme={toggleTheme} />
+        <View style={{ flex: 1 }}>
+          <View style={styles.settingItem}>
+            <MaterialCommunityIcons
+              name="weather-night"
+              size={20}
+              color={theme.colors.onBackground}
+            />
+            <Text
+              style={[
+                styles.settingLabel,
+                { color: theme.colors.onBackground },
+              ]}
+            >
+              Dark Mode
+            </Text>
+            <View style={{ flex: 1, alignItems: "flex-end", paddingRight: 20 }}>
+              <ThemeToggle
+                isDarkTheme={isDarkTheme}
+                toggleTheme={toggleTheme}
+              />
+            </View>
           </View>
+
+          {renderItemWithIcon("bell-outline", "Notifications")}
+
+          {renderItemWithIcon("help-circle-outline", "Get Help", () =>
+            Linking.openURL("mailto:support@squaresapp.com")
+          )}
+
+          {renderItemWithIcon(
+            "logout",
+            "Log Out",
+            () => setLogoutConfirmVisible(true),
+            theme.colors.error
+          )}
         </View>
-
-        {renderItemWithIcon("bell-outline", "Notifications")}
-
-        {renderItemWithIcon("help-circle-outline", "Get Help", () =>
-          Linking.openURL("mailto:support@squaresapp.com")
-        )}
-
-        {renderItemWithIcon(
-          "logout",
-          "Log Out",
-          () => setLogoutConfirmVisible(true),
-          theme.colors.error
-        )}
-      </View>
+      </DrawerContentScrollView>
 
       <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
         <Button
@@ -206,7 +228,7 @@ const AppDrawerContent = ({
         onDismiss={() => setNotifModalVisible(false)}
         userId={userId}
       />
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -225,39 +247,44 @@ const AppDrawer = ({
 
   return (
     <Drawer.Navigator
-      drawerContent={(props) => (
-        <AppDrawerContent
-          {...props}
-          userId={userId}
-          onLogout={onLogout}
-          isDarkTheme={isDarkTheme}
-          toggleTheme={toggleTheme}
-        />
-      )}
-      screenOptions={({ navigation }) => ({
-        headerTitle: () => (
-          <Image
-            source={require("../../assets/icons/new logo pt2.png")}
-            style={{ width: 80, height: 80 }}
-            resizeMode="contain"
+      {...({
+        id: "MainDrawer",
+        drawerContent: (props) => (
+          <AppDrawerContent
+            {...props}
+            userId={userId}
+            onLogout={onLogout}
+            isDarkTheme={isDarkTheme}
+            toggleTheme={toggleTheme}
           />
         ),
-        headerStyle: {
-          backgroundColor: theme.colors.surface,
-        },
-        headerLeft: () => (
-          <TouchableOpacity
-            style={{ marginLeft: 10 }}
-            onPress={() => navigation.toggleDrawer()}
-          >
-            <MaterialCommunityIcons
-              name="menu"
-              size={28}
-              color={theme.colors.onBackground}
+        screenOptions: ({ navigation }) => ({
+          headerTitle: () => (
+            <Image
+              source={require("../../assets/icons/new logo pt2.png")}
+              style={{ width: 100, height: 100 }}
+              resizeMode="contain"
             />
-          </TouchableOpacity>
-        ),
-      })}
+          ),
+          headerTitleAlign: "center",
+          headerStyle: {
+            backgroundColor: theme.colors.surface,
+          },
+          headerLeft: () => (
+            <TouchableOpacity
+              style={{ paddingLeft: 16 }}
+              onPress={() => navigation.toggleDrawer()}
+            >
+              <MaterialCommunityIcons
+                name="menu"
+                size={28}
+                color={theme.colors.onBackground}
+              />
+            </TouchableOpacity>
+          ),
+          headerRight: () => <View style={{ width: 44 }} />,
+        }),
+      } as unknown as React.ComponentProps<typeof Drawer.Navigator>)}
     >
       <Drawer.Screen name="Home" component={HomeScreen} />
     </Drawer.Navigator>
@@ -267,14 +294,13 @@ const AppDrawer = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 16,
   },
   header: {
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
-    paddingTop: 80,
+    paddingTop: 20,
   },
   settingItem: {
     flexDirection: "row",

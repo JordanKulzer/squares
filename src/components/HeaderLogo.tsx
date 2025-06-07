@@ -1,13 +1,15 @@
 // src/components/HeaderLogo.tsx
 import React from "react";
-import { Image } from "react-native";
+import { Image, View } from "react-native";
 
 const HeaderLogo = () => (
-  <Image
-    source={require("../../assets/icons/new logo pt2.png")}
-    style={{ width: 80, height: 80 }}
-    resizeMode="contain"
-  />
+  <View style={{ height: 40, justifyContent: "center", alignItems: "center" }}>
+    <Image
+      source={require("../../assets/icons/new logo pt2.png")}
+      style={{ width: 120, height: 100 }}
+      resizeMode="contain"
+    />
+  </View>
 );
 
 export default HeaderLogo;

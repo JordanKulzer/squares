@@ -12,11 +12,10 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  Alert,
   Image,
   FlatList,
 } from "react-native";
-import { Card, useTheme } from "react-native-paper";
+import { Button, Card, Dialog, Portal, useTheme } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   arrayRemove,
@@ -69,7 +68,8 @@ const FinalSquareScreen = ({ route }) => {
   const [userId, setUserId] = useState(null);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
-
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [team1Mascot, setTeam1Mascot] = useState("");
   const [team2Mascot, setTeam2Mascot] = useState("");
   const [team1Logo, setTeam1Logo] = useState(null);
@@ -88,6 +88,7 @@ const FinalSquareScreen = ({ route }) => {
   const [tempDeadline, setTempDeadline] = useState(deadlineValue);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(false);
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
+  const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
 
   const currentUsername = useMemo(() => {
     return userId && playerUsernames[userId]
@@ -208,7 +209,14 @@ const FinalSquareScreen = ({ route }) => {
             (sel) => sel.userId === userId
           );
           const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
-          setSelectedSquares(mySet);
+          const allPendingResolved = [...pendingSquares].every((sq) =>
+            mySet.has(sq)
+          );
+
+          if (allPendingResolved || pendingSquares.size === 0) {
+            setSelectedSquares(mySet);
+            setPendingSquares(new Set());
+          }
         }
       }
 
@@ -273,11 +281,6 @@ const FinalSquareScreen = ({ route }) => {
         );
         const data = await res.json();
         const game = data.events.find((e) => e.id === eventId.toLocaleString());
-
-        console.log(
-          "Fetched games:",
-          data.events.map((e) => e.id)
-        );
 
         if (!game) return;
 
@@ -350,96 +353,11 @@ const FinalSquareScreen = ({ route }) => {
   }, [eventId]);
 
   const handleLeaveSquare = () => {
-    Alert.alert("Leave Square", "Are you sure you want to leave this square?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Leave",
-        style: "destructive",
-        onPress: async () => {
-          const ref = doc(db, "squares", gridId);
-          setSessionOptionsVisible(false);
-          try {
-            const docSnap = await getDoc(ref);
-            if (!docSnap.exists()) return;
-
-            const data = docSnap.data();
-            const updatedPlayerIds = (data.playerIds || []).filter(
-              (id) => id !== userId
-            );
-            const updatedPlayers = (data.players || []).filter(
-              (p) => p.userId !== userId
-            );
-            const updatedSelections = (data.selections || []).filter(
-              (sel) => sel.userId !== userId
-            );
-
-            await updateDoc(ref, {
-              playerIds: updatedPlayerIds,
-              players: updatedPlayers,
-              selections: updatedSelections,
-            });
-
-            Toast.show({
-              type: "error",
-              text1: `You’ve left ${inputTitle}`,
-              position: "bottom",
-              visibilityTime: 2500,
-              bottomOffset: 60,
-              text1Style: {
-                fontSize: 16,
-                fontWeight: "600",
-                color: "#333",
-                textAlign: "center",
-              },
-            });
-
-            if (updatedPlayers.length === 0) {
-              await deleteDoc(ref);
-            }
-
-            navigation.navigate("Main");
-          } catch (err) {
-            console.error("Failed to leave square:", err);
-          }
-        },
-      },
-    ]);
+    setShowLeaveConfirm(true);
   };
 
   const handleDeleteSquare = () => {
-    Alert.alert(
-      "Delete Square",
-      "Are you sure you want to permanently delete this square?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setSessionOptionsVisible(false);
-              await deleteDoc(doc(db, "squares", gridId));
-              Toast.show({
-                type: "error",
-                text1: `You’ve deleted ${inputTitle}!`,
-                position: "bottom",
-                visibilityTime: 2500,
-                bottomOffset: 60,
-                text1Style: {
-                  fontSize: 16,
-                  fontWeight: "600",
-                  color: "#333",
-                  textAlign: "center",
-                },
-              });
-              navigation.navigate("Main");
-            } catch (err) {
-              console.error("Failed to delete square:", err);
-            }
-          },
-        },
-      ]
-    );
+    setShowDeleteConfirm(true);
   };
 
   const handleDeadlineChange = async (event, selectedDate) => {
@@ -508,6 +426,8 @@ const FinalSquareScreen = ({ route }) => {
       ? `${username} owns (${xLabel},${yLabel})`
       : "This square is unclaimed";
 
+    console.log('key ', key);
+
     setSelectedSquare(key);
     showSquareToast(message);
   };
@@ -539,7 +459,12 @@ const FinalSquareScreen = ({ route }) => {
       if (!userId) return;
       const gridRef = doc(db, "squares", gridId);
       await updateDoc(gridRef, {
-        selections: arrayUnion({ x, y, userId, username: currentUsername }),
+        selections: arrayUnion({
+          x: Number(x),
+          y: Number(y),
+          userId,
+          username: currentUsername,
+        }),
       });
     },
     [gridId, userId, currentUsername]
@@ -550,14 +475,19 @@ const FinalSquareScreen = ({ route }) => {
       if (!userId) return;
       const gridRef = doc(db, "squares", gridId);
       await updateDoc(gridRef, {
-        selections: arrayRemove({ x, y, userId, username: currentUsername }),
+        selections: arrayRemove({
+          x: Number(x),
+          y: Number(y),
+          userId,
+          username: currentUsername,
+        }),
       });
     },
     [gridId, userId, currentUsername]
   );
 
   const handlePress = useCallback(
-    (x, y) => {
+    async (x, y) => {
       const squareId = `${x},${y}`;
       const currentColor = squareColors[squareId];
 
@@ -575,6 +505,8 @@ const FinalSquareScreen = ({ route }) => {
       // Square owned by me (toggle)
       const isSelected = selectedSquares.has(squareId);
       const updatedSet = new Set(selectedSquares);
+      console.log('squareId ', squareId);
+
 
       if (!isSelected && selectedSquares.size >= maxSelections) {
         showSquareToast(`Limit reached: Max ${maxSelections} squares allowed.`);
@@ -582,19 +514,26 @@ const FinalSquareScreen = ({ route }) => {
       }
 
       if (isSelected) {
+        await deselectSquareInFirestore(x, y);
+
         updatedSet.delete(squareId);
-        deselectSquareInFirestore(x, y);
         const newColors = { ...squareColors };
         delete newColors[squareId];
         setSquareColors(newColors);
       } else {
+        await selectSquareInFirestore(x, y);
+
         updatedSet.add(squareId);
-        selectSquareInFirestore(x, y);
         setSquareColors((prev) => ({
           ...prev,
           [squareId]: playerColors[userId],
         }));
       }
+      setPendingSquares((prev) => {
+        const newSet = new Set(prev);
+        newSet.add(squareId);
+        return newSet;
+      });
 
       setSelectedSquares(updatedSet); // Re-trigger re-render
     },
@@ -718,7 +657,7 @@ const FinalSquareScreen = ({ route }) => {
 
   const renderScene = SceneMap({
     squares: () => (
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: 14 }}>
         <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
           <Card.Content>
             <Card
@@ -726,7 +665,7 @@ const FinalSquareScreen = ({ route }) => {
                 styles.winnerCard,
                 {
                   backgroundColor: theme.colors.elevation.level1,
-                  borderColor: theme.colors.outline,
+                  borderColor: "rgba(94, 96, 206, 0.4)",
                   borderWidth: StyleSheet.hairlineWidth,
                 },
               ]}
@@ -929,7 +868,7 @@ const FinalSquareScreen = ({ route }) => {
                       styles.winnerCard,
                       {
                         backgroundColor: theme.colors.elevation.level1,
-                        borderColor: theme.colors.outline,
+                        borderColor: "rgba(94, 96, 206, 0.4)",
                         borderWidth: StyleSheet.hairlineWidth,
                       },
                     ]}
@@ -1121,6 +1060,130 @@ const FinalSquareScreen = ({ route }) => {
         deadlineValue={deadlineValue}
         setShowDeadlineModal={setShowDeadlineModal}
       />
+      <Portal>
+        <Dialog
+          visible={showLeaveConfirm}
+          onDismiss={() => setShowLeaveConfirm(false)}
+          style={{
+            backgroundColor: theme.colors.surface,
+            borderRadius: 12,
+          }}
+        >
+          <Dialog.Title style={{ color: theme.colors.onSurface }}>
+            Leave Square
+          </Dialog.Title>
+          <Dialog.Content>
+            <Text style={{ color: theme.colors.onSurface }}>
+              Are you sure you want to leave this square?
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowLeaveConfirm(false)}>Cancel</Button>
+            <Button
+              onPress={async () => {
+                setShowLeaveConfirm(false);
+                setSessionOptionsVisible(false);
+                try {
+                  const ref = doc(db, "squares", gridId);
+                  const docSnap = await getDoc(ref);
+                  if (!docSnap.exists()) return;
+
+                  const data = docSnap.data();
+                  const updatedPlayerIds = (data.playerIds || []).filter(
+                    (id) => id !== userId
+                  );
+                  const updatedPlayers = (data.players || []).filter(
+                    (p) => p.userId !== userId
+                  );
+                  const updatedSelections = (data.selections || []).filter(
+                    (sel) => sel.userId !== userId
+                  );
+
+                  await updateDoc(ref, {
+                    playerIds: updatedPlayerIds,
+                    players: updatedPlayers,
+                    selections: updatedSelections,
+                  });
+
+                  Toast.show({
+                    type: "error",
+                    text1: `You’ve left ${inputTitle}`,
+                    position: "bottom",
+                    visibilityTime: 2500,
+                    bottomOffset: 60,
+                    text1Style: {
+                      fontSize: 16,
+                      fontWeight: "600",
+                      color: "#333",
+                      textAlign: "center",
+                    },
+                  });
+
+                  if (updatedPlayers.length === 0) {
+                    await deleteDoc(ref);
+                  }
+
+                  navigation.navigate("Main");
+                } catch (err) {
+                  console.error("Failed to leave square:", err);
+                }
+              }}
+              textColor={theme.colors.error}
+            >
+              Leave
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog
+          visible={showDeleteConfirm}
+          onDismiss={() => setShowDeleteConfirm(false)}
+          style={{
+            backgroundColor: theme.colors.surface,
+            borderRadius: 12,
+          }}
+        >
+          <Dialog.Title style={{ color: theme.colors.onSurface }}>
+            Delete Square
+          </Dialog.Title>
+          <Dialog.Content>
+            <Text style={{ color: theme.colors.onSurface }}>
+              Are you sure you want to permanently delete this square?
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button
+              onPress={async () => {
+                setShowDeleteConfirm(false);
+                setSessionOptionsVisible(false);
+                try {
+                  await deleteDoc(doc(db, "squares", gridId));
+                  Toast.show({
+                    type: "error",
+                    text1: `You’ve deleted ${inputTitle}!`,
+                    position: "bottom",
+                    visibilityTime: 2500,
+                    bottomOffset: 60,
+                    text1Style: {
+                      fontSize: 16,
+                      fontWeight: "600",
+                      color: "#333",
+                      textAlign: "center",
+                    },
+                  });
+                  navigation.navigate("Main");
+                } catch (err) {
+                  console.error("Failed to delete square:", err);
+                }
+              }}
+              textColor={theme.colors.error}
+            >
+              Delete
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </LinearGradient>
   );
 };

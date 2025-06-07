@@ -181,7 +181,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
               width: "100%",
               position: "absolute",
               bottom: 0,
-              maxHeight: "48%", //68 when reintroduce profile pic
+              maxHeight: "50%", //68 when reintroduces profile pic
               paddingHorizontal: 20,
               paddingTop: 24,
               paddingBottom: 32,
