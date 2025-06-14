@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "squares-pt-4",
-    "slug": "squares-pt-4",
+    "name": "squares",
+    "slug": "squares",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icons/icon.png",
@@ -24,7 +24,7 @@
         "android.permission.CAMERA",
         "android.permission.CAMERA"
       ],
-      "package": "com.anonymous.squarespt4"
+      "package": "com.jkulzer.squaresgame"
     },
     "web": {
       "favicon": "./assets/icons/favicon.png"

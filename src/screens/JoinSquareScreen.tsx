@@ -75,7 +75,7 @@ const JoinSquareScreen = () => {
         { merge: true }
       );
 
-      navigation.navigate("FinalSquareScreen", {
+      navigation.navigate("SquareScreen", {
         gridId,
         inputTitle,
         username,

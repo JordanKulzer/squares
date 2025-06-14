@@ -28,6 +28,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
 import colors from "../../assets/constants/colorOptions";
+import * as Notifications from 'expo-notifications';
+import {
+  scheduleNotificationAsync,
+} from "expo-notifications";
+import { SchedulableTriggerInputTypes } from "expo-notifications/build/Notifications.types"; // ✅ import the enum
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -145,7 +150,6 @@ const HomeScreen = () => {
             {welcomeSubtitle}
           </Text>
         </View>
-
         <Text
           style={{
             fontSize: 16,
@@ -214,12 +218,12 @@ const HomeScreen = () => {
                   },
                 ]}
                 onPress={() =>
-                  navigation.navigate("FinalSquareScreen", {
+                  navigation.navigate("SquareScreen", {
                     gridId: item.id,
                     inputTitle: item.title,
                     username: item.username,
                     deadline: item.deadline,
-                    eventId: item.eventId, // ✅ add this line
+                    eventId: item.eventId,
                     disableAnimation: true,
                   })
                 }

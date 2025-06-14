@@ -131,7 +131,7 @@ const CreateSquareScreen = ({ navigation }) => {
         hideAxisUntilDeadline,
       });
 
-      navigation.navigate("FinalSquareScreen", {
+      navigation.navigate("SquareScreen", {
         gridId: squareRef.id,
         inputTitle,
         username,
