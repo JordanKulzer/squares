@@ -28,11 +28,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
 import colors from "../../assets/constants/colorOptions";
-import * as Notifications from 'expo-notifications';
-import {
-  scheduleNotificationAsync,
-} from "expo-notifications";
-import { SchedulableTriggerInputTypes } from "expo-notifications/build/Notifications.types"; // ✅ import the enum
 
 const HomeScreen = () => {
   const navigation = useNavigation();

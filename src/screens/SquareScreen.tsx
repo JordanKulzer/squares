@@ -16,7 +16,6 @@ import {
   FlatList,
 } from "react-native";
 import { Button, Card, Dialog, Portal, useTheme } from "react-native-paper";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   arrayRemove,
   arrayUnion,
@@ -36,6 +35,7 @@ import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 import SessionOptionsModal from "../components/SessionOptionsModal";
+import DeadlinePickerModal from "../components/DeadlinePickerModal";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -426,7 +426,7 @@ const SquareScreen = ({ route }) => {
       ? `${username} owns (${xLabel},${yLabel})`
       : "This square is unclaimed";
 
-    console.log('key ', key);
+    console.log("key ", key);
 
     setSelectedSquare(key);
     showSquareToast(message);
@@ -505,8 +505,7 @@ const SquareScreen = ({ route }) => {
       // Square owned by me (toggle)
       const isSelected = selectedSquares.has(squareId);
       const updatedSet = new Set(selectedSquares);
-      console.log('squareId ', squareId);
-
+      console.log("squareId ", squareId);
 
       if (!isSelected && selectedSquares.size >= maxSelections) {
         showSquareToast(`Limit reached: Max ${maxSelections} squares allowed.`);
@@ -985,70 +984,15 @@ const SquareScreen = ({ route }) => {
           />
         )}
       />
-      {showDeadlineModal && (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 10,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: 12,
-              padding: 20,
-              width: "80%",
-            }}
-          >
-            <Text style={{ fontSize: 18, fontWeight: "600", marginBottom: 12 }}>
-              Select New Deadline
-            </Text>
-
-            <DateTimePicker
-              value={tempDeadline || new Date()}
-              mode="datetime"
-              display="default"
-              onChange={(event, date) => {
-                if (date) setTempDeadline(date);
-              }}
-            />
-
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                marginTop: 20,
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => setShowDeadlineModal(false)}
-                style={{ padding: 10 }}
-              >
-                <Text style={{ color: "red", fontWeight: "600" }}>Cancel</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  setShowDeadlineModal(false);
-                  handleDeadlineChange(null, tempDeadline);
-                }}
-                style={{ padding: 10 }}
-              >
-                <Text style={{ color: "#007AFF", fontWeight: "600" }}>
-                  Confirm
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
+      <DeadlinePickerModal
+        visible={showDeadlineModal}
+        onDismiss={() => setShowDeadlineModal(false)}
+        date={tempDeadline || new Date()}
+        onConfirm={(newDate) => {
+          setDeadlineValue(newDate);
+          handleDeadlineChange(null, newDate);
+        }}
+      />
       <SessionOptionsModal
         visible={sessionOptionsVisible}
         onDismiss={() => setSessionOptionsVisible(false)}
