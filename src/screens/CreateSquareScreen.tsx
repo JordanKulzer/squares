@@ -12,8 +12,6 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-
-
 import { addDoc, collection } from "firebase/firestore";
 import { db, auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
@@ -277,9 +275,7 @@ const CreateSquareScreen = ({ navigation }) => {
               false: theme.colors.outlineVariant,
               true: theme.colors.primary,
             }}
-            thumbColor={
-              randomizeAxis ? theme.colors.primary : theme.colors.surface
-            }
+            thumbColor={theme.colors.surface}
           />
         </View>
         <View style={styles.toggleRow}>
@@ -293,11 +289,7 @@ const CreateSquareScreen = ({ navigation }) => {
               false: theme.colors.outlineVariant,
               true: theme.colors.primary,
             }}
-            thumbColor={
-              hideAxisUntilDeadline
-                ? theme.colors.primary
-                : theme.colors.surface
-            }
+            thumbColor={theme.colors.surface}
           />
         </View>
       </Card>

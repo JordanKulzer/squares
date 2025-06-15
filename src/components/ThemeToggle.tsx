@@ -1,8 +1,16 @@
 import React from "react";
-import { Switch } from "react-native-paper";
+import { Switch, useTheme } from "react-native-paper";
 
 const ThemeToggle = ({ isDarkTheme, toggleTheme }) => {
-  return <Switch value={isDarkTheme} onValueChange={toggleTheme} />;
+  const theme = useTheme();
+
+  return (
+    <Switch
+      value={isDarkTheme}
+      onValueChange={toggleTheme}
+      thumbColor={theme.colors.surface}
+    />
+  );
 };
 
 export default ThemeToggle;

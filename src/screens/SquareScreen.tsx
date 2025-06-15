@@ -36,6 +36,7 @@ import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 import SessionOptionsModal from "../components/SessionOptionsModal";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
+import { API_BASE_URL } from "../utils/apiConfig";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -112,24 +113,6 @@ const SquareScreen = ({ route }) => {
   useLayoutEffect(() => {
     navigation.setOptions({ headerTitle: inputTitle });
   }, [navigation, inputTitle]);
-
-  useEffect(() => {
-    if (!eventId) {
-      setQuarterScores([
-        { quarter: "1Q", home: 7, away: 3, winner: "Buccaneers" },
-        { quarter: "2Q", home: 10, away: 10, winner: "Tie" },
-        { quarter: "3Q", home: 0, away: 14, winner: "Eagles" },
-        { quarter: "4Q", home: 6, away: 7, winner: "Eagles" },
-      ]);
-    }
-  }, []);
-
-  // const quarterWinners = [
-  //   { quarter: "1", username: "Alice", square: [7, 3] },
-  //   { quarter: "2", username: "Bob", square: [0, 0] },
-  //   { quarter: "3", username: "Carlos", square: [0, 4] },
-  //   { quarter: "4", username: "Dana", square: [6, 7] },
-  // ];
 
   const determineQuarterWinners = (scores, selections, xAxis, yAxis) => {
     return scores.map(({ home, away }, i) => {
@@ -270,87 +253,37 @@ const SquareScreen = ({ route }) => {
     return () => clearInterval(interval);
   }, [deadlineValue]);
 
-  // **API for quarter scores/logos**
   useEffect(() => {
     const fetchQuarterScores = async () => {
-      if (!eventId) return;
+      if (!eventId || !deadlineValue) return;
+
+      const startDate = deadlineValue.toISOString().split("T")[0];
 
       try {
         const res = await fetch(
-          `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard`
+          `${API_BASE_URL}/scores?eventId=${eventId}&startDate=${startDate}`
         );
-        const data = await res.json();
-        const game = data.events.find((e) => e.id === eventId.toLocaleString());
 
-        if (!game) return;
+        const game = await res.json();
 
-        const competition = game.competitions?.[0];
-        if (!competition) {
-          console.warn("No competition found in game");
+        if (!game || !game.quarterScores) {
           return;
         }
 
-        const home = competition.competitors?.find(
-          (c) => c.homeAway === "home"
-        );
-        const away = competition.competitors?.find(
-          (c) => c.homeAway === "away"
-        );
-
-        const homeScores = Array.isArray(home?.linescores)
-          ? home.linescores.map((s) => s.value)
-          : [];
-
-        const awayScores = Array.isArray(away?.linescores)
-          ? away.linescores.map((s) => s.value)
-          : [];
-
-        console.log("home team object:", home);
-        console.log("home linescores:", home?.linescores);
-
-        const scores = homeScores.map((homeQ, i) => ({
-          quarter: `${i + 1}Q`,
-          home: homeQ,
-          away: awayScores[i],
-          winner:
-            homeQ > awayScores[i]
-              ? home.team.displayName
-              : away.team.displayName,
-        }));
-        console.log("Quarter Scores:", scores);
-
-        if (!home?.team?.logo?.[0]?.href || !away?.team?.logo?.[0]?.href) {
-          console.warn("Logo(s) missing", {
-            homeTeam: home?.team,
-            awayTeam: away?.team,
-          });
-        }
-
-        // MOCK DATA //
-        if (homeScores.length === 0 || awayScores.length === 0) {
-          console.warn("Linescores missing — using mock data for testing");
-          setQuarterScores([
-            // { quarter: "1Q", home: 7, away: 3, winner: "Eagles" },
-            // { quarter: "2Q", home: 10, away: 10, winner: "Tie" },
-            // { quarter: "3Q", home: 0, away: 14, winner: "Cowboys" },
-            // { quarter: "4Q", home: 6, away: 7, winner: "Cowboys" },
-          ]);
-          setTeam1Logo(home?.team?.logo || fallbackLogo);
-          setTeam2Logo(away?.team?.logo || fallbackLogo);
-          return; // prevent setting empty scores below
-        }
-        // END OF MOCK DATA //
-
-        setQuarterScores(scores);
-        setTeam1Logo(home?.team?.logo || fallbackLogo);
-        setTeam2Logo(away?.team?.logo || fallbackLogo);
+        setQuarterScores(game.quarterScores);
+        setTeam1Logo(game.homeLogo || fallbackLogo);
+        setTeam2Logo(game.awayLogo || fallbackLogo);
       } catch (e) {
         console.warn("Error fetching quarter scores", e);
       }
     };
 
     fetchQuarterScores();
-  }, [eventId]);
+
+    const interval = setInterval(fetchQuarterScores, 30000); // every 30 sec
+
+    return () => clearInterval(interval);
+  }, [eventId, deadlineValue]);
 
   const handleLeaveSquare = () => {
     setShowLeaveConfirm(true);
@@ -425,8 +358,6 @@ const SquareScreen = ({ route }) => {
     const message = userColor
       ? `${username} owns (${xLabel},${yLabel})`
       : "This square is unclaimed";
-
-    console.log("key ", key);
 
     setSelectedSquare(key);
     showSquareToast(message);
@@ -505,7 +436,6 @@ const SquareScreen = ({ route }) => {
       // Square owned by me (toggle)
       const isSelected = selectedSquares.has(squareId);
       const updatedSet = new Set(selectedSquares);
-      console.log("squareId ", squareId);
 
       if (!isSelected && selectedSquares.size >= maxSelections) {
         showSquareToast(`Limit reached: Max ${maxSelections} squares allowed.`);
@@ -671,11 +601,11 @@ const SquareScreen = ({ route }) => {
             >
               <Card.Content style={{ alignItems: "center" }}>
                 <View style={styles.teamRow}>
-                  <Image
+                  {/* <Image
                     source={{ uri: team1Logo || fallbackLogo }}
                     style={styles.teamLogo}
                     resizeMode="contain"
-                  />
+                  /> */}
                   <Text
                     style={[
                       styles.titleText,
@@ -691,11 +621,11 @@ const SquareScreen = ({ route }) => {
                   vs
                 </Text>
                 <View style={styles.teamRow}>
-                  <Image
+                  {/* <Image
                     source={{ uri: team2Logo || fallbackLogo }}
                     style={styles.teamLogo}
                     resizeMode="contain"
-                  />
+                  /> */}
                   <Text
                     style={[
                       styles.titleText,

@@ -1,7 +1,8 @@
-// src/components/DeadlinePickerModal.tsx
 import React, { useState } from "react";
 import { View, StyleSheet, Platform, Pressable } from "react-native";
 import { Modal, Portal, Text, Button, useTheme } from "react-native-paper";
+import Constants from "expo-constants";
+import DatePicker from "react-native-date-picker";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 
 interface Props {
@@ -11,6 +12,8 @@ interface Props {
   onConfirm: (date: Date) => void;
 }
 
+const isExpoGo = Constants.appOwnership === "expo";
+
 const DeadlinePickerModal = ({
   visible,
   onDismiss,
@@ -19,23 +22,21 @@ const DeadlinePickerModal = ({
 }: Props) => {
   const theme = useTheme();
   const [tempDate, setTempDate] = useState(date);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [mode, setMode] = useState<"date" | "time">("date");
+  const [showPicker, setShowPicker] = useState(false);
 
-  const handleDatePicked = (pickedDate: Date) => {
-    setShowDatePicker(false);
-    setTempDate(
-      (prev) =>
-        new Date(pickedDate.setHours(prev.getHours(), prev.getMinutes()))
+  const handleConfirm = (selected: Date) => {
+    setShowPicker(false);
+    setTempDate((prev) =>
+      mode === "date"
+        ? new Date(selected.setHours(prev.getHours(), prev.getMinutes()))
+        : new Date(prev.setHours(selected.getHours(), selected.getMinutes()))
     );
   };
 
-  const handleTimePicked = (pickedTime: Date) => {
-    setShowTimePicker(false);
-    setTempDate(
-      (prev) =>
-        new Date(prev.setHours(pickedTime.getHours(), pickedTime.getMinutes()))
-    );
+  const handleModalConfirm = () => {
+    onConfirm(tempDate);
+    onDismiss();
   };
 
   return (
@@ -54,15 +55,17 @@ const DeadlinePickerModal = ({
 
         <View style={styles.inputRow}>
           <Pressable
-            onPress={() => setShowDatePicker(true)}
-            style={{
-              flex: 1,
-              padding: 12,
-              borderRadius: 8,
-              borderColor: theme.colors.outline,
-              borderWidth: 1,
-              backgroundColor: theme.colors.elevation.level1,
+            onPress={() => {
+              setMode("date");
+              setShowPicker(true);
             }}
+            style={[
+              styles.inputBox,
+              {
+                borderColor: theme.colors.outline,
+                backgroundColor: theme.colors.elevation.level1,
+              },
+            ]}
           >
             <Text style={{ color: theme.colors.onSurface }}>
               {tempDate.toDateString()}
@@ -70,15 +73,17 @@ const DeadlinePickerModal = ({
           </Pressable>
 
           <Pressable
-            onPress={() => setShowTimePicker(true)}
-            style={{
-              flex: 1,
-              padding: 12,
-              borderRadius: 8,
-              borderColor: theme.colors.outline,
-              borderWidth: 1,
-              backgroundColor: theme.colors.elevation.level1,
+            onPress={() => {
+              setMode("time");
+              setShowPicker(true);
             }}
+            style={[
+              styles.inputBox,
+              {
+                borderColor: theme.colors.outline,
+                backgroundColor: theme.colors.elevation.level1,
+              },
+            ]}
           >
             <Text style={{ color: theme.colors.onSurface }}>
               {tempDate.toLocaleTimeString([], {
@@ -93,35 +98,66 @@ const DeadlinePickerModal = ({
           <Button onPress={onDismiss} mode="text">
             Cancel
           </Button>
-          <Button
-            onPress={() => {
-              onConfirm(tempDate);
-              onDismiss();
-            }}
-            mode="contained"
-          >
+          <Button onPress={handleModalConfirm} mode="contained">
             Confirm
           </Button>
         </View>
-
-        <DateTimePickerModal
-          isVisible={showDatePicker}
-          mode="date"
-          date={tempDate}
-          onConfirm={handleDatePicked}
-          onCancel={() => setShowDatePicker(false)}
-          themeVariant={theme.dark ? "dark" : "light"}
-        />
-
-        <DateTimePickerModal
-          isVisible={showTimePicker}
-          mode="time"
-          date={tempDate}
-          onConfirm={handleTimePicked}
-          onCancel={() => setShowTimePicker(false)}
-          themeVariant={theme.dark ? "dark" : "light"}
-        />
       </Modal>
+
+      {/* ✅ Conditional pickers below */}
+
+      {isExpoGo ? (
+        <>
+          <DateTimePickerModal
+            isVisible={showPicker && mode === "date"}
+            mode="date"
+            date={tempDate}
+            onConfirm={(pickedDate) => {
+              setShowPicker(false);
+              setTempDate(
+                (prev) =>
+                  new Date(
+                    pickedDate.setHours(prev.getHours(), prev.getMinutes())
+                  )
+              );
+            }}
+            onCancel={() => setShowPicker(false)}
+            themeVariant={theme.dark ? "dark" : "light"}
+            display={Platform.OS === "ios" ? "inline" : "default"}
+          />
+
+          <DateTimePickerModal
+            isVisible={showPicker && mode === "time"}
+            mode="time"
+            date={tempDate}
+            onConfirm={(pickedTime) => {
+              setShowPicker(false);
+              setTempDate(
+                (prev) =>
+                  new Date(
+                    prev.setHours(
+                      pickedTime.getHours(),
+                      pickedTime.getMinutes()
+                    )
+                  )
+              );
+            }}
+            onCancel={() => setShowPicker(false)}
+            themeVariant={theme.dark ? "dark" : "light"}
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+          />
+        </>
+      ) : (
+        <DatePicker
+          modal
+          open={showPicker}
+          mode={mode}
+          date={tempDate}
+          onConfirm={handleConfirm}
+          onCancel={() => setShowPicker(false)}
+          theme={theme.dark ? "dark" : "light"}
+        />
+      )}
     </Portal>
   );
 };
@@ -142,6 +178,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 24,
     gap: 12,
+  },
+  inputBox: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   buttonRow: {
     flexDirection: "row",
