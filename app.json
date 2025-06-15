@@ -15,7 +15,10 @@
     "ios": {
       "bundleIdentifier": "com.jkulzer.squaresgame",
       "buildNumber": "1",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -32,11 +35,20 @@
     },
     "plugins": [
       "expo-web-browser",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
+    "owner": "jordankulzer",
     "extra": {
       "eas": {
-        "projectId": "39685585-e11c-4122-b117-d6518a5cd269"
+        "projectId": "a0d72e60-1d9e-4aa4-93ec-66f16f8da1c8"
       }
     }
   }
