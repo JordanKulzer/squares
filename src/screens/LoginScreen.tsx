@@ -62,7 +62,7 @@ const LoginScreen = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
         >
           <Image
-            source={require("../../assets/icons/new logo pt2.png")}
+            source={require("../../assets/icons/squares-logo.png")}
             style={styles.logo}
             resizeMode="contain"
           />
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    marginTop: 50,
+    marginTop: 40,
   },
   title: {
     fontSize: 22,
@@ -172,10 +172,9 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-SemiBold",
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 200,
+    height: 200,
     alignSelf: "center",
-    marginVertical: 15,
   },
   input: {
     marginBottom: 16,

@@ -261,7 +261,7 @@ const AppDrawer = ({
         screenOptions: ({ navigation }) => ({
           headerTitle: () => (
             <Image
-              source={require("../../assets/icons/new logo pt2.png")}
+              source={require("../../assets/icons/squares-logo.png")}
               style={{ width: 100, height: 100 }}
               resizeMode="contain"
             />

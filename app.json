@@ -1,18 +1,20 @@
 {
   "expo": {
-    "name": "squares",
+    "name": "Squares",
     "slug": "squares",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icons/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/icons/squares-logo-not-transparent.png",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/icons/splash-icon.png",
+      "image": "./assets/icons/squares-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "com.jkulzer.squaresgame",
+      "buildNumber": "1",
       "supportsTablet": true
     },
     "android": {
@@ -21,7 +23,6 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "android.permission.CAMERA",
         "android.permission.CAMERA"
       ],
       "package": "com.jkulzer.squaresgame"
