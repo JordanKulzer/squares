@@ -117,7 +117,9 @@ const AppDrawerContent = ({
             </View>
           </View>
 
-          {renderItemWithIcon("bell-outline", "Notifications")}
+          {renderItemWithIcon("bell-outline", "Notifications", () =>
+            setNotifModalVisible(true)
+          )}
 
           {renderItemWithIcon("help-circle-outline", "Get Help", () =>
             Linking.openURL("mailto:support@squaresapp.com")

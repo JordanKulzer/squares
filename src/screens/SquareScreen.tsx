@@ -4,6 +4,7 @@ import React, {
   useLayoutEffect,
   useMemo,
   useState,
+  useRef,
 } from "react";
 import {
   View,
@@ -37,6 +38,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import SessionOptionsModal from "../components/SessionOptionsModal";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { API_BASE_URL } from "../utils/apiConfig";
+import * as Notifications from "expo-notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -49,6 +52,20 @@ const convertToDate = (deadline) => {
   if (deadline instanceof Timestamp) return deadline.toDate();
   if (deadline instanceof Date) return deadline;
   return null;
+};
+
+const getNotifiedQuarters = async (eventId: string): Promise<number[]> => {
+  const data = await AsyncStorage.getItem(`notifiedQuarters-${eventId}`);
+  return data ? JSON.parse(data) : [];
+};
+
+const saveNotifiedQuarter = async (eventId: string, quarter: number) => {
+  const existing = await getNotifiedQuarters(eventId);
+  const updated = [...new Set([...existing, quarter])];
+  await AsyncStorage.setItem(
+    `notifiedQuarters-${eventId}`,
+    JSON.stringify(updated)
+  );
 };
 
 const SquareScreen = ({ route }) => {
@@ -91,6 +108,7 @@ const SquareScreen = ({ route }) => {
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
 
+  const notifiedQuartersRef = useRef<Set<number>>(new Set());
   const currentUsername = useMemo(() => {
     return userId && playerUsernames[userId]
       ? playerUsernames[userId]
@@ -254,10 +272,14 @@ const SquareScreen = ({ route }) => {
   }, [deadlineValue]);
 
   useEffect(() => {
-    const fetchQuarterScores = async () => {
-      if (!eventId || !deadlineValue) return;
+    if (!eventId || !deadlineValue) return;
 
+    const storageKey = `notifiedQuarters-${eventId}`;
+
+    const fetchQuarterScores = async () => {
       const startDate = deadlineValue.toISOString().split("T")[0];
+      const now = new Date();
+      if (now < new Date(deadlineValue)) return;
 
       try {
         const res = await fetch(
@@ -265,14 +287,34 @@ const SquareScreen = ({ route }) => {
         );
 
         const game = await res.json();
-
-        if (!game || !game.quarterScores) {
-          return;
-        }
+        if (!game || !game.quarterScores?.length) return;
 
         setQuarterScores(game.quarterScores);
-        setTeam1Logo(game.homeLogo || fallbackLogo);
-        setTeam2Logo(game.awayLogo || fallbackLogo);
+
+        const stored = await AsyncStorage.getItem(storageKey);
+        const alreadyNotified: number[] = stored ? JSON.parse(stored) : [];
+
+        const newNotified = [...alreadyNotified];
+
+        game.quarterScores.forEach((q, index) => {
+          const quarterNumber = index + 1;
+          if (!alreadyNotified.includes(quarterNumber)) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: `🏈 End of Q${quarterNumber}`,
+                body: `Quarter ${quarterNumber} just ended. Check the standings!`,
+                sound: true,
+              },
+              trigger: null,
+            });
+
+            newNotified.push(quarterNumber);
+          }
+        });
+
+        if (newNotified.length !== alreadyNotified.length) {
+          await AsyncStorage.setItem(storageKey, JSON.stringify(newNotified));
+        }
       } catch (e) {
         console.warn("Error fetching quarter scores", e);
       }
@@ -280,8 +322,7 @@ const SquareScreen = ({ route }) => {
 
     fetchQuarterScores();
 
-    const interval = setInterval(fetchQuarterScores, 30000); // every 30 sec
-
+    const interval = setInterval(fetchQuarterScores, 30000);
     return () => clearInterval(interval);
   }, [eventId, deadlineValue]);
 

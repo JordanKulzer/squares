@@ -12,7 +12,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-import { addDoc, collection } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc } from "firebase/firestore";
 import { db, auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -20,6 +20,7 @@ import { RouteProp, useRoute } from "@react-navigation/native";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
+import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -128,6 +129,14 @@ const CreateSquareScreen = ({ navigation }) => {
         eventId: eventId || "",
         hideAxisUntilDeadline,
       });
+
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      const prefs = userSnap.data()?.notificationPreferences;
+
+      if (prefs?.deadlineReminders) {
+        await scheduleDeadlineNotifications(deadline);
+      }
 
       navigation.navigate("SquareScreen", {
         gridId: squareRef.id,

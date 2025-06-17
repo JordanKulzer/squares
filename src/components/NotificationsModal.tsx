@@ -1,16 +1,18 @@
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Modal, Portal, Button } from "react-native-paper";
+import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import { db } from "../../firebaseConfig";
 
 const NotificationSettingsModal = ({ visible, onDismiss, userId }) => {
+  const theme = useTheme();
   const [isSaving, setIsSaving] = useState(false);
 
   const [notifSettings, setNotifSettings] = useState({
     quarterResults: true,
     quarterWin: true,
     playerJoined: false,
+    deadlineReminders: true,
   });
 
   useEffect(() => {
@@ -54,21 +56,43 @@ const NotificationSettingsModal = ({ visible, onDismiss, userId }) => {
       <Modal
         visible={visible}
         onDismiss={onDismiss}
-        contentContainerStyle={styles.modalContainer}
+        contentContainerStyle={[
+          styles.modalContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
       >
-        <Text style={styles.modalTitle}>Notification Settings</Text>
-        <Text style={styles.modalSubtitle}>Choose which alerts to receive</Text>
+        <Text style={[styles.modalTitle, { color: theme.colors.onBackground }]}>
+          Notification Settings
+        </Text>
+        <Text
+          style={[
+            styles.modalSubtitle,
+            { color: theme.colors.onSurfaceVariant },
+          ]}
+        >
+          Choose which alerts to receive
+        </Text>
 
         {[
           { key: "quarterResults", label: "Quarter Results" },
-          { key: "quarterWin", label: "When I Win a Quarter" },
+          { key: "deadlineReminders", label: "Deadline Reminders" },
           {
             key: "playerJoined",
             label: "Someone Joins My Session (Managers only)",
           },
         ].map((item) => (
-          <View key={item.key} style={styles.settingItem}>
-            <Text style={styles.settingLabel}>{item.label}</Text>
+          <View
+            key={item.key}
+            style={[
+              styles.settingItem,
+              { borderColor: theme.colors.outlineVariant },
+            ]}
+          >
+            <Text
+              style={[styles.settingLabel, { color: theme.colors.onSurface }]}
+            >
+              {item.label}
+            </Text>
             <Button
               mode={notifSettings[item.key] ? "contained" : "outlined"}
               onPress={() => handleToggle(item.key)}
@@ -97,7 +121,6 @@ const NotificationSettingsModal = ({ visible, onDismiss, userId }) => {
 
 const styles = StyleSheet.create({
   modalContainer: {
-    backgroundColor: "white",
     padding: 20,
     borderRadius: 12,
     marginHorizontal: 20,
@@ -109,7 +132,6 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: {
     fontSize: 15,
-    color: "#666",
     marginBottom: 20,
   },
   settingItem: {
@@ -118,7 +140,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderColor: "#eee",
   },
   settingLabel: {
     fontSize: 16,

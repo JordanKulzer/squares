@@ -4,7 +4,7 @@
     "slug": "squares",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icons/squares-logo-not-transparent.png",
+    "icon": "./assets/icons/squares-logo-white.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -17,7 +17,8 @@
       "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationUsageDescription": "This app uses notifications to alert you when quarters end and deadlines approach."
       }
     },
     "android": {
