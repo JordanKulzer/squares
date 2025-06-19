@@ -338,7 +338,22 @@ const SquareScreen = ({ route }) => {
   const handleDeadlineChange = async (event, selectedDate) => {
     if (!selectedDate || selectedDate.getTime() === deadlineValue?.getTime())
       return;
-    setDeadlineValue(selectedDate);
+
+    // ✅ Type safety: ensure selectedDate is a valid Date object
+    const safeDeadline =
+      typeof selectedDate === "string"
+        ? new Date(selectedDate)
+        : selectedDate instanceof Date
+        ? selectedDate
+        : null;
+
+    if (!safeDeadline || isNaN(safeDeadline.getTime())) {
+      console.warn("Invalid deadline:", selectedDate);
+      return;
+    } else {
+      console.log("deadline is fine");
+    }
+    setDeadlineValue(safeDeadline);
     try {
       await updateDoc(doc(db, "squares", gridId), { deadline: selectedDate });
 

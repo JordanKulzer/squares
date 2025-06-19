@@ -35,11 +35,20 @@ export const scheduleDeadlineNotifications = async (
     const nowTime = Date.now();
     const timeDiff = target.getTime() - nowTime;
     const minDelayMs = 5000;
+    console.log("yyy: ", target);
+    console.log(
+      "📆 Scheduling for:",
+      target.toISOString(),
+      "Now:",
+      new Date().toISOString()
+    );
 
     if (timeDiff > minDelayMs) {
       const id = await Notifications.scheduleNotificationAsync({
         content: { title, body, sound: true },
-        trigger: { date: target } as Notifications.NotificationTriggerInput,
+        trigger: {
+          date: target,
+        } as Notifications.NotificationTriggerInput,
       });
       scheduledIds.push(id);
     } else {
@@ -59,6 +68,10 @@ export const scheduleDeadlineNotifications = async (
 
   const offset30Min = 30 * 60 * 1000;
   const thirtyMinBefore = new Date(deadlineTime - offset30Min);
+  console.log("Now: ", now);
+  console.log("deadline: ", deadline.toISOString());
+  console.log("deadlineTimestamp: ", deadline.getTime());
+  console.log("thirtyMinBefore: ", thirtyMinBefore);
 
   // Log scheduling attempt
   await logDebug("scheduleDeadlineNotifications", {
