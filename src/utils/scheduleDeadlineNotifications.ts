@@ -28,12 +28,20 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
     title: string,
     body: string
   ) => {
-    if (target.getTime() > Date.now()) {
+    const nowTime = Date.now();
+    const timeDiff = target.getTime() - nowTime;
+    const minDelayMs = 5000; // require at least 5s in the future
+
+    if (timeDiff > minDelayMs) {
       const id = await Notifications.scheduleNotificationAsync({
         content: { title, body, sound: true },
         trigger: { date: target } as Notifications.NotificationTriggerInput,
       });
       scheduledIds.push(id);
+    } else {
+      console.warn(
+        `Skipping "${title}" — it's too soon (trigger in ${timeDiff}ms)`
+      );
     }
   };
 
