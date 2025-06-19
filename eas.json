@@ -37,6 +37,10 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "jbkulzer@gmail.com"
+      }
+    }
   }
 }
