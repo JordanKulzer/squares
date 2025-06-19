@@ -17,6 +17,9 @@ import { auth, db } from "../../firebaseConfig";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import NotificationsModal from "../components/NotificationsModal";
+import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
 
 type JoinSquareParams = {
   gridId: string;
@@ -35,6 +38,12 @@ const JoinSquareScreen = () => {
 
   const [username, setUsername] = useState("");
   const [selectedColor, setSelectedColor] = useState(null);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [notifySettings, setNotifySettings] = useState({
+    deadlineReminders: false,
+    quarterResults: false,
+    playerJoined: false,
+  });
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
@@ -69,11 +78,17 @@ const JoinSquareScreen = () => {
             userId: user.uid,
             username,
             color: selectedColor,
+            notifySettings,
           }),
           playerIds: arrayUnion(user.uid),
         },
         { merge: true }
       );
+
+      if (notifySettings.deadlineReminders && deadline) {
+        const deadlineDate = new Date(deadline);
+        await scheduleDeadlineNotifications(deadlineDate);
+      }
 
       navigation.navigate("SquareScreen", {
         gridId,
@@ -172,6 +187,34 @@ const JoinSquareScreen = () => {
                         ))}
                       </View>
                     </ScrollView>
+                    <TouchableOpacity
+                      onPress={() => setNotifModalVisible(true)}
+                      style={{
+                        marginTop: 10,
+                        padding: 12,
+                        backgroundColor: theme.colors.elevation.level1,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: theme.colors.outlineVariant,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: theme.colors.onSurface,
+                          fontWeight: "500",
+                        }}
+                      >
+                        Notification Preferences
+                      </Text>
+                      <MaterialCommunityIcons
+                        name="chevron-right"
+                        size={20}
+                        color={theme.colors.onSurface}
+                      />
+                    </TouchableOpacity>
                   </Card.Content>
                 </Card>
               </ScrollView>
@@ -208,6 +251,12 @@ const JoinSquareScreen = () => {
           </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      <NotificationsModal
+        visible={notifModalVisible}
+        onDismiss={() => setNotifModalVisible(false)}
+        settings={notifySettings}
+        onSave={(settings) => setNotifySettings(settings)}
+      />
     </LinearGradient>
   );
 };

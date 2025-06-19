@@ -121,8 +121,20 @@ const AppDrawerContent = ({
             setNotifModalVisible(true)
           )}
 
-          {renderItemWithIcon("help-circle-outline", "Get Help", () =>
-            Linking.openURL("mailto:support@squaresapp.com")
+          {renderItemWithIcon("help-circle-outline", "Contact Us", () =>
+            Linking.openURL("mailto:squaresgameofficial@outlook.com")
+          )}
+
+          {renderItemWithIcon("shield-check-outline", "Privacy Policy", () =>
+            Linking.openURL(
+              "https://www.privacypolicies.com/live/a728545e-92d3-4658-8c00-edf18d0c828c"
+            )
+          )}
+
+          {renderItemWithIcon("file-document-outline", "Terms of Service", () =>
+            Linking.openURL(
+              "https://docs.google.com/document/d/1EXypu9tNdve5x3kK3N5bh9voZKKA6feHTNffVC8nM7s/edit?usp=sharing"
+            )
           )}
 
           {renderItemWithIcon(
@@ -313,6 +325,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(180,180,180,0.3)",
     gap: 12,
+    minHeight: 60,
   },
   settingLabel: {
     fontSize: 16,

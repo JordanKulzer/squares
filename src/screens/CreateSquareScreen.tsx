@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
-  Switch,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -17,10 +16,16 @@ import { db, auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import { RouteProp, useRoute } from "@react-navigation/native";
-import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
+import {
+  Card,
+  Chip,
+  TextInput as PaperInput,
+  useTheme,
+} from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
+import NotificationsModal from "../components/NotificationsModal";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -48,6 +53,12 @@ const CreateSquareScreen = ({ navigation }) => {
   const [step, setStep] = useState(0);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [notifySettings, setNotifySettings] = useState({
+    deadlineReminders: false,
+    quarterResults: false,
+    playerJoined: false,
+  });
 
   const route =
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
@@ -104,6 +115,10 @@ const CreateSquareScreen = ({ navigation }) => {
     if (!user) return;
 
     try {
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+      const prefs = userSnap.data()?.notificationPreferences;
+
       const xAxis = randomizeAxis
         ? generateShuffledArray()
         : [...Array(10).keys()];
@@ -119,7 +134,12 @@ const CreateSquareScreen = ({ navigation }) => {
         deadline,
         createdBy: user.uid,
         players: [
-          { userId: user.uid, username, color: selectedColor || "#000000" },
+          {
+            userId: user.uid,
+            username,
+            color: selectedColor || "#000000",
+            notifySettings,
+          },
         ],
         playerIds: [user.uid],
         selections: [],
@@ -130,11 +150,7 @@ const CreateSquareScreen = ({ navigation }) => {
         hideAxisUntilDeadline,
       });
 
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      const prefs = userSnap.data()?.notificationPreferences;
-
-      if (prefs?.deadlineReminders) {
+      if (notifySettings.deadlineReminders) {
         await scheduleDeadlineNotifications(deadline);
       }
 
@@ -277,29 +293,54 @@ const CreateSquareScreen = ({ navigation }) => {
           <Text style={{ color: theme.colors.onSurface }}>
             Randomize Axis Numbers
           </Text>
-          <Switch
-            value={randomizeAxis}
-            onValueChange={setRandomizeAxis}
-            trackColor={{
-              false: theme.colors.outlineVariant,
-              true: theme.colors.primary,
+          <Chip
+            mode="outlined"
+            selected={randomizeAxis}
+            onPress={() => setRandomizeAxis(!randomizeAxis)}
+            style={{
+              backgroundColor: randomizeAxis
+                ? theme.colors.primary
+                : theme.dark
+                ? "#2a2a2a"
+                : "#f0f0f0",
+              borderColor: randomizeAxis
+                ? theme.colors.primary
+                : theme.colors.outlineVariant,
             }}
-            thumbColor={theme.colors.surface}
-          />
+            textStyle={{
+              color: randomizeAxis ? "#fff" : theme.colors.onSurface,
+              fontWeight: "600",
+            }}
+          >
+            {randomizeAxis ? "On" : "Off"}
+          </Chip>
         </View>
+
         <View style={styles.toggleRow}>
           <Text style={{ color: theme.colors.onSurface }}>
             Mask X & Y Axis Until Deadline
           </Text>
-          <Switch
-            value={hideAxisUntilDeadline}
-            onValueChange={setHideAxisUntilDeadline}
-            trackColor={{
-              false: theme.colors.outlineVariant,
-              true: theme.colors.primary,
+          <Chip
+            mode="outlined"
+            selected={hideAxisUntilDeadline}
+            onPress={() => setHideAxisUntilDeadline(!hideAxisUntilDeadline)}
+            style={{
+              backgroundColor: hideAxisUntilDeadline
+                ? theme.colors.primary
+                : theme.dark
+                ? "#2a2a2a"
+                : "#f0f0f0",
+              borderColor: hideAxisUntilDeadline
+                ? theme.colors.primary
+                : theme.colors.outlineVariant,
             }}
-            thumbColor={theme.colors.surface}
-          />
+            textStyle={{
+              color: hideAxisUntilDeadline ? "#fff" : theme.colors.onSurface,
+              fontWeight: "600",
+            }}
+          >
+            {hideAxisUntilDeadline ? "On" : "Off"}
+          </Chip>
         </View>
       </Card>
     </ScrollView>
@@ -362,6 +403,29 @@ const CreateSquareScreen = ({ navigation }) => {
             ))}
           </View>
         </ScrollView>
+        <TouchableOpacity
+          onPress={() => setNotifModalVisible(true)}
+          style={{
+            marginTop: 20,
+            padding: 12,
+            backgroundColor: theme.colors.elevation.level1,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: theme.colors.outlineVariant,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Text style={{ color: theme.colors.onSurface, fontWeight: "500" }}>
+            Notification Preferences
+          </Text>
+          <Icon
+            name="chevron-forward"
+            size={20}
+            color={theme.colors.onSurface}
+          />
+        </TouchableOpacity>
       </Card>
     </ScrollView>
   );
@@ -438,6 +502,12 @@ const CreateSquareScreen = ({ navigation }) => {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      <NotificationsModal
+        visible={notifModalVisible}
+        onDismiss={() => setNotifModalVisible(false)}
+        settings={notifySettings}
+        onSave={(settings) => setNotifySettings(settings)}
+      />
     </LinearGradient>
   );
 };
