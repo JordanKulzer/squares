@@ -40,6 +40,7 @@ import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { API_BASE_URL } from "../utils/apiConfig";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -337,9 +338,11 @@ const SquareScreen = ({ route }) => {
   const handleDeadlineChange = async (event, selectedDate) => {
     if (!selectedDate || selectedDate.getTime() === deadlineValue?.getTime())
       return;
-    setDeadlineValue(selectedDate); // keep local state in sync
+    setDeadlineValue(selectedDate);
     try {
       await updateDoc(doc(db, "squares", gridId), { deadline: selectedDate });
+
+      await scheduleDeadlineNotifications(selectedDate);
     } catch (err) {
       console.error("Error updating deadline:", err);
     }
