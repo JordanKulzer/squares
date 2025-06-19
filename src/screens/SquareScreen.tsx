@@ -342,7 +342,7 @@ const SquareScreen = ({ route }) => {
     try {
       await updateDoc(doc(db, "squares", gridId), { deadline: selectedDate });
 
-      await scheduleDeadlineNotifications(selectedDate);
+      await scheduleDeadlineNotifications(selectedDate, gridId);
     } catch (err) {
       console.error("Error updating deadline:", err);
     }

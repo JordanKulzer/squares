@@ -1,9 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
+import { logDebug } from "./logDebug";
 
 const DEADLINE_NOTIFICATION_KEY = "deadlineNotificationIds";
 
-export const scheduleDeadlineNotifications = async (deadline: Date) => {
+export const scheduleDeadlineNotifications = async (
+  deadline: Date,
+  gridId?: string
+) => {
   const now = new Date();
   const deadlineTime = deadline.getTime();
 
@@ -12,7 +16,7 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
     return;
   }
 
-  // Cancel previous deadline-related notifications only
+  // Cancel previous deadline-related notifications
   const existing = await AsyncStorage.getItem(DEADLINE_NOTIFICATION_KEY);
   if (existing) {
     const ids: string[] = JSON.parse(existing);
@@ -30,7 +34,7 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
   ) => {
     const nowTime = Date.now();
     const timeDiff = target.getTime() - nowTime;
-    const minDelayMs = 5000; // require at least 5s in the future
+    const minDelayMs = 5000;
 
     if (timeDiff > minDelayMs) {
       const id = await Notifications.scheduleNotificationAsync({
@@ -39,14 +43,31 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
       });
       scheduledIds.push(id);
     } else {
-      console.warn(
-        `Skipping "${title}" — it's too soon (trigger in ${timeDiff}ms)`
-      );
+      const skipReason = `Skipping "${title}" — too soon (trigger in ${timeDiff}ms)`;
+      console.warn(skipReason);
+      await logDebug("scheduleDeadlineNotifications_skipped", {
+        gridId,
+        title,
+        body,
+        now: new Date().toISOString(),
+        target: target.toISOString(),
+        timeDiff,
+        reason: skipReason,
+      });
     }
   };
 
-  const testOffset = __DEV__ ? 10 * 1000 : 30 * 60 * 1000;
-  const thirtyMinBefore = new Date(deadlineTime - testOffset);
+  const offset30Min = 30 * 60 * 1000;
+  const thirtyMinBefore = new Date(deadlineTime - offset30Min);
+
+  // Log scheduling attempt
+  await logDebug("scheduleDeadlineNotifications", {
+    gridId,
+    now: new Date().toISOString(),
+    deadline: deadline.toISOString(),
+    deadlineTimestamp: deadline.getTime(),
+    thirtyMinBefore: thirtyMinBefore.toISOString(),
+  });
 
   await scheduleIfInFuture(
     thirtyMinBefore,
@@ -60,7 +81,6 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
     "No more selections allowed. Check the results soon!"
   );
 
-  // Save the new IDs
   await AsyncStorage.setItem(
     DEADLINE_NOTIFICATION_KEY,
     JSON.stringify(scheduledIds)

@@ -151,7 +151,7 @@ const CreateSquareScreen = ({ navigation }) => {
       });
 
       if (notifySettings.deadlineReminders) {
-        await scheduleDeadlineNotifications(deadline);
+        await scheduleDeadlineNotifications(deadline, squareRef.id);
       }
 
       navigation.navigate("SquareScreen", {

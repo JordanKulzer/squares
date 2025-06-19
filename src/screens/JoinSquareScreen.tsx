@@ -87,7 +87,7 @@ const JoinSquareScreen = () => {
 
       if (notifySettings.deadlineReminders && deadline) {
         const deadlineDate = new Date(deadline);
-        await scheduleDeadlineNotifications(deadlineDate);
+        await scheduleDeadlineNotifications(deadlineDate, gridId);
       }
 
       navigation.navigate("SquareScreen", {
