@@ -2,7 +2,7 @@
   "expo": {
     "name": "Squares",
     "slug": "squares",
-    "version": "1.0.1",
+    "version": "1.02",
     "orientation": "portrait",
     "icon": "./assets/icons/squares-logo-white.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "bundleIdentifier": "com.jkulzer.squaresgame",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "supportsTablet": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
