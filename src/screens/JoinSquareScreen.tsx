@@ -54,6 +54,7 @@ const JoinSquareScreen = () => {
   );
 
   const joinSquare = async () => {
+    Keyboard.dismiss();
     if (!username) {
       alert("Please enter a username.");
       return;
@@ -87,7 +88,7 @@ const JoinSquareScreen = () => {
 
       if (notifySettings.deadlineReminders && deadline) {
         const deadlineDate = new Date(deadline);
-        await scheduleDeadlineNotifications(deadlineDate, gridId);
+        await scheduleDeadlineNotifications(deadlineDate);
       }
 
       navigation.navigate("SquareScreen", {
@@ -142,13 +143,17 @@ const JoinSquareScreen = () => {
                     />
 
                     <Text
-                      style={[
-                        styles.sectionHeader,
-                        { color: theme.colors.onSurface },
-                      ]}
+                      style={{
+                        fontSize: 14,
+                        color:
+                          theme.colors.onSurfaceVariant ||
+                          theme.colors.onSurface,
+                        marginBottom: 8,
+                      }}
                     >
-                      Pick Your Color
+                      Choose a color to represent your selected squares.
                     </Text>
+
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
@@ -239,9 +244,13 @@ const JoinSquareScreen = () => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={joinSquare}
+                  disabled={!username || !selectedColor}
                   style={[
                     styles.saveButton,
-                    { backgroundColor: theme.colors.primary },
+                    {
+                      backgroundColor: theme.colors.primary,
+                      opacity: !username || !selectedColor ? 0.4 : 1,
+                    },
                   ]}
                 >
                   <Text style={styles.buttonText}>Join Square</Text>

@@ -11,7 +11,7 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-import { addDoc, collection, doc, getDoc } from "firebase/firestore";
+import { addDoc, collection } from "firebase/firestore";
 import { db, auth } from "../../firebaseConfig";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
@@ -64,12 +64,6 @@ const CreateSquareScreen = ({ navigation }) => {
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
   const theme = useTheme();
 
-  const onDateChange = (event, selectedDate) => {
-    if (selectedDate) {
-      setDeadline(selectedDate);
-    }
-  };
-
   useEffect(() => {
     const params = route.params || {};
     if (params.team1) setTeam1(params.team1);
@@ -111,14 +105,11 @@ const CreateSquareScreen = ({ navigation }) => {
   };
 
   const createSquareSession = async () => {
+    Keyboard.dismiss();
     const user = auth.currentUser;
     if (!user) return;
 
     try {
-      const userRef = doc(db, "users", user.uid);
-      const userSnap = await getDoc(userRef);
-      const prefs = userSnap.data()?.notificationPreferences;
-
       const xAxis = randomizeAxis
         ? generateShuffledArray()
         : [...Array(10).keys()];
@@ -151,7 +142,7 @@ const CreateSquareScreen = ({ navigation }) => {
       });
 
       if (notifySettings.deadlineReminders) {
-        await scheduleDeadlineNotifications(deadline, squareRef.id);
+        await scheduleDeadlineNotifications(deadline);
       }
 
       navigation.navigate("SquareScreen", {
@@ -361,9 +352,15 @@ const CreateSquareScreen = ({ navigation }) => {
           mode="outlined"
           style={styles.input}
         />
-        <Text style={{ color: theme.colors.onSurface }}>
-          Choose a color to represent your selected squares on the board.
+        <Text
+          style={{
+            color: theme.colors.onSurfaceVariant || theme.colors.outline,
+            fontSize: 13,
+          }}
+        >
+          Choose a color to represent your squares on the board.
         </Text>
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -588,14 +585,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     flexWrap: "wrap",
-  },
-  checkMarkOverlay: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    borderRadius: 12,
-    padding: 2,
   },
   gameCard: {
     padding: 12,

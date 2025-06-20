@@ -1,13 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
-import { logDebug } from "./logDebug";
+import { SchedulableTriggerInputTypes } from "expo-notifications";
 
 const DEADLINE_NOTIFICATION_KEY = "deadlineNotificationIds";
+const isDevClient = process.env.APP_ENV !== "production";
 
-export const scheduleDeadlineNotifications = async (
-  deadline: Date,
-  gridId?: string
-) => {
+export const scheduleDeadlineNotifications = async (deadline: Date) => {
   const now = new Date();
   const deadlineTime = deadline.getTime();
 
@@ -16,7 +14,6 @@ export const scheduleDeadlineNotifications = async (
     return;
   }
 
-  // Cancel previous deadline-related notifications
   const existing = await AsyncStorage.getItem(DEADLINE_NOTIFICATION_KEY);
   if (existing) {
     const ids: string[] = JSON.parse(existing);
@@ -32,55 +29,38 @@ export const scheduleDeadlineNotifications = async (
     title: string,
     body: string
   ) => {
-    const nowTime = Date.now();
-    const timeDiff = target.getTime() - nowTime;
+    const timeDiff = target.getTime() - Date.now();
     const minDelayMs = 5000;
-    console.log("yyy: ", target);
-    console.log(
-      "📆 Scheduling for:",
-      target.toISOString(),
-      "Now:",
-      new Date().toISOString()
-    );
+
+    const trigger: Notifications.NotificationTriggerInput = isDevClient
+      ? {
+          type: SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: Math.floor(timeDiff / 1000),
+          repeats: false,
+        }
+      : {
+          type: SchedulableTriggerInputTypes.DATE,
+          date: new Date(target.getTime()),
+        };
 
     if (timeDiff > minDelayMs) {
       const id = await Notifications.scheduleNotificationAsync({
         content: { title, body, sound: true },
-        trigger: {
-          date: target,
-        } as Notifications.NotificationTriggerInput,
+        trigger,
       });
       scheduledIds.push(id);
     } else {
-      const skipReason = `Skipping "${title}" — too soon (trigger in ${timeDiff}ms)`;
-      console.warn(skipReason);
-      await logDebug("scheduleDeadlineNotifications_skipped", {
-        gridId,
-        title,
-        body,
-        now: new Date().toISOString(),
-        target: target.toISOString(),
-        timeDiff,
-        reason: skipReason,
-      });
+      console.warn(`Skipping "${title}" — too soon (trigger in ${timeDiff}ms)`);
     }
   };
 
   const offset30Min = 30 * 60 * 1000;
   const thirtyMinBefore = new Date(deadlineTime - offset30Min);
-  console.log("Now: ", now);
-  console.log("deadline: ", deadline.toISOString());
-  console.log("deadlineTimestamp: ", deadline.getTime());
-  console.log("thirtyMinBefore: ", thirtyMinBefore);
 
-  // Log scheduling attempt
-  await logDebug("scheduleDeadlineNotifications", {
-    gridId,
-    now: new Date().toISOString(),
-    deadline: deadline.toISOString(),
-    deadlineTimestamp: deadline.getTime(),
-    thirtyMinBefore: thirtyMinBefore.toISOString(),
-  });
+  const permissions = await Notifications.getPermissionsAsync();
+  if (!permissions.granted) {
+    await Notifications.requestPermissionsAsync();
+  }
 
   await scheduleIfInFuture(
     thirtyMinBefore,
@@ -98,6 +78,4 @@ export const scheduleDeadlineNotifications = async (
     DEADLINE_NOTIFICATION_KEY,
     JSON.stringify(scheduledIds)
   );
-
-  console.log("✅ Deadline notifications scheduled.");
 };

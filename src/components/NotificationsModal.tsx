@@ -9,25 +9,45 @@ import {
 } from "react-native";
 import { Portal, Chip, Button, useTheme } from "react-native-paper";
 
-const NotificationSettingsModal = ({
+interface NotificationSettings {
+  deadlineReminders: boolean;
+  quarterResults: boolean;
+  playerJoined: boolean;
+}
+
+interface NotificationSettingsModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+  settings: NotificationSettings;
+  onSave: (settings: NotificationSettings) => void;
+  userId?: string;
+}
+
+const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
   visible,
   onDismiss,
   settings,
   onSave,
 }) => {
   const theme = useTheme();
-  const [localSettings, setLocalSettings] = useState(settings || {});
+  const [localSettings, setLocalSettings] = useState<NotificationSettings>({
+    deadlineReminders: false,
+    quarterResults: false,
+    playerJoined: false,
+  });
   const [isSaving, setIsSaving] = useState(false);
   const slideAnim = useRef(new Animated.Value(600)).current;
 
   useEffect(() => {
-    setLocalSettings(
-      settings || {
-        deadlineReminders: false,
-        quarterResults: false,
-        playerJoined: false,
-      }
-    );
+    if (settings) {
+      setLocalSettings(
+        settings || {
+          deadlineReminders: false,
+          quarterResults: false,
+          playerJoined: false,
+        }
+      );
+    }
   }, [settings]);
 
   useEffect(() => {

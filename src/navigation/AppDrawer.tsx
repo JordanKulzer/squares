@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   createDrawerNavigator,
-  DrawerContentComponentProps,
   DrawerContentScrollView,
 } from "@react-navigation/drawer";
 import {
@@ -16,24 +15,19 @@ import HomeScreen from "../screens/HomeScreen";
 import * as Linking from "expo-linking";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
-import NotificationsModal from "../components/NotificationsModal";
 import ThemeToggle from "../components/ThemeToggle";
 import { deleteUser, getAuth } from "firebase/auth";
 import { doc, deleteDoc } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
+import * as Application from "expo-application";
+import Constants from "expo-constants";
 
-const Drawer = createDrawerNavigator<DrawerParamList>();
+const Drawer = createDrawerNavigator();
 
-type DrawerParamList = {
-  Home: undefined;
-};
-
-type AppDrawerContentProps = DrawerContentComponentProps & {
-  userId: string;
-  onLogout: () => void;
-  isDarkTheme: boolean;
-  toggleTheme: () => void;
-};
+const version =
+  Constants.appOwnership === "expo"
+    ? Constants.expoConfig?.version
+    : Application.nativeApplicationVersion;
 
 const AppDrawerContent = ({
   userId,
@@ -47,7 +41,6 @@ const AppDrawerContent = ({
   toggleTheme: () => void;
 }) => {
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
-  const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const theme = useTheme();
 
@@ -118,7 +111,7 @@ const AppDrawerContent = ({
           </View>
 
           {renderItemWithIcon("bell-outline", "Notifications", () =>
-            setNotifModalVisible(true)
+            Linking.openSettings()
           )}
 
           {renderItemWithIcon("help-circle-outline", "Contact Us", () =>
@@ -146,7 +139,7 @@ const AppDrawerContent = ({
         </View>
       </DrawerContentScrollView>
 
-      <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+      <View style={{ paddingHorizontal: 16 }}>
         <Button
           icon="delete"
           mode="outlined"
@@ -166,6 +159,17 @@ const AppDrawerContent = ({
           Delete Account
         </Button>
       </View>
+      <Text
+        style={{
+          textAlign: "center",
+          color: theme.colors.onSurfaceVariant,
+          fontSize: 12,
+          opacity: 0.6,
+          marginBottom: 40,
+        }}
+      >
+        Version {version}
+      </Text>
 
       <Portal>
         <Modal
@@ -236,12 +240,6 @@ const AppDrawerContent = ({
           </View>
         </Modal>
       </Portal>
-
-      <NotificationsModal
-        visible={notifModalVisible}
-        onDismiss={() => setNotifModalVisible(false)}
-        userId={userId}
-      />
     </View>
   );
 };
@@ -348,10 +346,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: 12,
-  },
-  deleteAccountButton: {
-    borderRadius: 28,
-    elevation: 2,
   },
   divider: {
     borderBottomWidth: StyleSheet.hairlineWidth,

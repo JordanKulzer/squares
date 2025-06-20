@@ -55,20 +55,6 @@ const convertToDate = (deadline) => {
   return null;
 };
 
-const getNotifiedQuarters = async (eventId: string): Promise<number[]> => {
-  const data = await AsyncStorage.getItem(`notifiedQuarters-${eventId}`);
-  return data ? JSON.parse(data) : [];
-};
-
-const saveNotifiedQuarter = async (eventId: string, quarter: number) => {
-  const existing = await getNotifiedQuarters(eventId);
-  const updated = [...new Set([...existing, quarter])];
-  await AsyncStorage.setItem(
-    `notifiedQuarters-${eventId}`,
-    JSON.stringify(updated)
-  );
-};
-
 const SquareScreen = ({ route }) => {
   const { gridId, inputTitle, deadline, eventId } = route.params;
   const formattedDeadline = convertToDate(deadline);
@@ -85,8 +71,6 @@ const SquareScreen = ({ route }) => {
   const [yAxis, setYAxis] = useState<number[]>([]);
   const [isOwner, setIsOwner] = useState(false);
   const [userId, setUserId] = useState(null);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [team1Mascot, setTeam1Mascot] = useState("");
@@ -95,10 +79,7 @@ const SquareScreen = ({ route }) => {
   const [team2Logo, setTeam2Logo] = useState(null);
   const [maxSelections, setMaxSelections] = useState(0);
   const [quarterScores, setQuarterScores] = useState([]);
-  const [timeLeft, setTimeLeft] = useState("");
   const [quarterWinners, setQuarterWinners] = useState([]);
-
-  const fallbackLogo = "https://a.espncdn.com/i/teamlogos/leagues/500/nfl.png";
 
   const [selectedSquares, setSelectedSquares] = useState(new Set());
   const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
@@ -109,7 +90,6 @@ const SquareScreen = ({ route }) => {
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
 
-  const notifiedQuartersRef = useRef<Set<number>>(new Set());
   const currentUsername = useMemo(() => {
     return userId && playerUsernames[userId]
       ? playerUsernames[userId]
@@ -262,7 +242,6 @@ const SquareScreen = ({ route }) => {
       const now = new Date();
       const isPast = now > deadlineValue;
       setIsAfterDeadline(isPast);
-      setTimeLeft(isPast ? "Finalized" : formatTimeLeft(deadlineValue));
     };
 
     updateDeadlineState();
@@ -339,7 +318,6 @@ const SquareScreen = ({ route }) => {
     if (!selectedDate || selectedDate.getTime() === deadlineValue?.getTime())
       return;
 
-    // ✅ Type safety: ensure selectedDate is a valid Date object
     const safeDeadline =
       typeof selectedDate === "string"
         ? new Date(selectedDate)
@@ -350,14 +328,12 @@ const SquareScreen = ({ route }) => {
     if (!safeDeadline || isNaN(safeDeadline.getTime())) {
       console.warn("Invalid deadline:", selectedDate);
       return;
-    } else {
-      console.log("deadline is fine");
     }
     setDeadlineValue(safeDeadline);
     try {
       await updateDoc(doc(db, "squares", gridId), { deadline: selectedDate });
 
-      await scheduleDeadlineNotifications(selectedDate, gridId);
+      await scheduleDeadlineNotifications(selectedDate);
     } catch (err) {
       console.error("Error updating deadline:", err);
     }
@@ -418,7 +394,6 @@ const SquareScreen = ({ route }) => {
       ? `${username} owns (${xLabel},${yLabel})`
       : "This square is unclaimed";
 
-    setSelectedSquare(key);
     showSquareToast(message);
   };
 
@@ -442,7 +417,7 @@ const SquareScreen = ({ route }) => {
         </TouchableOpacity>
       ),
     });
-  }, [navigation, menuVisible, isOwner]);
+  }, [navigation, isOwner]);
 
   const selectSquareInFirestore = useCallback(
     async (x, y) => {
@@ -481,7 +456,6 @@ const SquareScreen = ({ route }) => {
       const squareId = `${x},${y}`;
       const currentColor = squareColors[squareId];
 
-      // Square owned by another player
       if (currentColor && currentColor !== playerColors[userId]) {
         const username = Object.entries(playerColors).find(
           ([id, color]) => color === currentColor
@@ -492,7 +466,6 @@ const SquareScreen = ({ route }) => {
         return;
       }
 
-      // Square owned by me (toggle)
       const isSelected = selectedSquares.has(squareId);
       const updatedSet = new Set(selectedSquares);
 
@@ -523,7 +496,7 @@ const SquareScreen = ({ route }) => {
         return newSet;
       });
 
-      setSelectedSquares(updatedSet); // Re-trigger re-render
+      setSelectedSquares(updatedSet);
     },
     [
       squareColors,
@@ -754,8 +727,8 @@ const SquareScreen = ({ route }) => {
         </Card>
       </ScrollView>
     ),
+
     players: () => {
-      // Build a count of squares per user
       const userSquareCount: Record<string, number> = {};
       Object.entries(squareColors).forEach(([_, color]) => {
         const uid = Object.entries(playerColors).find(
@@ -1128,10 +1101,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryBackground,
     borderLeftWidth: 5,
     borderWidth: 1.5,
-
     borderLeftColor: colors.primary,
     borderColor: "rgba(94, 96, 206, 0.4)",
-
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1146,7 +1117,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
   },
-  axisCell: { backgroundColor: "#f3f4f6" },
   axisText: { fontSize: 15, fontWeight: "bold", textAlign: "center" },
   row: { flexDirection: "row" },
   teamLabel: {
@@ -1180,14 +1150,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#000",
   },
-  legendText: { fontSize: 14 },
   yAxisText: {
     fontSize: 14,
     fontWeight: "bold",
     fontFamily: "Courier",
     marginTop: 5,
   },
-  coordinateText: { fontSize: 10, color: "#000" },
   deadlineContainer: {
     flexDirection: "row",
     alignItems: "center",
