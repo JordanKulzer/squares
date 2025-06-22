@@ -3,8 +3,7 @@ import React, { useState } from "react";
 import { TouchableOpacity } from "react-native";
 import { Menu } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { signOut } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
 
 const HeaderSettingsMenu = () => {
   const [visible, setVisible] = useState(false);
@@ -13,7 +12,7 @@ const HeaderSettingsMenu = () => {
   const handleLogout = async () => {
     setVisible(false);
     try {
-      await signOut(auth); // 🔁 Let App.tsx handle the redirect
+      await auth().signOut();
     } catch (err) {
       console.error("Logout failed", err);
     }
@@ -34,7 +33,7 @@ const HeaderSettingsMenu = () => {
       contentStyle={{ borderRadius: 10 }}
     >
       <Menu.Item
-        title={`Logged in as: ${auth.currentUser?.email || "Unknown"}`}
+        title={`Logged in as: ${auth().currentUser?.email || "Unknown"}`}
         disabled
       />
       <Menu.Item

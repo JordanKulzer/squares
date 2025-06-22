@@ -16,9 +16,9 @@ import {
   useTheme,
   TextInput,
 } from "react-native-paper";
-import { auth, db } from "../../firebaseConfig";
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
+import storage from "@react-native-firebase/storage";
 import * as ImagePicker from "expo-image-picker";
 
 const ProfileModal = ({ visible, onDismiss, userGames }) => {
@@ -42,10 +42,13 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
 
   useEffect(() => {
     const fetchFirstName = async () => {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) return;
       try {
-        const docSnap = await getDoc(doc(db, "users", user.uid));
+        const docSnap = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
         if (docSnap.exists()) {
           const data = docSnap.data();
           setFirstName(data.firstName || "");
@@ -62,15 +65,15 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   }, [visible]);
 
   const updateUserName = async () => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) return;
 
     try {
-      await setDoc(
-        doc(db, "users", user.uid),
-        { firstName: newName.trim() },
-        { merge: true }
-      );
+      await firestore()
+        .collection("users")
+        .doc(user.uid)
+        .set({ firstName: newName.trim() }, { merge: true });
+
       setFirstName(newName.trim());
       setIsEditingName(false);
     } catch (error) {
@@ -80,7 +83,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   };
 
   const getWinCount = () => {
-    const uid = auth.currentUser?.uid;
+    const uid = auth().currentUser?.uid;
     return userGames.reduce((count, game) => {
       const winners = game.winners || [];
       return winners.includes(uid) ? count + 1 : count;
@@ -89,14 +92,14 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
 
   const deleteUserData = async (uid) => {
     try {
-      await deleteDoc(doc(db, "users", uid));
+      await firestore().collection("users").doc(uid).delete();
     } catch (err) {
       console.error("Failed to delete user data:", err);
     }
   };
 
   const deleteAccount = async () => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) return;
     try {
       const uid = user.uid;
@@ -126,19 +129,17 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   };
 
   const uploadProfileImage = async (uri) => {
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) return;
 
     try {
       const response = await fetch(uri);
       const blob = await response.blob();
-      const storageRef = ref(getStorage(), `profileImages/${user.uid}.jpg`);
-      await uploadBytes(storageRef, blob);
-      const downloadURL = await getDownloadURL(storageRef);
+      const storageRef = storage().ref(`profileImages/${user.uid}.jpg`);
+      await storageRef.put(blob);
+      const downloadURL = await storageRef.getDownloadURL();
 
-      await updateDoc(doc(db, "users", user.uid), {
-        profileImage: downloadURL,
-      });
+      await firestore().collection("users").doc(user.uid).update({ profileImage: downloadURL });
 
       setImageUri(downloadURL);
     } catch (err) {
@@ -466,7 +467,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
             <Button
               onPress={() => {
                 setLogoutVisible(false);
-                auth.signOut();
+                auth().signOut();
                 onDismiss();
               }}
               textColor={theme.colors.error}

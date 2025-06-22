@@ -15,20 +15,10 @@ import {
   FlatList,
 } from "react-native";
 import { Button, Card, Dialog, Portal, useTheme } from "react-native-paper";
-import {
-  arrayRemove,
-  arrayUnion,
-  deleteDoc,
-  doc,
-  getDoc,
-  onSnapshot,
-  Timestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { auth, db } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { StackActions, useNavigation } from "@react-navigation/native";
-import { onAuthStateChanged } from "firebase/auth";
+import firestore, { Timestamp } from "@react-native-firebase/firestore";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
@@ -130,8 +120,8 @@ const SquareScreen = ({ route }) => {
 
   useEffect(() => {
     if (quarterScores.length > 0 && xAxis.length && yAxis.length) {
-      const ref = doc(db, "squares", gridId);
-      getDoc(ref).then((docSnap) => {
+      const ref = firestore().collection("squares").doc(gridId);
+      ref.get().then((docSnap) => {
         const data = docSnap.data();
         if (data?.selections) {
           const winners = determineQuarterWinners(
@@ -147,15 +137,15 @@ const SquareScreen = ({ route }) => {
   }, [quarterScores, xAxis, yAxis]);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = auth().onAuthStateChanged((user) => {
       setUserId(user?.uid || null);
     });
     return unsubscribe;
   }, []);
 
   useEffect(() => {
-    const ref = doc(db, "squares", gridId);
-    const unsub = onSnapshot(ref, (docSnap) => {
+    const ref = firestore().collection("squares").doc(gridId);
+    const unsub = ref.onSnapshot((docSnap) => {
       const data = docSnap.data();
       if (!data) return;
       const colorMapping = {};
@@ -212,7 +202,7 @@ const SquareScreen = ({ route }) => {
         setYAxis([...Array(10).keys()]);
       }
 
-      if (data?.createdBy === auth.currentUser?.uid) {
+      if (data?.createdBy === auth().currentUser?.uid) {
         setIsOwner(true);
       }
 
@@ -336,7 +326,8 @@ const SquareScreen = ({ route }) => {
     }
     setDeadlineValue(safeDeadline);
     try {
-      await updateDoc(doc(db, "squares", gridId), { deadline: selectedDate });
+      const ref = firestore().collection("squares").doc(gridId);
+      await ref.update({ deadline: selectedDate });
 
       await scheduleDeadlineNotifications(selectedDate);
     } catch (err) {
@@ -426,9 +417,11 @@ const SquareScreen = ({ route }) => {
   const selectSquareInFirestore = useCallback(
     async (x, y) => {
       if (!userId) return;
-      const gridRef = doc(db, "squares", gridId);
-      await updateDoc(gridRef, {
-        selections: arrayUnion({
+
+      const gridRef = firestore().collection("squares").doc(gridId);
+
+      await gridRef.update({
+        selections: firestore.FieldValue.arrayUnion({
           x: Number(x),
           y: Number(y),
           userId,
@@ -442,9 +435,11 @@ const SquareScreen = ({ route }) => {
   const deselectSquareInFirestore = useCallback(
     async (x, y) => {
       if (!userId) return;
-      const gridRef = doc(db, "squares", gridId);
-      await updateDoc(gridRef, {
-        selections: arrayRemove({
+
+      const gridRef = firestore().collection("squares").doc(gridId);
+
+      await gridRef.update({
+        selections: firestore.FieldValue.arrayRemove({
           x: Number(x),
           y: Number(y),
           userId,
@@ -454,7 +449,6 @@ const SquareScreen = ({ route }) => {
     },
     [gridId, userId, currentUsername]
   );
-
   const handlePress = useCallback(
     async (x, y) => {
       const squareId = `${x},${y}`;
@@ -516,8 +510,8 @@ const SquareScreen = ({ route }) => {
   useEffect(() => {
     if (!userId) return;
 
-    const ref = doc(db, "squares", gridId);
-    const unsub = onSnapshot(ref, (docSnap) => {
+    const ref = firestore().collection("squares").doc(gridId);
+    const unsub = ref.onSnapshot((docSnap) => {
       const data = docSnap.data();
       if (!data?.selections) return;
 
@@ -994,8 +988,8 @@ const SquareScreen = ({ route }) => {
                 setShowLeaveConfirm(false);
                 setSessionOptionsVisible(false);
                 try {
-                  const ref = doc(db, "squares", gridId);
-                  const docSnap = await getDoc(ref);
+                  const ref = firestore().collection("squares").doc(gridId);
+                  const docSnap = await ref.get();
                   if (!docSnap.exists()) return;
 
                   const data = docSnap.data();
@@ -1009,7 +1003,7 @@ const SquareScreen = ({ route }) => {
                     (sel) => sel.userId !== userId
                   );
 
-                  await updateDoc(ref, {
+                  await ref.update({
                     playerIds: updatedPlayerIds,
                     players: updatedPlayers,
                     selections: updatedSelections,
@@ -1030,7 +1024,7 @@ const SquareScreen = ({ route }) => {
                   });
 
                   if (updatedPlayers.length === 0) {
-                    await deleteDoc(ref);
+                    await ref.delete()
                   }
 
                   navigation.navigate("Main");
@@ -1068,7 +1062,8 @@ const SquareScreen = ({ route }) => {
                 setShowDeleteConfirm(false);
                 setSessionOptionsVisible(false);
                 try {
-                  await deleteDoc(doc(db, "squares", gridId));
+                  const ref = firestore().collection("squares").doc(gridId);
+                  await ref.delete();
                   Toast.show({
                     type: "error",
                     text1: `You’ve deleted ${inputTitle}!`,

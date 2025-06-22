@@ -9,11 +9,13 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import firestore from "@react-native-firebase/firestore";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../utils/types";
 
 const JoinSessionModal = ({ visible, onDismiss }) => {
-  const navigation = useNavigation();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [sessionCode, setSessionCode] = useState("");
   const [loadingSession, setLoadingSession] = useState(false);
   const [error, setError] = useState("");
@@ -23,16 +25,16 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
     if (!sessionCode) return;
     setLoadingSession(true);
     try {
-      const ref = doc(db, "squares", sessionCode.trim());
-      const snap = await getDoc(ref);
+      const docRef = firestore().collection("squares").doc(sessionCode.trim());
+      const docSnap = await docRef.get();
 
-      if (!snap.exists()) {
+      if (!docSnap.exists) {
         setError("Session not found.");
         setLoadingSession(false);
         return;
       }
 
-      const data = snap.data();
+      const data = docSnap.data();
       const usedColors = data.players?.map((p) => p.color) || [];
 
       onDismiss();

@@ -16,9 +16,8 @@ import * as Linking from "expo-linking";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import ThemeToggle from "../components/ThemeToggle";
-import { deleteUser, getAuth } from "firebase/auth";
-import { doc, deleteDoc } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 
@@ -52,11 +51,10 @@ const AppDrawerContent = ({
   const handleDeleteAccount = async () => {
     try {
       setDeleteConfirmVisible(false);
-      const auth = getAuth();
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (user) {
-        await deleteDoc(doc(db, "users", user.uid));
-        await deleteUser(user);
+        await firestore().collection("users").doc(user.uid).delete();
+        await user.delete();
         onLogout();
       }
     } catch (error) {

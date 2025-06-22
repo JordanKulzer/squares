@@ -12,7 +12,6 @@ import {
 } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth } from "./firebaseConfig";
 import JoinSquareScreen from "./src/screens/JoinSquareScreen";
 import * as Notifications from "expo-notifications";
@@ -80,7 +79,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = auth().onAuthStateChanged((firebaseUser) => {
       setUser(firebaseUser);
 
       if (firebaseUser) {
@@ -98,7 +97,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await auth().signOut();
       setUser(null);
     } catch (error) {
       console.error("Error logging out: ", error);

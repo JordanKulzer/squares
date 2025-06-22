@@ -13,12 +13,11 @@ import {
   useColorScheme,
 } from "react-native";
 import { TextInput as PaperInput, useTheme } from "react-native-paper";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
 import colors from "../../assets/constants/colorOptions";
 import { FontAwesome } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { setDoc, doc } from "firebase/firestore";
 
 const SignupScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -49,14 +48,13 @@ const SignupScreen = ({ navigation }) => {
 
     setError("");
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
+      const userCredential = await auth().createUserWithEmailAndPassword(
         email,
         password
       );
       const user = userCredential.user;
 
-      await setDoc(doc(db, "users", user.uid), {
+      await firestore().collection("users").doc(user.uid).set({
         firstName: firstName,
         email: email,
         createdAt: new Date(),

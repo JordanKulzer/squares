@@ -12,8 +12,8 @@ import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import * as Clipboard from "expo-clipboard";
 import Toast from "react-native-toast-message";
 import QRCode from "react-native-qrcode-svg";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { auth, db } from "../../firebaseConfig";
+import auth from '@react-native-firebase/auth';
+import firestore from '@react-native-firebase/firestore';
 import NotificationSettingsModal from "./NotificationsModal";
 
 const SessionOptionsModal = ({
@@ -44,11 +44,11 @@ const SessionOptionsModal = ({
   useEffect(() => {
     const loadNotifySettings = async () => {
       try {
-        const userId = auth.currentUser?.uid;
+        const userId = auth().currentUser?.uid;
         if (!userId || !gridId) return;
 
-        const squareRef = doc(db, "squares", gridId);
-        const snap = await getDoc(squareRef);
+        const squareRef = firestore().collection("squares").doc(gridId);
+        const snap = await squareRef.get();
         if (snap.exists()) {
           const data = snap.data();
           const player = data.players?.find((p) => p.userId === userId);
@@ -339,9 +339,9 @@ const SessionOptionsModal = ({
         settings={notifySettings}
         onSave={async (newSettings) => {
           try {
-            const squareRef = doc(db, "squares", gridId);
-            const snap = await getDoc(squareRef);
-            const userId = auth.currentUser?.uid;
+            const squareRef = firestore().collection("squares").doc(gridId);
+            const snap = await squareRef.get();
+            const userId = auth().currentUser?.uid;
             if (!snap.exists() || !userId) return;
 
             const data = snap.data();
@@ -349,7 +349,7 @@ const SessionOptionsModal = ({
               p.userId === userId ? { ...p, notifySettings: newSettings } : p
             );
 
-            await updateDoc(squareRef, { players: updatedPlayers });
+            await squareRef.update({ players: updatedPlayers });
             setNotifySettings(newSettings);
           } catch (err) {
             console.error("Failed to save notify settings:", err);

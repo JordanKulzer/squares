@@ -12,26 +12,24 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import { doc, setDoc, arrayUnion } from "firebase/firestore";
-import { auth, db } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import NotificationsModal from "../components/NotificationsModal";
 import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
-
-type JoinSquareParams = {
-  gridId: string;
-  inputTitle: string;
-  deadline: string;
-  usedColors?: string[];
-};
+import { RootStackParamList } from "../utils/types";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 const JoinSquareScreen = () => {
-  const route = useRoute<RouteProp<{ params: JoinSquareParams }, "params">>();
-  const navigation = useNavigation();
-  const user = auth.currentUser;
+  const navigation =
+    useNavigation<
+      NativeStackNavigationProp<RootStackParamList, "JoinSquareScreen">
+    >();
+  const route = useRoute<RouteProp<RootStackParamList, "JoinSquareScreen">>();
+  const user = auth().currentUser;
   const theme = useTheme();
 
   const { gridId, inputTitle, deadline, usedColors = [] } = route.params;
@@ -71,17 +69,16 @@ const JoinSquareScreen = () => {
     }
 
     try {
-      const squareRef = doc(db, "squares", gridId);
-      await setDoc(
-        squareRef,
+      const squareRef = firestore().collection("squares").doc(gridId);
+      await squareRef.set(
         {
-          players: arrayUnion({
+          players: firestore.FieldValue.arrayUnion({
             userId: user.uid,
             username,
             color: selectedColor,
             notifySettings,
           }),
-          playerIds: arrayUnion(user.uid),
+          playerIds: firestore.FieldValue.arrayUnion(user.uid),
         },
         { merge: true }
       );
@@ -96,6 +93,7 @@ const JoinSquareScreen = () => {
         inputTitle,
         username,
         deadline,
+        eventId: ""
       });
     } catch (error) {
       console.error("Error joining grid:", error);

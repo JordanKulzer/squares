@@ -11,8 +11,8 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-import { addDoc, collection } from "firebase/firestore";
-import { db, auth } from "../../firebaseConfig";
+import firestore from "@react-native-firebase/firestore";
+import auth from "@react-native-firebase/auth";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import { RouteProp, useRoute } from "@react-navigation/native";
@@ -106,7 +106,7 @@ const CreateSquareScreen = ({ navigation }) => {
 
   const createSquareSession = async () => {
     Keyboard.dismiss();
-    const user = auth.currentUser;
+    const user = auth().currentUser;
     if (!user) return;
 
     try {
@@ -117,29 +117,30 @@ const CreateSquareScreen = ({ navigation }) => {
         ? generateShuffledArray()
         : [...Array(10).keys()];
 
-      const squareRef = await addDoc(collection(db, "squares"), {
-        title: inputTitle,
-        username,
-        team1,
-        team2,
-        deadline,
-        createdBy: user.uid,
-        players: [
-          {
-            userId: user.uid,
-            username,
-            color: selectedColor || "#000000",
-            notifySettings,
-          },
-        ],
-        playerIds: [user.uid],
-        selections: [],
-        xAxis,
-        yAxis,
-        maxSelections: parseInt(maxSelections, 10),
-        eventId: eventId || "",
-        hideAxisUntilDeadline,
-      });
+      const squareRef = await firestore()
+        .collection("squares").add({
+          title: inputTitle,
+          username,
+          team1,
+          team2,
+          deadline,
+          createdBy: user.uid,
+          players: [
+            {
+              userId: user.uid,
+              username,
+              color: selectedColor || "#000000",
+              notifySettings,
+            },
+          ],
+          playerIds: [user.uid],
+          selections: [],
+          xAxis,
+          yAxis,
+          maxSelections: parseInt(maxSelections, 10),
+          eventId: eventId || "",
+          hideAxisUntilDeadline,
+        });
 
       if (notifySettings.deadlineReminders) {
         await scheduleDeadlineNotifications(deadline);

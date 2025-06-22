@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { TextInput as PaperInput, useTheme } from "react-native-paper";
 import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome } from "@expo/vector-icons";
@@ -38,7 +38,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
     }
 
     try {
-      await sendPasswordResetEmail(auth, email);
+      await auth().sendPasswordResetEmail(email);
       setMessage({
         text: "Password reset email sent. Check your inbox.",
         type: "success",

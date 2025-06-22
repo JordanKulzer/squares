@@ -14,25 +14,20 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  doc,
-  getDoc,
-} from "firebase/firestore";
+import firestore from "@react-native-firebase/firestore";
 import { IconButton, useTheme } from "react-native-paper";
-import { auth, db } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
 import colors from "../../assets/constants/colorOptions";
 import { Animated } from "react-native";
+import { RootStackParamList } from "../utils/types";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 const HomeScreen = () => {
-  const navigation = useNavigation();
+const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
   const animations = useRef<Animated.Value[]>([]).current;
 
@@ -51,15 +46,14 @@ const HomeScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) return;
 
-      const userSquaresRef = query(
-        collection(db, "squares"),
-        where("playerIds", "array-contains", user.uid)
-      );
+      const userSquaresRef = firestore()
+        .collection("squares")
+        .where("playerIds", "array-contains", user.uid);
 
-      const unsubscribe = onSnapshot(userSquaresRef, (querySnapshot) => {
+      const unsubscribe = userSquaresRef.onSnapshot((querySnapshot) => {
         const squaresList = querySnapshot.docs.map((doc) => {
           const data = doc.data();
           const userPlayer = data.players.find((p) => p.uid === user.uid);
@@ -108,12 +102,14 @@ const HomeScreen = () => {
 
   useEffect(() => {
     const fetchFirstName = async () => {
-      const user = auth.currentUser;
+      const user = auth().currentUser;
       if (!user) return;
       try {
-        const userDocRef = doc(db, "users", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
+        const userDocSnap = await firestore()
+          .collection("users")
+          .doc(user.uid)
+          .get();
+        if (userDocSnap.exists) {
           const userData = userDocSnap.data();
           setFirstName(userData.firstName || "");
         }
@@ -291,7 +287,7 @@ const HomeScreen = () => {
                             color: theme.colors.onSurface,
                           }}
                         >
-                          {item.playerIds?.length || 0} players •{" "}
+                          {item.playerIds?.length || 0} players • {" "}
                           {item.deadline?.toDate?.() > new Date()
                             ? `Ends ${item.deadline
                                 .toDate()

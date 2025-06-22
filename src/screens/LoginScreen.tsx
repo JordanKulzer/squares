@@ -11,8 +11,7 @@ import {
   useColorScheme,
 } from "react-native";
 import { TextInput as PaperInput, useTheme } from "react-native-paper";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../firebaseConfig";
+import auth from "@react-native-firebase/auth";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -26,7 +25,7 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await auth().signInWithEmailAndPassword(email, password);
     } catch (err) {
       if (err.code === "auth/invalid-email") {
         setError("Invalid email address.");
