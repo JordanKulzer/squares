@@ -36,6 +36,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
     playerJoined: false,
   });
   const [isSaving, setIsSaving] = useState(false);
+  const originalSettings = useRef<NotificationSettings | null>(null);
   const slideAnim = useRef(new Animated.Value(600)).current;
 
   useEffect(() => {
@@ -57,6 +58,13 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
       useNativeDriver: true,
     }).start();
   }, [visible]);
+
+  useEffect(() => {
+    if (visible && settings) {
+      originalSettings.current = settings;
+      setLocalSettings(settings);
+    }
+  }, [visible, settings]);
 
   const handleToggle = (key) => {
     setLocalSettings((prev) => ({
@@ -161,8 +169,13 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
 
           <View style={styles.footerRow}>
             <Button
-              onPress={onDismiss}
-              textColor={theme.colors.onSurfaceVariant}
+              onPress={() => {
+                if (originalSettings.current) {
+                  setLocalSettings(originalSettings.current); // reset unsaved changes
+                }
+                onDismiss();
+              }}
+              textColor={theme.colors.error}
             >
               Cancel
             </Button>

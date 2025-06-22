@@ -202,14 +202,15 @@ const SessionOptionsModal = ({
                 icon="exit-to-app"
                 mode="outlined"
                 onPress={handleLeaveSquare}
-                textColor={theme.colors.error}
                 style={{
-                  backgroundColor: theme.colors.error,
                   marginBottom: 12,
+                  borderColor: theme.colors.error,
+                  borderRadius: 20,
                 }}
                 labelStyle={{
                   fontWeight: "600",
-                  color: theme.colors.onPrimary,
+                  color: theme.colors.error,
+                  textTransform: "none",
                 }}
               >
                 Leave Square
@@ -218,12 +219,17 @@ const SessionOptionsModal = ({
               {isOwner && (
                 <Button
                   icon="delete"
-                  mode="outlined"
+                  mode="contained"
                   onPress={handleDeleteSquare}
-                  style={{ backgroundColor: "#ff4d4f", marginBottom: 12 }}
+                  style={{
+                    backgroundColor: theme.colors.error,
+                    marginBottom: 12,
+                    borderRadius: 20,
+                  }}
                   labelStyle={{
                     fontWeight: "600",
-                    color: "#fff",
+                    color: theme.colors.onPrimary,
+                    textTransform: "none",
                   }}
                 >
                   Delete Square

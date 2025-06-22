@@ -4,6 +4,7 @@ import { Modal, Portal, Text, Button, useTheme } from "react-native-paper";
 import Constants from "expo-constants";
 import DatePicker from "react-native-date-picker";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import colors from "../../assets/constants/colorOptions";
 
 interface Props {
   visible: boolean;
@@ -95,10 +96,18 @@ const DeadlinePickerModal = ({
         </View>
 
         <View style={styles.buttonRow}>
-          <Button onPress={onDismiss} mode="text">
+          <Button
+            onPress={onDismiss}
+            textColor={theme.colors.error}
+            mode="text"
+          >
             Cancel
           </Button>
-          <Button onPress={handleModalConfirm} mode="contained">
+          <Button
+            onPress={handleModalConfirm}
+            textColor={"#fff"}
+            mode="contained"
+          >
             Confirm
           </Button>
         </View>
@@ -166,7 +175,17 @@ const styles = StyleSheet.create({
   modal: {
     margin: 20,
     padding: 20,
-    borderRadius: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderLeftWidth: 5,
+    borderColor: "rgba(94, 96, 206, 0.4)",
+    borderLeftColor: colors.primary,
+    backgroundColor: colors.primaryBackground,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 8,
   },
   title: {
     fontSize: 18,

@@ -4,7 +4,6 @@ import React, {
   useLayoutEffect,
   useMemo,
   useState,
-  useRef,
 } from "react";
 import {
   View,
@@ -13,7 +12,6 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  Image,
   FlatList,
 } from "react-native";
 import { Button, Card, Dialog, Portal, useTheme } from "react-native-paper";
@@ -57,7 +55,7 @@ const convertToDate = (deadline) => {
 
 const SquareScreen = ({ route }) => {
   const { gridId, inputTitle, deadline, eventId } = route.params;
-  const formattedDeadline = convertToDate(deadline);
+  const [now, setNow] = useState(new Date());
 
   const theme = useTheme();
   const isDark = theme.dark;
@@ -82,7 +80,7 @@ const SquareScreen = ({ route }) => {
   const [quarterWinners, setQuarterWinners] = useState([]);
 
   const [selectedSquares, setSelectedSquares] = useState(new Set());
-  const [deadlineValue, setDeadlineValue] = useState(formattedDeadline);
+  const [deadlineValue, setDeadlineValue] = useState<Date | null>(null);
   const [isAfterDeadline, setIsAfterDeadline] = useState(false);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [tempDeadline, setTempDeadline] = useState(deadlineValue);
@@ -252,6 +250,13 @@ const SquareScreen = ({ route }) => {
   }, [deadlineValue]);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     if (!eventId || !deadlineValue) return;
 
     const storageKey = `notifiedQuarters-${eventId}`;
@@ -339,8 +344,7 @@ const SquareScreen = ({ route }) => {
     }
   };
 
-  const formatTimeLeft = (targetDate: Date) => {
-    const now = new Date();
+  const formatTimeLeft = (targetDate: Date, now: Date = new Date()) => {
     const diff = targetDate.getTime() - now.getTime();
 
     if (diff <= 0) return "Finalized";
@@ -360,7 +364,7 @@ const SquareScreen = ({ route }) => {
   };
 
   const showSquareToast = (message: string) => {
-    Toast.hide(); // Hide current toast immediately
+    Toast.hide();
 
     setTimeout(() => {
       Toast.show({
@@ -718,7 +722,7 @@ const SquareScreen = ({ route }) => {
                   ]}
                 >
                   {deadlineValue
-                    ? formatTimeLeft(deadlineValue)
+                    ? formatTimeLeft(deadlineValue, now)
                     : "No deadline set"}
                 </Text>
               </View>
