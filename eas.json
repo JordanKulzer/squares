@@ -42,10 +42,5 @@
         "appleId": "jbkulzer@gmail.com"
       }
     }
-  },
-  "autoSubmit": {
-    "production": {
-      "ios": true
-    }
   }
 }
