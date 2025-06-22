@@ -33,9 +33,6 @@
       },
       "env": {
         "APP_ENV": "production"
-      },
-      "autoSubmit": {
-        "ios": true
       }
     }
   },
@@ -44,6 +41,11 @@
       "ios": {
         "appleId": "jbkulzer@gmail.com"
       }
+    }
+  },
+  "autoSubmit": {
+    "production": {
+      "ios": true
     }
   }
 }
