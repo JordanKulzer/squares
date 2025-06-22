@@ -1,46 +1,82 @@
-import { doc, getDoc, updateDoc } from "firebase/firestore";
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet } from "react-native";
-import { Modal, Portal, Button } from "react-native-paper";
-import { db } from "../../firebaseConfig";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  ScrollView,
+  TouchableWithoutFeedback,
+} from "react-native";
+import { Portal, Chip, Button, useTheme } from "react-native-paper";
 
-const NotificationSettingsModal = ({ visible, onDismiss, userId }) => {
-  const [isSaving, setIsSaving] = useState(false);
+interface NotificationSettings {
+  deadlineReminders: boolean;
+  quarterResults: boolean;
+  playerJoined: boolean;
+}
 
-  const [notifSettings, setNotifSettings] = useState({
-    quarterResults: true,
-    quarterWin: true,
+interface NotificationSettingsModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+  settings: NotificationSettings;
+  onSave: (settings: NotificationSettings) => void;
+  userId?: string;
+}
+
+const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
+  visible,
+  onDismiss,
+  settings,
+  onSave,
+}) => {
+  const theme = useTheme();
+  const [localSettings, setLocalSettings] = useState<NotificationSettings>({
+    deadlineReminders: false,
+    quarterResults: false,
     playerJoined: false,
   });
+  const [isSaving, setIsSaving] = useState(false);
+  const originalSettings = useRef<NotificationSettings | null>(null);
+  const slideAnim = useRef(new Animated.Value(600)).current;
 
   useEffect(() => {
-    const loadPrefs = async () => {
-      try {
-        const docSnap = await getDoc(doc(db, "users", userId));
-        if (docSnap.exists() && docSnap.data().notificationPreferences) {
-          setNotifSettings(docSnap.data().notificationPreferences);
+    if (settings) {
+      setLocalSettings(
+        settings || {
+          deadlineReminders: false,
+          quarterResults: false,
+          playerJoined: false,
         }
-      } catch (error) {
-        console.error("Failed to load notification preferences:", error);
-      }
-    };
+      );
+    }
+  }, [settings]);
 
-    loadPrefs();
-  }, [userId]);
+  useEffect(() => {
+    Animated.timing(slideAnim, {
+      toValue: visible ? 0 : 600,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible && settings) {
+      originalSettings.current = settings;
+      setLocalSettings(settings);
+    }
+  }, [visible, settings]);
 
   const handleToggle = (key) => {
-    setNotifSettings((prev) => ({
+    setLocalSettings((prev) => ({
       ...prev,
       [key]: !prev[key],
     }));
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     setIsSaving(true);
     try {
-      await updateDoc(doc(db, "users", userId), {
-        notificationPreferences: notifSettings,
-      });
+      onSave(localSettings);
       onDismiss();
     } catch (err) {
       console.error("Error saving notification settings:", err);
@@ -49,85 +85,164 @@ const NotificationSettingsModal = ({ visible, onDismiss, userId }) => {
     }
   };
 
+  const surfaceColor = theme.colors.surface;
+  const onSurfaceColor = theme.colors.onSurface;
+  const outlineColor = theme.colors.outlineVariant;
+
   return (
     <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss}
-        contentContainerStyle={styles.modalContainer}
-      >
-        <Text style={styles.modalTitle}>Notification Settings</Text>
-        <Text style={styles.modalSubtitle}>Choose which alerts to receive</Text>
+      {/* Backdrop */}
+      <TouchableWithoutFeedback onPress={onDismiss}>
+        <View
+          style={[
+            styles.backdrop,
+            {
+              opacity: visible ? 1 : 0,
+              pointerEvents: visible ? "auto" : "none",
+            },
+          ]}
+        />
+      </TouchableWithoutFeedback>
 
-        {[
-          { key: "quarterResults", label: "Quarter Results" },
-          { key: "quarterWin", label: "When I Win a Quarter" },
+      {/* Animated Bottom Sheet */}
+      <Animated.View
+        style={[
+          styles.sheet,
           {
-            key: "playerJoined",
-            label: "Someone Joins My Session (Managers only)",
+            transform: [{ translateY: slideAnim }],
+            backgroundColor: surfaceColor,
+            shadowColor: theme.colors.backdrop,
+            borderTopColor: theme.dark ? "#333" : "#ddd",
           },
-        ].map((item) => (
-          <View key={item.key} style={styles.settingItem}>
-            <Text style={styles.settingLabel}>{item.label}</Text>
-            <Button
-              mode={notifSettings[item.key] ? "contained" : "outlined"}
-              onPress={() => handleToggle(item.key)}
-              compact
+        ]}
+        pointerEvents={visible ? "auto" : "none"}
+      >
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <Text style={[styles.title, { color: onSurfaceColor }]}>
+            Notification Settings
+          </Text>
+
+          <Text
+            style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}
+          >
+            Choose which alerts to receive
+          </Text>
+
+          {[
+            { key: "quarterResults", label: "Quarter Results" },
+            { key: "deadlineReminders", label: "Deadline Reminders" },
+            {
+              key: "playerJoined",
+              label: "Someone Joins My Session (Managers only)",
+            },
+          ].map((item) => (
+            <View
+              key={item.key}
+              style={[styles.settingRow, { borderColor: outlineColor }]}
             >
-              {notifSettings[item.key] ? "On" : "Off"}
+              <Text style={[styles.settingLabel, { color: onSurfaceColor }]}>
+                {item.label}
+              </Text>
+              <Chip
+                mode="outlined"
+                selected={localSettings[item.key]}
+                onPress={() => handleToggle(item.key)}
+                style={{
+                  backgroundColor: localSettings[item.key]
+                    ? theme.colors.primary
+                    : theme.dark
+                    ? "#2a2a2a"
+                    : "#f0f0f0",
+                  borderColor: theme.colors.outlineVariant,
+                }}
+                textStyle={{
+                  color: localSettings[item.key]
+                    ? "#FFF"
+                    : theme.colors.onSurface,
+                  fontWeight: "600",
+                }}
+              >
+                {localSettings[item.key] ? "On" : "Off"}
+              </Chip>
+            </View>
+          ))}
+
+          <View style={styles.footerRow}>
+            <Button
+              onPress={() => {
+                if (originalSettings.current) {
+                  setLocalSettings(originalSettings.current); // reset unsaved changes
+                }
+                onDismiss();
+              }}
+              textColor={theme.colors.error}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              mode="contained"
+              onPress={handleSave}
+              loading={isSaving}
+              disabled={isSaving}
+              textColor={"#fff"}
+            >
+              Save
             </Button>
           </View>
-        ))}
-
-        <View style={styles.modalButtonRow}>
-          <Button onPress={onDismiss}>Cancel</Button>
-          <Button
-            onPress={handleSave}
-            mode="contained"
-            loading={isSaving}
-            disabled={isSaving}
-          >
-            Save
-          </Button>
-        </View>
-      </Modal>
+        </ScrollView>
+      </Animated.View>
     </Portal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    backgroundColor: "white",
-    padding: 20,
-    borderRadius: 12,
-    marginHorizontal: 20,
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
   },
-  modalTitle: {
-    fontSize: 18,
+  sheet: {
+    position: "absolute",
+    bottom: 0,
+    width: "100%",
+    maxHeight: 480,
+    borderTopWidth: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 32,
+    elevation: 10,
+  },
+  title: {
+    fontSize: 20,
     fontWeight: "700",
-    marginBottom: 10,
+    marginBottom: 8,
   },
-  modalSubtitle: {
-    fontSize: 15,
-    color: "#666",
+  subtitle: {
+    fontSize: 14,
     marginBottom: 20,
   },
-  settingItem: {
+  settingRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   settingLabel: {
-    fontSize: 16,
-    width: "75%",
+    fontSize: 15,
+    flex: 1,
+    marginRight: 10,
   },
-  modalButtonRow: {
+  footerRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginTop: 20,
+    marginTop: 24,
     gap: 12,
   },
 });

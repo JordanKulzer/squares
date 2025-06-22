@@ -1,19 +1,25 @@
 {
   "expo": {
-    "name": "squares",
+    "name": "Squares",
     "slug": "squares",
-    "version": "1.0.0",
+    "version": "1.0.9",
     "orientation": "portrait",
-    "icon": "./assets/icons/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/icons/squares-logo-white.png",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/icons/splash-icon.png",
+      "image": "./assets/icons/squares-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.jkulzer.squaresgame",
+      "buildNumber": "10",
+      "supportsTablet": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationUsageDescription": "This app uses notifications to alert you when quarters end and deadlines approach."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +27,6 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "android.permission.CAMERA",
         "android.permission.CAMERA"
       ],
       "package": "com.jkulzer.squaresgame"
@@ -31,11 +36,20 @@
     },
     "plugins": [
       "expo-web-browser",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
+    "owner": "jordankulzer",
     "extra": {
       "eas": {
-        "projectId": "39685585-e11c-4122-b117-d6518a5cd269"
+        "projectId": "a0d72e60-1d9e-4aa4-93ec-66f16f8da1c8"
       }
     }
   }

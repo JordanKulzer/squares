@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Dialog, Portal, Button, Provider, useTheme } from "react-native-paper";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import { API_BASE_URL } from "../utils/apiConfig";
 
 const PRESEASON_START = new Date("2025-07-28T12:00:00");
 
@@ -84,41 +85,17 @@ const GamePickerScreen = () => {
   }, [incomingDeadline]);
 
   const fetchGamesForWeek = async (startDate: Date) => {
-    const allGames = [];
-
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(startDate);
-      date.setDate(startDate.getDate() + i);
-      const formattedDate = formatDate(date);
-
-      try {
-        const res = await fetch(
-          `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${formattedDate}`
-        );
-        const data = await res.json();
-        const events = data.events || [];
-
-        events.forEach((event) => {
-          const comp = event.competitions[0];
-          const home = comp.competitors.find((c) => c.homeAway === "home");
-          const away = comp.competitors.find((c) => c.homeAway === "away");
-
-          allGames.push({
-            id: event.id,
-            date: event.date,
-            status: event.status.type.name,
-            homeTeam: home.team.displayName,
-            homeLogo: home.team.logo ?? null,
-            awayTeam: away.team.displayName,
-            awayLogo: away.team.logo ?? null,
-          });
-        });
-      } catch (err) {
-        console.warn("Failed to fetch games for", formattedDate);
-      }
+    const formattedDate = startDate.toISOString().split("T")[0];
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/schedule?startDate=${formattedDate}`
+      );
+      const games = await res.json();
+      return games;
+    } catch (err) {
+      console.warn("Failed to fetch games from custom API:", err);
+      return [];
     }
-
-    return allGames;
   };
 
   useEffect(() => {
@@ -241,13 +218,13 @@ const GamePickerScreen = () => {
                     marginBottom: 6,
                   }}
                 >
-                  {item.awayLogo && (
+                  {/* {item.awayLogo && (
                     <Image
                       source={{ uri: item.awayLogo }}
                       style={{ width: 24, height: 24, marginRight: 6 }}
                       resizeMode="contain"
                     />
-                  )}
+                  )} */}
                   <Text
                     style={[styles.gameText, { color: theme.colors.onSurface }]}
                   >
@@ -264,13 +241,13 @@ const GamePickerScreen = () => {
                     @
                   </Text>
 
-                  {item.homeLogo && (
+                  {/* {item.homeLogo && (
                     <Image
                       source={{ uri: item.homeLogo }}
                       style={{ width: 24, height: 24, marginRight: 6 }}
                       resizeMode="contain"
                     />
-                  )}
+                  )} */}
                   <Text
                     style={[styles.gameText, { color: theme.colors.onSurface }]}
                   >

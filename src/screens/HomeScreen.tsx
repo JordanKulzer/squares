@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useLayoutEffect,
   useEffect,
+  useRef,
 } from "react";
 import {
   Text,
@@ -28,10 +29,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
 import colors from "../../assets/constants/colorOptions";
+import { Animated } from "react-native";
 
 const HomeScreen = () => {
   const navigation = useNavigation();
   const theme = useTheme();
+  const animations = useRef<Animated.Value[]>([]).current;
+
+  const translateYAnims = useRef<Animated.Value[]>([]).current;
+  const opacityAnims = useRef<Animated.Value[]>([]).current;
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
@@ -65,6 +71,34 @@ const HomeScreen = () => {
         });
 
         setUserGames(squaresList);
+        animations.length = 0;
+        translateYAnims.length = 0;
+        opacityAnims.length = 0;
+
+        squaresList.forEach((_, index) => {
+          animations[index] = new Animated.Value(0);
+          translateYAnims[index] = new Animated.Value(30);
+          opacityAnims[index] = new Animated.Value(0);
+        });
+
+        Animated.stagger(
+          80,
+          squaresList.map((_, index) =>
+            Animated.parallel([
+              Animated.timing(translateYAnims[index], {
+                toValue: 0,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+              Animated.timing(opacityAnims[index], {
+                toValue: 1,
+                duration: 400,
+                useNativeDriver: true,
+              }),
+            ])
+          )
+        ).start();
+
         setLoading(false);
       });
 
@@ -156,23 +190,23 @@ const HomeScreen = () => {
         >
           Quick Start
         </Text>
+        <View style={{ paddingHorizontal: 5 }}>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            onPress={() => navigation.navigate("CreateSquareScreen")}
+          >
+            <MaterialIcons name="add-box" size={20} color="#fff" />
+            <Text style={styles.buttonText}>Create Game</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary }]}
-          onPress={() => navigation.navigate("CreateSquareScreen")}
-        >
-          <MaterialIcons name="add-box" size={20} color="#fff" />
-          <Text style={styles.buttonText}>Create Game</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.button, { backgroundColor: theme.colors.primary }]}
-          onPress={() => setVisible(true)}
-        >
-          <MaterialIcons name="vpn-key" size={20} color="#fff" />
-          <Text style={styles.buttonText}>Join By Code</Text>
-        </TouchableOpacity>
-
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            onPress={() => setVisible(true)}
+          >
+            <MaterialIcons name="vpn-key" size={20} color="#fff" />
+            <Text style={styles.buttonText}>Join By Code</Text>
+          </TouchableOpacity>
+        </View>
         <Text
           style={{
             fontSize: 16,
@@ -200,66 +234,83 @@ const HomeScreen = () => {
             You haven’t joined or created any games yet.
           </Text>
         ) : (
-          <FlatList
-            data={userGames}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.gameCard,
-                  {
-                    backgroundColor: theme.colors.elevation.level2,
-                    borderLeftColor: theme.colors.primary,
-                  },
-                ]}
-                onPress={() =>
-                  navigation.navigate("SquareScreen", {
-                    gridId: item.id,
-                    inputTitle: item.title,
-                    username: item.username,
-                    deadline: item.deadline,
-                    eventId: item.eventId,
-                    disableAnimation: true,
-                  })
-                }
-              >
-                <View
+          <View style={{ paddingHorizontal: 5, paddingBottom: 20 }}>
+            {userGames.map((item, index) => {
+              return (
+                <Animated.View
+                  key={item.id}
                   style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
+                    opacity: opacityAnims[index] || new Animated.Value(1),
+                    transform: [
+                      {
+                        translateY:
+                          translateYAnims[index] || new Animated.Value(0),
+                      },
+                    ],
                   }}
                 >
-                  <View>
-                    <Text
+                  <TouchableOpacity
+                    style={[
+                      styles.gameCard,
+                      {
+                        backgroundColor: theme.colors.elevation.level2,
+                        borderLeftColor: theme.colors.primary,
+                      },
+                    ]}
+                    onPress={() =>
+                      navigation.navigate("SquareScreen", {
+                        gridId: item.id,
+                        inputTitle: item.title,
+                        username: item.username,
+                        deadline: item.deadline,
+                        eventId: item.eventId,
+                        disableAnimation: true,
+                      })
+                    }
+                  >
+                    <View
                       style={{
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: theme.colors.onBackground,
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
                       }}
                     >
-                      {item.title}
-                    </Text>
-                    <Text
-                      style={{ fontSize: 14, color: theme.colors.onSurface }}
-                    >
-                      {item.playerIds?.length || 0} players •{" "}
-                      {item.deadline?.toDate?.() > new Date()
-                        ? `Ends ${item.deadline.toDate().toLocaleDateString()}`
-                        : "Finalized"}
-                    </Text>
-                  </View>
+                      <View>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: theme.colors.onBackground,
+                          }}
+                        >
+                          {item.title}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color: theme.colors.onSurface,
+                          }}
+                        >
+                          {item.playerIds?.length || 0} players •{" "}
+                          {item.deadline?.toDate?.() > new Date()
+                            ? `Ends ${item.deadline
+                                .toDate()
+                                .toLocaleDateString()}`
+                            : "Finalized"}
+                        </Text>
+                      </View>
 
-                  <MaterialIcons
-                    name="chevron-right"
-                    size={24}
-                    color={theme.colors.onSurfaceVariant}
-                  />
-                </View>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          />
+                      <MaterialIcons
+                        name="chevron-right"
+                        size={24}
+                        color={theme.colors.onSurfaceVariant}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </Animated.View>
+              );
+            })}
+          </View>
         )}
 
         <JoinSessionModal
@@ -307,7 +358,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 0,
-    marginHorizontal: 4,
     borderWidth: 1,
     borderLeftWidth: 5,
     borderLeftColor: colors.primary,

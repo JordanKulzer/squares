@@ -11,8 +11,10 @@ import {
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import * as Clipboard from "expo-clipboard";
 import Toast from "react-native-toast-message";
-import colors from "../../assets/constants/colorOptions";
 import QRCode from "react-native-qrcode-svg";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "../../firebaseConfig";
+import NotificationSettingsModal from "./NotificationsModal";
 
 const SessionOptionsModal = ({
   visible,
@@ -28,6 +30,8 @@ const SessionOptionsModal = ({
   const theme = useTheme();
   const slideAnim = useRef(new Animated.Value(600)).current;
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [notifySettings, setNotifySettings] = useState(null);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
 
   useEffect(() => {
     Animated.timing(slideAnim, {
@@ -36,6 +40,29 @@ const SessionOptionsModal = ({
       useNativeDriver: true,
     }).start();
   }, [visible]);
+
+  useEffect(() => {
+    const loadNotifySettings = async () => {
+      try {
+        const userId = auth.currentUser?.uid;
+        if (!userId || !gridId) return;
+
+        const squareRef = doc(db, "squares", gridId);
+        const snap = await getDoc(squareRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          const player = data.players?.find((p) => p.userId === userId);
+          if (player?.notifySettings) {
+            setNotifySettings(player.notifySettings);
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load notify settings:", err);
+      }
+    };
+
+    loadNotifySettings();
+  }, [gridId]);
 
   const surfaceColor = theme.colors.surface;
   const onSurfaceColor = theme.colors.onSurface;
@@ -136,6 +163,15 @@ const SessionOptionsModal = ({
               >
                 Invite Friends
               </Button>
+              <Button
+                icon="bell-outline"
+                mode="outlined"
+                onPress={() => setNotifModalVisible(true)}
+                style={{ marginBottom: 12 }}
+                labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
+              >
+                Edit Notifications
+              </Button>
 
               {isOwner && (
                 <Button
@@ -166,14 +202,15 @@ const SessionOptionsModal = ({
                 icon="exit-to-app"
                 mode="outlined"
                 onPress={handleLeaveSquare}
-                textColor={theme.colors.error}
                 style={{
-                  backgroundColor: theme.colors.error,
                   marginBottom: 12,
+                  borderColor: theme.colors.error,
+                  borderRadius: 20,
                 }}
                 labelStyle={{
                   fontWeight: "600",
-                  color: theme.colors.onPrimary,
+                  color: theme.colors.error,
+                  textTransform: "none",
                 }}
               >
                 Leave Square
@@ -182,12 +219,17 @@ const SessionOptionsModal = ({
               {isOwner && (
                 <Button
                   icon="delete"
-                  mode="outlined"
+                  mode="contained"
                   onPress={handleDeleteSquare}
-                  style={{ backgroundColor: "#ff4d4f", marginBottom: 12 }}
+                  style={{
+                    backgroundColor: theme.colors.error,
+                    marginBottom: 12,
+                    borderRadius: 20,
+                  }}
                   labelStyle={{
                     fontWeight: "600",
-                    color: "#fff",
+                    color: theme.colors.onPrimary,
+                    textTransform: "none",
                   }}
                 >
                   Delete Square
@@ -291,6 +333,29 @@ const SessionOptionsModal = ({
           </TouchableOpacity>
         </Modal>
       </Portal>
+      <NotificationSettingsModal
+        visible={notifModalVisible}
+        onDismiss={() => setNotifModalVisible(false)}
+        settings={notifySettings}
+        onSave={async (newSettings) => {
+          try {
+            const squareRef = doc(db, "squares", gridId);
+            const snap = await getDoc(squareRef);
+            const userId = auth.currentUser?.uid;
+            if (!snap.exists() || !userId) return;
+
+            const data = snap.data();
+            const updatedPlayers = data.players.map((p) =>
+              p.userId === userId ? { ...p, notifySettings: newSettings } : p
+            );
+
+            await updateDoc(squareRef, { players: updatedPlayers });
+            setNotifySettings(newSettings);
+          } catch (err) {
+            console.error("Failed to save notify settings:", err);
+          }
+        }}
+      />
     </>
   );
 };

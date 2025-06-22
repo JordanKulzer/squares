@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import {
   createDrawerNavigator,
-  DrawerContentComponentProps,
   DrawerContentScrollView,
 } from "@react-navigation/drawer";
 import {
@@ -16,24 +15,19 @@ import HomeScreen from "../screens/HomeScreen";
 import * as Linking from "expo-linking";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
-import NotificationsModal from "../components/NotificationsModal";
 import ThemeToggle from "../components/ThemeToggle";
 import { deleteUser, getAuth } from "firebase/auth";
 import { doc, deleteDoc } from "firebase/firestore";
 import { db } from "../../firebaseConfig";
+import * as Application from "expo-application";
+import Constants from "expo-constants";
 
-const Drawer = createDrawerNavigator<DrawerParamList>();
+const Drawer = createDrawerNavigator();
 
-type DrawerParamList = {
-  Home: undefined;
-};
-
-type AppDrawerContentProps = DrawerContentComponentProps & {
-  userId: string;
-  onLogout: () => void;
-  isDarkTheme: boolean;
-  toggleTheme: () => void;
-};
+const version =
+  Constants.appOwnership === "expo"
+    ? Constants.expoConfig?.version
+    : Application.nativeApplicationVersion;
 
 const AppDrawerContent = ({
   userId,
@@ -47,7 +41,6 @@ const AppDrawerContent = ({
   toggleTheme: () => void;
 }) => {
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
-  const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const theme = useTheme();
 
@@ -117,10 +110,24 @@ const AppDrawerContent = ({
             </View>
           </View>
 
-          {renderItemWithIcon("bell-outline", "Notifications")}
+          {renderItemWithIcon("bell-outline", "Notifications", () =>
+            Linking.openSettings()
+          )}
 
-          {renderItemWithIcon("help-circle-outline", "Get Help", () =>
-            Linking.openURL("mailto:support@squaresapp.com")
+          {renderItemWithIcon("help-circle-outline", "Contact Us", () =>
+            Linking.openURL("mailto:squaresgameofficial@outlook.com")
+          )}
+
+          {renderItemWithIcon("shield-check-outline", "Privacy Policy", () =>
+            Linking.openURL(
+              "https://www.privacypolicies.com/live/a728545e-92d3-4658-8c00-edf18d0c828c"
+            )
+          )}
+
+          {renderItemWithIcon("file-document-outline", "Terms of Service", () =>
+            Linking.openURL(
+              "https://docs.google.com/document/d/1EXypu9tNdve5x3kK3N5bh9voZKKA6feHTNffVC8nM7s/edit?usp=sharing"
+            )
           )}
 
           {renderItemWithIcon(
@@ -132,7 +139,7 @@ const AppDrawerContent = ({
         </View>
       </DrawerContentScrollView>
 
-      <View style={{ paddingHorizontal: 16, marginBottom: 24 }}>
+      <View style={{ paddingHorizontal: 16 }}>
         <Button
           icon="delete"
           mode="outlined"
@@ -152,6 +159,17 @@ const AppDrawerContent = ({
           Delete Account
         </Button>
       </View>
+      <Text
+        style={{
+          textAlign: "center",
+          color: theme.colors.onSurfaceVariant,
+          fontSize: 12,
+          opacity: 0.6,
+          marginBottom: 40,
+        }}
+      >
+        Version {version}
+      </Text>
 
       <Portal>
         <Modal
@@ -222,12 +240,6 @@ const AppDrawerContent = ({
           </View>
         </Modal>
       </Portal>
-
-      <NotificationsModal
-        visible={notifModalVisible}
-        onDismiss={() => setNotifModalVisible(false)}
-        userId={userId}
-      />
     </View>
   );
 };
@@ -261,7 +273,7 @@ const AppDrawer = ({
         screenOptions: ({ navigation }) => ({
           headerTitle: () => (
             <Image
-              source={require("../../assets/icons/new logo pt2.png")}
+              source={require("../../assets/icons/squares-logo.png")}
               style={{ width: 100, height: 100 }}
               resizeMode="contain"
             />
@@ -311,6 +323,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(180,180,180,0.3)",
     gap: 12,
+    minHeight: 60,
   },
   settingLabel: {
     fontSize: 16,
@@ -333,10 +346,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: 12,
-  },
-  deleteAccountButton: {
-    borderRadius: 28,
-    elevation: 2,
   },
   divider: {
     borderBottomWidth: StyleSheet.hairlineWidth,

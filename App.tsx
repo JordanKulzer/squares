@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { View, ActivityIndicator, TouchableOpacity, StatusBar } from "react-native";
+import {
+  View,
+  ActivityIndicator,
+  TouchableOpacity,
+  StatusBar,
+} from "react-native";
 import {
   NavigationContainer,
   DefaultTheme,
@@ -29,17 +34,15 @@ import { registerPushToken } from "./src/utils/registerPushToken";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowBanner: true, // ✅ replaces shouldShowAlert
+    shouldShowBanner: true,
     shouldShowList: true,
     shouldPlaySound: false,
     shouldSetBadge: false,
   }),
 });
 
-
 const Stack = createNativeStackNavigator();
 
-/** Wrapper screen to host the drawer */
 const HomeScreen = ({ userId, onLogout, isDarkTheme, toggleTheme }) => {
   return (
     <AppDrawer
@@ -70,7 +73,6 @@ const App: React.FC = () => {
     loadTheme();
   }, []);
 
-  // Save whenever user toggles theme
   const toggleTheme = async () => {
     const next = !isDarkTheme;
     setIsDarkTheme(next);
@@ -79,12 +81,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser); // ✅ set the user first
+      setUser(firebaseUser);
 
       if (firebaseUser) {
         // Slight delay ensures auth.currentUser is populated
         setTimeout(() => {
-           registerPushToken(firebaseUser.uid);
+          registerPushToken(firebaseUser.uid);
         }, 500);
       }
 
@@ -93,44 +95,6 @@ const App: React.FC = () => {
 
     return unsubscribe;
   }, []);
-
-  // const registerPushToken = async (userId: string) => {
-  //   console.log("🔔 Starting push token registration...");
-
-  //   if (!Device.isDevice) {
-  //     console.log("❌ Not a physical device — cannot register for push.");
-  //     return;
-  //   }
-
-  //   const { status: existingStatus } =
-  //     await Notifications.getPermissionsAsync();
-  //   console.log("🔒 Existing permission status:", existingStatus);
-
-  //   let finalStatus = existingStatus;
-
-  //   if (existingStatus !== "granted") {
-  //     const { status } = await Notifications.requestPermissionsAsync();
-  //     finalStatus = status;
-  //     console.log("🔄 Updated permission status:", finalStatus);
-  //   }
-
-  //   if (finalStatus !== "granted") {
-  //     console.log("🚫 Push notification permission not granted");
-  //     return;
-  //   }
-
-  //   const token = (await Notifications.getExpoPushTokenAsync()).data;
-  //   console.log("📦 Got push token:", token);
-
-  //   try {
-  //     await updateDoc(doc(db, "users", userId), {
-  //       pushToken: token,
-  //     });
-  //     console.log("✅ Push token saved to Firestore");
-  //   } catch (err) {
-  //     console.error("❌ Failed to save push token to Firestore:", err);
-  //   }
-  // };
 
   const handleLogout = async () => {
     try {
@@ -151,12 +115,12 @@ const App: React.FC = () => {
 
   return (
     <>
- <StatusBar
-  barStyle={isDarkTheme ? "light-content" : "dark-content"}
-  backgroundColor={
-    isDarkTheme ? DarkTheme.colors.surface : LightTheme.colors.surface
-  }
-/>
+      <StatusBar
+        barStyle={isDarkTheme ? "light-content" : "dark-content"}
+        backgroundColor={
+          isDarkTheme ? DarkTheme.colors.surface : LightTheme.colors.surface
+        }
+      />
       <PaperProvider theme={paperTheme}>
         <NavigationContainer theme={navigationTheme}>
           <Stack.Navigator>
@@ -213,10 +177,10 @@ const App: React.FC = () => {
                       headerStyle: {
                         backgroundColor: paperTheme.colors.surface,
                         borderBottomWidth: 2,
-                        borderBottomColor: 'red'
+                        borderBottomColor: "red",
                       },
                       headerBackTitleVisible: false,
-                      headerTintColor: paperTheme.colors.onBackground, // ✅ adapt text/icon color
+                      headerTintColor: paperTheme.colors.onBackground,
                       title: title || undefined,
                       headerLeft: () => (
                         <TouchableOpacity
