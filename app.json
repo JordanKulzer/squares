@@ -7,6 +7,10 @@
     "icon": "./assets/icons/squares-logo-white.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "scheme": "squaresgame",
+    "deepLinks": [
+      "squaresgame://"
+    ],
     "splash": {
       "image": "./assets/icons/squares-logo.png",
       "resizeMode": "contain",

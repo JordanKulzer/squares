@@ -104,6 +104,17 @@ const App: React.FC = () => {
     }
   };
 
+  const linking = {
+    prefixes: ["squaresgame://", "https://squaresgame.app"],
+    config: {
+      screens: {
+        JoinSquareScreen: {
+          path: "session/:sessionId",
+        },
+      },
+    },
+  };
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -121,7 +132,7 @@ const App: React.FC = () => {
         }
       />
       <PaperProvider theme={paperTheme}>
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer theme={navigationTheme} linking={linking}>
           <Stack.Navigator>
             {user ? (
               <>

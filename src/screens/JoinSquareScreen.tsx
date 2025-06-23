@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -32,10 +32,30 @@ const JoinSquareScreen = () => {
   const user = auth().currentUser;
   const theme = useTheme();
 
-  const { gridId, inputTitle, deadline, usedColors = [] } = route.params;
+  const params = route.params;
+
+  let gridId = "";
+  let paramTitle = "";
+  let paramDeadline = "";
+  let paramUsedColors: string[] = [];
+
+  if ("gridId" in params) {
+    // normal join path
+    gridId = params.gridId;
+    paramTitle = params.inputTitle;
+    paramDeadline = params.deadline;
+    paramUsedColors = params.usedColors ?? [];
+  } else if ("sessionId" in params) {
+    // deep link path
+    gridId = params.sessionId;
+  }
 
   const [username, setUsername] = useState("");
   const [selectedColor, setSelectedColor] = useState(null);
+  // Local state for fetched or passed values
+  const [inputTitle, setInputTitle] = useState(paramTitle || "");
+  const [deadline, setDeadline] = useState(paramDeadline || null);
+  const [usedColors, setUsedColors] = useState<string[]>(paramUsedColors || []);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
@@ -50,6 +70,31 @@ const JoinSquareScreen = () => {
   const availableColors = colors.colorOptions.filter(
     (color) => !usedColors.includes(color)
   );
+
+  useEffect(() => {
+    if (paramTitle && paramDeadline && paramUsedColors) return; // nothing to fetch
+
+    const fetchSession = async () => {
+      try {
+        const doc = await firestore().collection("squares").doc(gridId).get();
+        if (!doc.exists) {
+          alert("Session not found.");
+          navigation.goBack();
+          return;
+        }
+
+        const data = doc.data();
+        setInputTitle(data.title || "Untitled");
+        setDeadline(data.deadline || null);
+        setUsedColors(data.players?.map((p: any) => p.color) || []);
+      } catch (error) {
+        console.error("Error fetching session:", error);
+        alert("Something went wrong.");
+      }
+    };
+
+    if (gridId) fetchSession();
+  }, [gridId]);
 
   const joinSquare = async () => {
     Keyboard.dismiss();
@@ -93,7 +138,7 @@ const JoinSquareScreen = () => {
         inputTitle,
         username,
         deadline,
-        eventId: ""
+        eventId: "",
       });
     } catch (error) {
       console.error("Error joining grid:", error);

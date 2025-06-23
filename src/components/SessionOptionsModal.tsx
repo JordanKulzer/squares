@@ -12,8 +12,8 @@ import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import * as Clipboard from "expo-clipboard";
 import Toast from "react-native-toast-message";
 import QRCode from "react-native-qrcode-svg";
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
 import NotificationSettingsModal from "./NotificationsModal";
 
 const SessionOptionsModal = ({
@@ -275,12 +275,14 @@ const SessionOptionsModal = ({
           />
 
           <View style={{ alignItems: "center", marginBottom: 16 }}>
-            <QRCode value={`squares://join/${gridId}`} size={180} />
+            <QRCode value={`squaresgame://session/${gridId}`} size={180} />
           </View>
 
           <TouchableOpacity
             onPress={async () => {
               await Clipboard.setStringAsync(gridId);
+              setShowInviteModal(false);
+              onDismiss();
               Toast.show({
                 type: "success",
                 text1: "Session ID copied!",
@@ -302,8 +304,10 @@ const SessionOptionsModal = ({
           <TouchableOpacity
             onPress={async () => {
               await Share.share({
-                message: `Join my Squares game! Session ID: ${gridId}`,
+                message: `Join my Squares game! Tap here:\n\nsquaresgame://session/${gridId}\n\nOr enter this session ID in the app: ${gridId}`,
               });
+              setShowInviteModal(false);
+              onDismiss();
             }}
             style={{
               marginTop: 12,
@@ -319,7 +323,7 @@ const SessionOptionsModal = ({
                 color: onSurfaceColor,
               }}
             >
-              Send Session ID
+              Share Game Link
             </Text>
           </TouchableOpacity>
 
