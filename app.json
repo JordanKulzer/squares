@@ -45,8 +45,20 @@
         "expo-build-properties",
         {
           "ios": {
+            "deploymentTarget": "15.1",
             "useModularHeaders": true,
-            "deploymentTarget": "15.1"
+            "extraPodfileEntries": [
+              "pod 'FirebaseCore', :modular_headers => true",
+              "pod 'FirebaseCoreInternal', :modular_headers => true",
+              "pod 'FirebaseAuth', :modular_headers => true",
+              "pod 'FirebaseAuthInterop', :modular_headers => true",
+              "pod 'FirebaseFirestore', :modular_headers => true",
+              "pod 'FirebaseFirestoreInternal', :modular_headers => true",
+              "pod 'FirebaseStorage', :modular_headers => true",
+              "pod 'GoogleUtilities', :modular_headers => true",
+              "pod 'RecaptchaInterop', :modular_headers => true",
+              "pod 'FirebaseAppCheckInterop', :modular_headers => true"
+            ]
           }
         }
       ]
