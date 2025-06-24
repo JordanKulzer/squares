@@ -1,4 +1,3 @@
-#.github/workflows/prebuild-ios.yml
 name: Prebuild iOS Project
 
 on:
@@ -33,13 +32,18 @@ jobs:
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
-      - name: Run iOS prebuild
-        run: npx expo prebuild --platform ios --clean --non-interactive
+      - name: Run iOS prebuild (preserve native)
+        run: npx expo prebuild --platform ios --non-interactive --no-install
+
+      - name: Install pods
+        run: |
+          cd ios
+          pod install
 
       - name: Commit and push iOS project
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add -f ios
-          git commit -m "Generate ios project via expo prebuild" || echo "No changes to commit"
+          git diff --quiet || git commit -m "Generate ios project via expo prebuild"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/JordanKulzer/squares.git HEAD:master
