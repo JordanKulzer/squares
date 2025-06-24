@@ -1,0 +1,36 @@
+#.github/workflows/prebuild-ios.yml
+name: Prebuild iOS Project
+
+on:
+  workflow_dispatch:  # Trigger manually from GitHub
+
+jobs:
+  prebuild-ios:
+    name: Expo Prebuild (iOS)
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install Expo CLI
+        run: npm install -g expo-cli
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run iOS prebuild
+        run: npx expo prebuild --platform ios --clean --non-interactive
+
+      - name: Commit and push iOS project
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add ios
+          git commit -m "Generate ios project via expo prebuild" || echo "No changes to commit"
+          git push
