@@ -1,4 +1,4 @@
-name: Prebuild iOS Project
+name: Prebuild iOS Project (One-Time)
 
 on:
   workflow_dispatch:
@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   prebuild-ios:
-    name: Expo Prebuild (iOS)
+    name: One-Time iOS Prebuild
     runs-on: macos-latest
 
     steps:
@@ -32,20 +32,15 @@ jobs:
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
-      - name: Run iOS prebuild (preserve native)
-        run: npx expo prebuild --platform ios --no-install
+      - name: Run iOS prebuild (regenerate ios/)
+        run: npx expo prebuild --platform ios
         env:
           CI: 1
 
-      - name: Install pods
-        run: |
-          cd ios
-          pod install
-
-      - name: Commit and push iOS project
+      - name: Commit and push iOS folder
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add -f ios
-          git diff --quiet || git commit -m "Generate ios project via expo prebuild"
+          git diff --quiet || git commit -m "Regenerate ios project via prebuild"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/JordanKulzer/squares.git HEAD:master
