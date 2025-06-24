@@ -8,9 +8,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "squaresgame",
-    "deepLinks": [
-      "squaresgame://"
-    ],
+    "deepLinks": ["squaresgame://"],
     "splash": {
       "image": "./assets/icons/squares-logo.png",
       "resizeMode": "contain",
@@ -30,9 +28,7 @@
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": [
-        "android.permission.CAMERA"
-      ],
+      "permissions": ["android.permission.CAMERA"],
       "package": "com.jkulzer.squaresgame"
     },
     "web": {
@@ -47,17 +43,19 @@
           "ios": {
             "deploymentTarget": "15.1",
             "useModularHeaders": true,
+            "unstable_disableIosStaticFrameworks": true,
             "extraPodfileEntries": [
-              "pod 'FirebaseCore', :modular_headers => true",
-              "pod 'FirebaseCoreInternal', :modular_headers => true",
               "pod 'FirebaseAuth', :modular_headers => true",
               "pod 'FirebaseAuthInterop', :modular_headers => true",
+              "pod 'FirebaseAppCheckInterop', :modular_headers => true",
+              "pod 'FirebaseCore', :modular_headers => true",
+              "pod 'FirebaseCoreExtension', :modular_headers => true",
+              "pod 'FirebaseCoreInternal', :modular_headers => true",
               "pod 'FirebaseFirestore', :modular_headers => true",
               "pod 'FirebaseFirestoreInternal', :modular_headers => true",
               "pod 'FirebaseStorage', :modular_headers => true",
               "pod 'GoogleUtilities', :modular_headers => true",
-              "pod 'RecaptchaInterop', :modular_headers => true",
-              "pod 'FirebaseAppCheckInterop', :modular_headers => true"
+              "pod 'RecaptchaInterop', :modular_headers => true"
             ]
           }
         }

@@ -34,6 +34,15 @@
       "env": {
         "APP_ENV": "production"
       }
+    },
+    "test": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "APP_ENV": "test"
+      }
     }
   },
   "submit": {
