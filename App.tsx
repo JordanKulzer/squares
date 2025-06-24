@@ -105,7 +105,10 @@ const App: React.FC = () => {
   };
 
   const linking = {
-    prefixes: ["squaresgame://", "https://squaresgame.app"],
+    prefixes: [
+      "squaresgame://", // your custom URI scheme
+      "https://squares-41599.web.app", // your Firebase Hosting link
+    ],
     config: {
       screens: {
         JoinSquareScreen: {

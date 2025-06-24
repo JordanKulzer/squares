@@ -118,7 +118,8 @@ const CreateSquareScreen = ({ navigation }) => {
         : [...Array(10).keys()];
 
       const squareRef = await firestore()
-        .collection("squares").add({
+        .collection("squares")
+        .add({
           title: inputTitle,
           username,
           team1,
@@ -410,19 +411,58 @@ const CreateSquareScreen = ({ navigation }) => {
             borderRadius: 8,
             borderWidth: 1,
             borderColor: theme.colors.outlineVariant,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
           }}
         >
-          <Text style={{ color: theme.colors.onSurface, fontWeight: "500" }}>
-            Notification Preferences
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Text
+              style={{
+                color: theme.colors.onSurface,
+                fontWeight: "500",
+                fontSize: 16,
+              }}
+            >
+              Notification Preferences
+            </Text>
+            <Icon
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.onSurface}
+            />
+          </View>
+
+          <Text
+            style={{
+              color: theme.colors.onSurfaceVariant,
+              fontSize: 13,
+              marginTop: 6,
+            }}
+          >
+            You currently get notifications for:
           </Text>
-          <Icon
-            name="chevron-forward"
-            size={20}
-            color={theme.colors.onSurface}
-          />
+          {[
+            notifySettings.deadlineReminders && "• Deadline Reminders",
+            notifySettings.quarterResults && "• Quarter Results",
+            notifySettings.playerJoined && "• New Player Joining",
+          ]
+            .filter(Boolean)
+            .map((item, index) => (
+              <Text
+                key={index}
+                style={{
+                  color: theme.colors.primary,
+                  fontWeight: "600",
+                  fontSize: 13,
+                }}
+              >
+                {item}
+              </Text>
+            ))}
         </TouchableOpacity>
       </Card>
     </ScrollView>
@@ -443,61 +483,61 @@ const CreateSquareScreen = ({ navigation }) => {
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <ScrollView
-            contentContainerStyle={{ flexGrow: 1 }}
-            keyboardShouldPersistTaps="handled"
-          >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={{ flex: 1 }}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={{ flex: 1 }}>
+              <ScrollView
+                contentContainerStyle={{ paddingBottom: 100 }}
+                keyboardShouldPersistTaps="handled"
+              >
                 {step === 0 ? renderStepOne() : renderStepTwo()}
-                {renderStepIndicator()}
-                <View
+              </ScrollView>
+              {renderStepIndicator()}
+              <View
+                style={[
+                  styles.buttonContainer,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    shadowColor: theme.dark ? "#000" : "#aaa",
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  onPress={() => setStep(Math.max(step - 1, 0))}
                   style={[
-                    styles.buttonContainer,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      shadowColor: theme.dark ? "#000" : "#aaa",
-                    },
+                    styles.cancelButton,
+                    { backgroundColor: theme.colors.error },
+                    step === 0 && { opacity: 0.5 },
                   ]}
+                  disabled={step === 0}
                 >
+                  <Text style={styles.buttonText}>Back</Text>
+                </TouchableOpacity>
+                {step === 0 ? (
                   <TouchableOpacity
-                    onPress={() => setStep(Math.max(step - 1, 0))}
+                    onPress={() => setStep(1)}
                     style={[
-                      styles.cancelButton,
-                      { backgroundColor: theme.colors.error },
-                      step === 0 && { opacity: 0.5 },
+                      styles.saveButton,
+                      { backgroundColor: theme.colors.primary },
                     ]}
-                    disabled={step === 0}
                   >
-                    <Text style={styles.buttonText}>Back</Text>
+                    <Text style={styles.buttonText}>Next</Text>
                   </TouchableOpacity>
-                  {step === 0 ? (
-                    <TouchableOpacity
-                      onPress={() => setStep(1)}
-                      style={[
-                        styles.saveButton,
-                        { backgroundColor: theme.colors.primary },
-                      ]}
-                    >
-                      <Text style={styles.buttonText}>Next</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      onPress={createSquareSession}
-                      style={[
-                        styles.saveButton,
-                        { backgroundColor: theme.colors.primary },
-                        { opacity: isFormValid ? 1 : 0.5 },
-                      ]}
-                      disabled={!isFormValid}
-                    >
-                      <Text style={styles.buttonText}>Create Square</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={createSquareSession}
+                    style={[
+                      styles.saveButton,
+                      { backgroundColor: theme.colors.primary },
+                      { opacity: isFormValid ? 1 : 0.5 },
+                    ]}
+                    disabled={!isFormValid}
+                  >
+                    <Text style={styles.buttonText}>Create Square</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            </TouchableWithoutFeedback>
-          </ScrollView>
+            </View>
+          </TouchableWithoutFeedback>
         </KeyboardAvoidingView>
       </SafeAreaView>
       <NotificationsModal
@@ -569,7 +609,7 @@ const styles = StyleSheet.create({
   progressRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginVertical: 12,
+    marginVertical: 6,
   },
   stepLabel: {
     fontSize: 14,

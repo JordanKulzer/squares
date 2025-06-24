@@ -127,13 +127,14 @@ const AppDrawerContent = ({
               "https://docs.google.com/document/d/1EXypu9tNdve5x3kK3N5bh9voZKKA6feHTNffVC8nM7s/edit?usp=sharing"
             )
           )}
-
-          {renderItemWithIcon(
-            "logout",
-            "Log Out",
-            () => setLogoutConfirmVisible(true),
-            theme.colors.error
-          )}
+          <View style={{ paddingLeft: 3 }}>
+            {renderItemWithIcon(
+              "logout",
+              "Log Out",
+              () => setLogoutConfirmVisible(true),
+              theme.colors.error
+            )}
+          </View>
         </View>
       </DrawerContentScrollView>
 

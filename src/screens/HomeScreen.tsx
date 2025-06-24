@@ -9,9 +9,9 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  FlatList,
   SafeAreaView,
   View,
+  ScrollView,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import firestore from "@react-native-firebase/firestore";
@@ -27,7 +27,8 @@ import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 const HomeScreen = () => {
-const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
   const animations = useRef<Animated.Value[]>([]).current;
 
@@ -148,188 +149,193 @@ const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>(
     : "Ready to play your next square?";
 
   return (
-    <LinearGradient
-      colors={gradientColors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={{ flex: 1 }}
-    >
-      <SafeAreaView style={{ flex: 1, padding: 20 }}>
-        <View style={{ alignItems: "center", marginVertical: 10 }}>
+    <SafeAreaView style={{ flex: 1 }}>
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ flex: 1 }}
+      >
+        <View style={{ flex: 1, padding: 20 }}>
+          <View style={{ alignItems: "center", marginVertical: 10 }}>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "bold",
+                color: theme.colors.onBackground,
+              }}
+            >
+              {welcomeTitle}
+            </Text>
+            <Text
+              style={{
+                fontSize: 14,
+                color: theme.colors.onSurfaceVariant,
+                marginTop: 4,
+              }}
+            >
+              {welcomeSubtitle}
+            </Text>
+          </View>
           <Text
             style={{
-              fontSize: 22,
-              fontWeight: "bold",
+              fontSize: 16,
+              fontWeight: "600",
+              marginTop: 15,
+              marginBottom: 10,
               color: theme.colors.onBackground,
             }}
           >
-            {welcomeTitle}
+            Quick Start
           </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: theme.colors.onSurfaceVariant,
-              marginTop: 4,
-            }}
-          >
-            {welcomeSubtitle}
-          </Text>
-        </View>
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: "600",
-            marginTop: 15,
-            marginBottom: 10,
-            color: theme.colors.onBackground,
-          }}
-        >
-          Quick Start
-        </Text>
-        <View style={{ paddingHorizontal: 5 }}>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
-            onPress={() => navigation.navigate("CreateSquareScreen")}
-          >
-            <MaterialIcons name="add-box" size={20} color="#fff" />
-            <Text style={styles.buttonText}>Create Game</Text>
-          </TouchableOpacity>
+          <View style={{ paddingHorizontal: 5 }}>
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: theme.colors.primary }]}
+              onPress={() => navigation.navigate("CreateSquareScreen")}
+            >
+              <MaterialIcons name="add-box" size={20} color="#fff" />
+              <Text style={styles.buttonText}>Create Game</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
-            onPress={() => setVisible(true)}
-          >
-            <MaterialIcons name="vpn-key" size={20} color="#fff" />
-            <Text style={styles.buttonText}>Join By Code</Text>
-          </TouchableOpacity>
-        </View>
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: "600",
-            marginTop: 15,
-            marginBottom: 10,
-            color: theme.colors.onBackground,
-          }}
-        >
-          Your Squares
-        </Text>
-
-        {loading ? (
-          <Text style={{ color: theme.colors.onBackground }}>Loading...</Text>
-        ) : userGames.length === 0 ? (
-          <Text
-            style={{
-              textAlign: "center",
-              fontSize: 14,
-              color: theme.colors.onSurfaceVariant,
-              marginTop: 10,
-              fontStyle: "italic",
-            }}
-          >
-            You haven’t joined or created any games yet.
-          </Text>
-        ) : (
-          <View style={{ paddingHorizontal: 5, paddingBottom: 20 }}>
-            {userGames.map((item, index) => {
-              return (
-                <Animated.View
-                  key={item.id}
-                  style={{
-                    opacity: opacityAnims[index] || new Animated.Value(1),
-                    transform: [
-                      {
-                        translateY:
-                          translateYAnims[index] || new Animated.Value(0),
-                      },
-                    ],
-                  }}
-                >
-                  <TouchableOpacity
-                    style={[
-                      styles.gameCard,
-                      {
-                        backgroundColor: theme.colors.elevation.level2,
-                        borderLeftColor: theme.colors.primary,
-                      },
-                    ]}
-                    onPress={() =>
-                      navigation.navigate("SquareScreen", {
-                        gridId: item.id,
-                        inputTitle: item.title,
-                        username: item.username,
-                        deadline: item.deadline,
-                        eventId: item.eventId,
-                        disableAnimation: true,
-                      })
-                    }
-                  >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <View>
-                        <Text
-                          style={{
-                            fontSize: 16,
-                            fontWeight: "600",
-                            color: theme.colors.onBackground,
-                          }}
-                        >
-                          {item.title}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: theme.colors.onSurface,
-                          }}
-                        >
-                          {item.playerIds?.length || 0} players • {" "}
-                          {item.deadline?.toDate?.() > new Date()
-                            ? `Ends ${item.deadline
-                                .toDate()
-                                .toLocaleDateString()}`
-                            : "Finalized"}
-                        </Text>
-                      </View>
-
-                      <MaterialIcons
-                        name="chevron-right"
-                        size={24}
-                        color={theme.colors.onSurfaceVariant}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                </Animated.View>
-              );
-            })}
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: theme.colors.primary }]}
+              onPress={() => setVisible(true)}
+            >
+              <MaterialIcons name="vpn-key" size={20} color="#fff" />
+              <Text style={styles.buttonText}>Join By Code</Text>
+            </TouchableOpacity>
           </View>
-        )}
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "600",
+              marginTop: 15,
+              marginBottom: 10,
+              color: theme.colors.onBackground,
+            }}
+          >
+            Your Squares
+          </Text>
 
-        <JoinSessionModal
-          visible={visible}
-          onDismiss={() => setVisible(false)}
-        />
-        <ProfileModal
-          visible={profileVisible}
-          onDismiss={() => setProfileVisible(false)}
-          userGames={userGames}
-        />
+          {loading ? (
+            <Text style={{ color: theme.colors.onBackground }}>Loading...</Text>
+          ) : userGames.length === 0 ? (
+            <Text
+              style={{
+                textAlign: "center",
+                fontSize: 14,
+                color: theme.colors.onSurfaceVariant,
+                marginTop: 10,
+                fontStyle: "italic",
+              }}
+            >
+              You haven’t joined or created any games yet.
+            </Text>
+          ) : (
+            <ScrollView
+              style={{ paddingHorizontal: 5 }}
+              contentContainerStyle={{ paddingBottom: 100 }}
+            >
+              {userGames.map((item, index) => {
+                return (
+                  <Animated.View
+                    key={item.id}
+                    style={{
+                      opacity: opacityAnims[index] || new Animated.Value(1),
+                      transform: [
+                        {
+                          translateY:
+                            translateYAnims[index] || new Animated.Value(0),
+                        },
+                      ],
+                    }}
+                  >
+                    <TouchableOpacity
+                      style={[
+                        styles.gameCard,
+                        {
+                          backgroundColor: theme.colors.elevation.level2,
+                          borderLeftColor: theme.colors.primary,
+                        },
+                      ]}
+                      onPress={() =>
+                        navigation.navigate("SquareScreen", {
+                          gridId: item.id,
+                          inputTitle: item.title,
+                          username: item.username,
+                          deadline: item.deadline,
+                          eventId: item.eventId,
+                          disableAnimation: true,
+                        })
+                      }
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <View>
+                          <Text
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "600",
+                              color: theme.colors.onBackground,
+                            }}
+                          >
+                            {item.title}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: theme.colors.onSurface,
+                            }}
+                          >
+                            {item.playerIds?.length || 0} players •{" "}
+                            {item.deadline?.toDate?.() > new Date()
+                              ? `Ends ${item.deadline
+                                  .toDate()
+                                  .toLocaleDateString()}`
+                              : "Finalized"}
+                          </Text>
+                        </View>
 
-        <TouchableOpacity
-          style={[
-            styles.howToButton,
-            { backgroundColor: theme.colors.primary },
-          ]}
-          onPress={() => navigation.navigate("HowToScreen")}
-        >
-          <Text style={styles.howToText}>How to Play</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    </LinearGradient>
+                        <MaterialIcons
+                          name="chevron-right"
+                          size={24}
+                          color={theme.colors.onSurfaceVariant}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  </Animated.View>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          <JoinSessionModal
+            visible={visible}
+            onDismiss={() => setVisible(false)}
+          />
+          <ProfileModal
+            visible={profileVisible}
+            onDismiss={() => setProfileVisible(false)}
+            userGames={userGames}
+          />
+
+          <TouchableOpacity
+            style={[
+              styles.howToButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
+            onPress={() => navigation.navigate("HowToScreen")}
+          >
+            <Text style={styles.howToText}>How to Play</Text>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </SafeAreaView>
   );
 };
 
@@ -364,9 +370,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-
   howToButton: {
-    marginTop: 10,
+    marginTop: 15,
     alignSelf: "center",
     paddingVertical: 10,
     paddingHorizontal: 20,

@@ -304,8 +304,9 @@ const SessionOptionsModal = ({
           <TouchableOpacity
             onPress={async () => {
               await Share.share({
-                message: `Join my Squares game! Tap here:\n\nsquaresgame://session/${gridId}\n\nOr enter this session ID in the app: ${gridId}`,
+                message: `Join my Squares game! Tap here:\n\nhttps://squares-41599.web.app/session/${gridId}\n\nOr enter this session ID in the app: ${gridId}`,
               });
+
               setShowInviteModal(false);
               onDismiss();
             }}
