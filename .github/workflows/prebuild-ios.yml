@@ -33,7 +33,9 @@ jobs:
         run: sudo gem install cocoapods
 
       - name: Run iOS prebuild (preserve native)
-        run: npx expo prebuild --platform ios --non-interactive --no-install --no-overwrite
+        run: npx expo prebuild --platform ios --no-install
+        env:
+          CI: 1
 
       - name: Install pods
         run: |
