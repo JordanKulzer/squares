@@ -10,7 +10,7 @@ expo-env.d.ts
 
 # Android/iOS native build folders
 /android/
-/ios/
+#/ios/
 
 # Native build artifacts & credentials
 *.jks
