@@ -1,0 +1,6 @@
+module react_performance_timeline {
+  umbrella header "React-performancetimeline-umbrella.h"
+
+  export *
+  module * { export * }
+}

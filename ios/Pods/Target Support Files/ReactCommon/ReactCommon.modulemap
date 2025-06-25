@@ -1,0 +1,7 @@
+module ReactCommon {
+  umbrella header "ReactCommon-umbrella.h"
+  exclude header "React-RuntimeApple-umbrella.h"
+
+  export *
+  module * { export * }
+}

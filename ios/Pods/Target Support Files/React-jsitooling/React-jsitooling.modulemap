@@ -1,0 +1,7 @@
+module react_runtime {
+  umbrella header "React-jsitooling-umbrella.h"
+  exclude header "React-RuntimeCore-umbrella.h"
+
+  export *
+  module * { export * }
+}
