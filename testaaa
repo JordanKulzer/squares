@@ -1,3 +1,4 @@
+// was app.json
 {
   "expo": {
     "name": "Squares",
@@ -8,7 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "squaresgame",
-    "deepLinks": ["squaresgame://"],
+    "deepLinks": [
+      "squaresgame://"
+    ],
     "splash": {
       "image": "./assets/icons/squares-logo.png",
       "resizeMode": "contain",
@@ -28,7 +31,9 @@
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "permissions": ["android.permission.CAMERA"],
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
       "package": "com.jkulzer.squaresgame"
     },
     "web": {
@@ -42,8 +47,7 @@
         {
           "ios": {
             "deploymentTarget": "15.1",
-            "useModularHeaders": true,
-            "extraPodfileLines": ["use_modular_headers!"]
+            "useModularHeaders": true
           }
         }
       ]
