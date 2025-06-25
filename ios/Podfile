@@ -60,7 +60,8 @@ target 'Squares' do
     installer.pods_project.targets.each do |target|
       if target.name == 'hermes-engine'
         target.build_phases.each do |phase|
-          if phase.respond_to?(:name) && phase.name == '[CP] Copy XCFrameworks'
+          if phase.respond_to?(:name) && phase.name.to_s.include?('Copy XCFrameworks')
+            puts "🛠️ Removing Hermes Copy XCFrameworks phase"
             target.build_phases.delete(phase)
           end
         end
