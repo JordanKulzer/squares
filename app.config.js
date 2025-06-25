@@ -44,6 +44,7 @@ export default {
           ios: {
             deploymentTarget: "16.4",
             useModularHeaders: true, // ✅ This injects the correct Podfile setup
+            extraPodfileLines: ["use_modular_headers!"],
           },
         },
       ],

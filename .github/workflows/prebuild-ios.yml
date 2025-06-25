@@ -26,6 +26,24 @@ jobs:
       - name: 📦 Install JS dependencies
         run: npm ci
 
+      - name: ✅ Confirm app.config.js is used
+        run: |
+          ls -al app.config.js
+          echo "--- Begin app.config.js ---"
+          cat app.config.js
+          echo "--- End app.config.js ---"
+
+      - name: 🔢 Print version info
+        run: |
+          echo "Node version:"
+          node -v
+          echo "NPM version:"
+          npm -v
+          echo "Expo CLI version:"
+          npx expo --version
+          echo "CocoaPods version:"
+          pod --version || echo "CocoaPods not installed yet"
+
       - name: 🧼 Clean old Pods & lockfile
         run: |
           rm -rf ios/Pods ios/Podfile.lock ios/build
@@ -35,10 +53,19 @@ jobs:
           rm -rf ~/Library/Caches/CocoaPods
           rm -rf ~/Library/Developer/Xcode/DerivedData/*
 
-      - name: Clean and regenerate iOS
+      - name: ⚙️ Debug Expo config (to ensure app.config.js and plugins are active)
+        run: npx expo config --type prebuild
+
+      - name: 🚧 Regenerate iOS folder with prebuild
         run: |
           rm -rf ios
-          npx expo prebuild --platform ios --clean --non-interactive
+          npx expo prebuild --platform ios --non-interactive
+
+      - name: 📋 Check generated Podfile contents
+        run: |
+          echo "--- Begin ios/Podfile ---"
+          cat ios/Podfile
+          echo "--- End ios/Podfile ---"
 
       - name: 💎 Install CocoaPods
         run: sudo gem install cocoapods
@@ -49,12 +76,17 @@ jobs:
           pod deintegrate
           pod repo update
 
-      - name: 📱 Run pod install
+      - name: 📱 Run pod install (log output to file)
         run: |
           cd ios
-          pod install --repo-update
+          pod install --repo-update | tee pod-install.log
 
-      - name: Commit and push Podfile.lock and Pods (if needed)
+      - name: 🗒️ Print pod-install.log summary
+        run: |
+          echo "--- pod-install.log last 40 lines ---"
+          tail -n 40 ios/pod-install.log
+
+      - name: ✅ Commit and push Podfile.lock and Pods (if needed)
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
