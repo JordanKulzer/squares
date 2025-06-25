@@ -37,7 +37,8 @@
       "env": {
         "APP_ENV": "production",
         "EXPO_USE_HERMES": "true",
-        "expo.jsEngine": "hermes"
+        "expo.jsEngine": "hermes",
+        "EXPO_USE_COMMUNITY_AUTOLINKING": "0"
       }
     },
     "test": {
