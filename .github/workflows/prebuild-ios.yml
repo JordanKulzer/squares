@@ -53,6 +53,6 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add ios/Podfile.lock ios/Pods
+          git add -f ios/Podfile.lock ios/Pods
           git diff --cached --quiet || git commit -m "🔁 iOS: Update pods via GitHub Actions"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/JordanKulzer/squares.git HEAD:master
