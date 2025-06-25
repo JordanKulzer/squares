@@ -12,35 +12,36 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout with PAT
+      - name: 📥 Checkout with PAT
         uses: actions/checkout@v3
         with:
           ref: master
           token: ${{ secrets.GH_PAT }}
 
-      - name: Setup Node
+      - name: 🔧 Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Install CocoaPods
+      - name: 📦 Install JS dependencies
+        run: npm ci
+
+      - name: 🧼 Clean old Pods & lockfile
+        run: |
+          rm -rf ios/Pods ios/Podfile.lock ios/build
+
+      - name: 💎 Install CocoaPods
         run: sudo gem install cocoapods
 
-      - name: Install JS dependencies
-        run: npm install
-
-      - name: Install expo and react-native for Podfile support
-        run: npm install expo react-native
-
-      - name: Install iOS pods
+      - name: 📱 Run pod install
         run: |
           cd ios
-          pod install
+          pod install --repo-update
 
-      - name: Commit and push Podfile.lock and Pods (if needed)
+      - name: ✅ Commit & push Podfile.lock and Pods (if changed)
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add -A ios
-          git commit -m "Install pods after Podfile change" || echo "No changes to commit"
+          git add ios/Podfile.lock ios/Pods ios/Pods.xcodeproj
+          git diff --cached --quiet || git commit -m "🔁 iOS: Update pods via GitHub Actions"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/JordanKulzer/squares.git HEAD:master
