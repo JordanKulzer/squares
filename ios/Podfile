@@ -18,6 +18,7 @@ prepare_react_native_project!
 target 'Squares' do
   use_expo_modules!
 
+  pod 'Protobuf', :modular_headers => true
   pod 'gRPC-C++', :modular_headers => true
   pod 'gRPC-Core', :modular_headers => true
   pod 'gRPC-RxLibrary', :modular_headers => true
