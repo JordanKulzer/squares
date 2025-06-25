@@ -18,12 +18,13 @@ prepare_react_native_project!
 target 'Squares' do
   use_expo_modules!
 
-  pod 'gRPC-C++', '1.56.0', :modular_headers => true
-  pod 'gRPC-Core', '1.56.0', :modular_headers => true
-  pod 'gRPC-RxLibrary', '1.56.0', :modular_headers => true
-  pod 'gRPC', '1.56.0', :modular_headers => true
+  pod 'gRPC-C++', '1.69.0', :modular_headers => true
+  pod 'gRPC-Core', '1.69.0', :modular_headers => true
+  pod 'gRPC-RxLibrary', '1.69.0', :modular_headers => true
+  pod 'gRPC', '1.69.0', :modular_headers => true
   pod 'Protobuf', '3.21.12', :modular_headers => true
   pod 'FirebaseCoreInternal', :modular_headers => true
+
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
