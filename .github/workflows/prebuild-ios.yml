@@ -26,6 +26,9 @@ jobs:
       - name: 📦 Install JS dependencies
         run: npm ci
 
+      - name: 💎 Install CocoaPods
+        run: sudo gem install cocoapods
+
       - name: 🧼 Clean old Pods & lockfile
         run: |
           rm -rf ios/Pods ios/Podfile.lock ios/build
@@ -35,8 +38,10 @@ jobs:
           rm -rf ~/Library/Caches/CocoaPods
           rm -rf ~/Library/Developer/Xcode/DerivedData/*
 
-      - name: 💎 Install CocoaPods
-        run: sudo gem install cocoapods
+      - name: 🧱 Clean and regenerate iOS
+        run: |
+          rm -rf ios
+          npx expo prebuild --platform ios --clean --non-interactive
 
       - name: 🔄 Reset Pod repo state
         run: |
@@ -49,7 +54,7 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Commit and push Podfile.lock and Pods (if needed)
+      - name: ✅ Commit and push Podfile.lock and Pods (if needed)
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
