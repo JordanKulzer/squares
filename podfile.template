@@ -17,6 +17,7 @@ prepare_react_native_project!
 
 target 'Squares' do
   use_expo_modules!
+  use_frameworks! :linkage => :static  # ✅ static linking prevents hermes linker crash
 
   config = use_native_modules!
 
