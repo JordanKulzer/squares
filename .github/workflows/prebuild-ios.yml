@@ -1,4 +1,4 @@
-name: Prebuild iOS Project (One-Time)
+name: iOS Pod Install Only
 
 on:
   workflow_dispatch:
@@ -7,8 +7,8 @@ permissions:
   contents: write
 
 jobs:
-  prebuild-ios:
-    name: One-Time iOS Prebuild
+  install-pods:
+    name: Install iOS Pods
     runs-on: macos-latest
 
     steps:
@@ -23,32 +23,18 @@ jobs:
         with:
           node-version: 18
 
-      - name: Install Expo CLI
-        run: npm install -g expo-cli
-
-      - name: Install dependencies
-        run: npm install
-
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
-      - name: Run iOS prebuild (regenerate ios/)
-        run: npx expo prebuild --platform ios
-        env:
-          CI: 1
-
-      - name: Touch dummy file to ensure git sees a change
-        run: echo "// Force git commit" > ios/.forcecommit.js
-
-      - name: Debug git status
+      - name: Install iOS pods
         run: |
-          git status
-          git diff --stat
+          cd ios
+          pod install
 
-      - name: Commit and push iOS folder
+      - name: Commit and push Podfile.lock and Pods (if needed)
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add -A ios
-          git commit -m "Regenerate ios project via prebuild" || echo "No changes to commit"
+          git commit -m "Install pods after Podfile change" || echo "No changes to commit"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/JordanKulzer/squares.git HEAD:master
