@@ -31,7 +31,7 @@
       "ios": {
         "distribution": "store",
         "cache": {
-          "key": "no-cache"
+          "disabled": true
         }
       },
       "env": {
