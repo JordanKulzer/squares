@@ -37,6 +37,14 @@ jobs:
         env:
           CI: 1
 
+      - name: Touch dummy file to ensure git sees a change
+        run: echo "// Force git commit" > ios/.forcecommit.js
+
+      - name: Debug git status
+        run: |
+          git status
+          git diff --stat
+
       - name: Commit and push iOS folder
         run: |
           git config user.name "GitHub Actions"
