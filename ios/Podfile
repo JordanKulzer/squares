@@ -15,9 +15,24 @@ install! 'cocoapods',
 
 prepare_react_native_project!
 
+# ✅ Must be outside target
+pre_install do |installer|
+  installer.pod_targets.each do |pod|
+    if pod.name.eql?('gRPC-C++')
+      pod.instance_variable_set(:@uses_modular_headers, false)
+    end
+  end
+end
+
 target 'Squares' do
   use_expo_modules!
   use_frameworks!
+
+  # ✅ Only override headers here, avoid full manual pod declarations if autolinking handles them
+  pod 'FirebaseAuth', :modular_headers => true
+  pod 'FirebaseStorage', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'FirebaseFirestore', :modular_headers => true
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -40,14 +55,6 @@ target 'Squares' do
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
-
-  pre_install do |installer|
-    installer.pod_targets.each do |pod|
-      if pod.name.eql?('gRPC-C++')
-        pod.instance_variable_set(:@uses_modular_headers, false)
-      end
-    end
-  end
 
   post_install do |installer|
     react_native_post_install(
@@ -76,13 +83,12 @@ target 'Squares' do
       end
     end
 
-    installer.target_installation_results.pod_target_installation_results
-      .each do |pod_name, target_installation_result|
-        target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
-          resource_bundle_target.build_configurations.each do |config|
-            config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
-          end
+    installer.target_installation_results.pod_target_installation_results.each do |_, target_installation_result|
+      target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
+        resource_bundle_target.build_configurations.each do |config|
+          config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
         end
       end
+    end
   end
 end
