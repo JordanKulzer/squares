@@ -44,11 +44,7 @@ export default {
           ios: {
             deploymentTarget: "16.4",
             useModularHeaders: true,
-            extraPodfileLines: [
-              "# FORCE MODULAR HEADERS",
-              "use_modular_headers!", // ✅ this line
-              "platform :ios, '16.4'", // ✅ override platform line too
-            ],
+            podfile: "./podfile.template", // 👈 this tells Expo to copy your file into /ios
           },
         },
       ],
