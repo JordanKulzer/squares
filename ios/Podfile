@@ -8,7 +8,7 @@ ENV['RCT_NEW_ARCH_ENABLED'] = '0' if podfile_properties['newArchEnabled'] == 'fa
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 
 platform :ios, '16.4'
-use_modular_headers!
+# use_modular_headers!
 
 install! 'cocoapods',
   :deterministic_uuids => false
@@ -17,7 +17,6 @@ prepare_react_native_project!
 
 target 'Squares' do
   use_expo_modules!
-
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
@@ -40,10 +39,17 @@ target 'Squares' do
   use_react_native!(
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
+
+  pre_install do |installer|
+    installer.pod_targets.each do |pod|
+      if pod.name.eql?('gRPC-C++')
+        pod.instance_variable_set(:@uses_modular_headers, false)
+      end
+    end
+  end
 
   post_install do |installer|
     react_native_post_install(
@@ -52,25 +58,22 @@ target 'Squares' do
       :mac_catalyst_enabled => false,
       :ccache_enabled => podfile_properties['apple.ccacheEnabled'] == 'true',
     )
-  
-    # Fix: gRPC modulemap missing
+
     installer.pods_project.targets.each do |target|
       if target.name == 'gRPC-C++'
         target.build_configurations.each do |config|
           config.build_settings['DEFINES_MODULE'] = 'YES'
-          config.build_settings['MODULEMAP_FILE'] = '$(PODS_ROOT)/Headers/Private/grpc/gRPC-Core.modulemap'
         end
       end
     end
-  
-    # Required for Xcode 14+
+
     installer.target_installation_results.pod_target_installation_results
       .each do |pod_name, target_installation_result|
-      target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
-        resource_bundle_target.build_configurations.each do |config|
-          config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        target_installation_result.resource_bundle_targets.each do |resource_bundle_target|
+          resource_bundle_target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+          end
         end
       end
-    end
-  end  
+  end
 end
