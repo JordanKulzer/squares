@@ -26,6 +26,12 @@ jobs:
       - name: Install CocoaPods
         run: sudo gem install cocoapods
 
+      - name: Install JS dependencies
+        run: npm install
+
+      - name: Install expo and react-native for Podfile support
+        run: npm install expo react-native
+
       - name: Install iOS pods
         run: |
           cd ios
