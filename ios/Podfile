@@ -58,6 +58,16 @@ target 'Squares' do
     )
 
     installer.pods_project.targets.each do |target|
+      if target.name == 'hermes-engine'
+        target.build_phases.each do |phase|
+          if phase.respond_to?(:name) && phase.name == '[CP] Copy XCFrameworks'
+            target.build_phases.delete(phase)
+          end
+        end
+      end
+    end
+
+    installer.pods_project.targets.each do |target|
       if target.name == 'gRPC-C++'
         target.build_configurations.each do |config|
           config.build_settings['DEFINES_MODULE'] = 'YES'

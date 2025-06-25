@@ -35,7 +35,9 @@
         }
       },
       "env": {
-        "APP_ENV": "production"
+        "APP_ENV": "production",
+        "EXPO_USE_HERMES": "true",
+        "expo.jsEngine": "hermes"
       }
     },
     "test": {
