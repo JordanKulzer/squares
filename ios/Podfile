@@ -58,6 +58,7 @@ target 'Squares' do
       if target.name == 'gRPC-C++'
         target.build_configurations.each do |config|
           config.build_settings['DEFINES_MODULE'] = 'YES'
+          config.build_settings['MODULEMAP_FILE'] = '$(PODS_ROOT)/Headers/Private/grpc/gRPC-Core.modulemap'
         end
       end
     end
