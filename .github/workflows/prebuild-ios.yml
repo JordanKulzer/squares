@@ -30,18 +30,29 @@ jobs:
         run: |
           rm -rf ios/Pods ios/Podfile.lock ios/build
 
+      - name: 🧼 Clear CocoaPods cache
+        run: |
+          rm -rf ~/Library/Caches/CocoaPods
+          rm -rf ~/Library/Developer/Xcode/DerivedData/*
+
       - name: 💎 Install CocoaPods
         run: sudo gem install cocoapods
+
+      - name: 🔄 Reset Pod repo state
+        run: |
+          cd ios
+          pod deintegrate
+          pod repo update
 
       - name: 📱 Run pod install
         run: |
           cd ios
           pod install --repo-update
 
-      - name: ✅ Commit & push Podfile.lock and Pods (if changed)
+      - name: Commit and push Podfile.lock and Pods (if needed)
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add ios/Podfile.lock ios/Pods ios/Pods.xcodeproj
+          git add ios/Podfile.lock ios/Pods
           git diff --cached --quiet || git commit -m "🔁 iOS: Update pods via GitHub Actions"
           git push https://x-access-token:${{ secrets.GH_PAT }}@github.com/JordanKulzer/squares.git HEAD:master
