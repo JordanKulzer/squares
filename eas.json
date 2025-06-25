@@ -29,7 +29,10 @@
         "buildType": "app-bundle"
       },
       "ios": {
-        "distribution": "store"
+        "distribution": "store",
+        "cache": {
+          "key": "no-cache"
+        }
       },
       "env": {
         "APP_ENV": "production"
