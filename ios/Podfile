@@ -19,8 +19,6 @@ target 'Squares' do
   use_expo_modules!
   use_frameworks! :linkage => :static
 
-  pod 'gRPC-C++', '1.58.0'
-
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else
