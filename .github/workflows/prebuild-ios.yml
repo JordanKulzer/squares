@@ -61,6 +61,15 @@ jobs:
           rm -rf ios
           npx expo prebuild --platform ios --non-interactive
 
+      - name: 🛠️ Force override Podfile from template
+        run: |
+          cp podfile.template ios/Podfile
+
+      - name: 🚨 Verify Podfile came from custom template
+        run: |
+          echo "--- HEAD of ios/Podfile ---"
+          head -n 10 ios/Podfile
+
       - name: 📋 Check generated Podfile contents
         run: |
           echo "--- Begin ios/Podfile ---"
