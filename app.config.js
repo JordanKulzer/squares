@@ -7,7 +7,7 @@ export default {
     icon: "./assets/icons/squares-logo-white.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
-    jsEngine: "hermes",
+    jsEngine: "jsc",
     scheme: "squaresgame",
     deepLinks: ["squaresgame://"],
     splash: {

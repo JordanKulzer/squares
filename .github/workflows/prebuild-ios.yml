@@ -59,7 +59,7 @@ jobs:
       - name: 🚧 Regenerate iOS folder with prebuild
         run: |
           rm -rf ios
-          npx expo prebuild --platform ios --non-interactive
+          npx expo prebuild --platform ios --clean --non-interactive
 
       - name: 🛠️ Force override Podfile from template
         run: |
