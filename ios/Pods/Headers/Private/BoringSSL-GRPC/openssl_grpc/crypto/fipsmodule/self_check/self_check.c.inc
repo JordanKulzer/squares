@@ -1,1 +1,0 @@
-../../../../../../../BoringSSL-GRPC/src/crypto/fipsmodule/self_check/self_check.c.inc

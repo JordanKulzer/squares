@@ -1,4 +1,4 @@
-module RCTDeprecation {
+framework module RCTDeprecation {
   umbrella header "RCTDeprecation-umbrella.h"
 
   export *

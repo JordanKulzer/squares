@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D7C3678EAC29DD222034E73269162AB3"
-               BuildableName = "libEXUpdatesInterface.a"
+               BuildableName = "EXUpdatesInterface.framework"
                BlueprintName = "EXUpdatesInterface"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

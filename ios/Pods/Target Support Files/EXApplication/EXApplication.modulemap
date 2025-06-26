@@ -1,4 +1,4 @@
-module EXApplication {
+framework module EXApplication {
   umbrella header "EXApplication-umbrella.h"
 
   export *

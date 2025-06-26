@@ -20,6 +20,6 @@
 #import "jsinspector-modern/tracing/TraceEvent.h"
 #import "jsinspector-modern/tracing/TraceEventProfile.h"
 
-FOUNDATION_EXPORT double jsinspector_modern_tracingVersionNumber;
-FOUNDATION_EXPORT const unsigned char jsinspector_modern_tracingVersionString[];
+FOUNDATION_EXPORT double jsinspector_moderntracingVersionNumber;
+FOUNDATION_EXPORT const unsigned char jsinspector_moderntracingVersionString[];
 

@@ -10,16 +10,16 @@
 #endif
 #endif
 
-#import "EXDevMenu/DevClientNoOpLoadingView.h"
-#import "EXDevMenu/DevClientReactNativeFactoryDelegate.h"
-#import "EXDevMenu/DevMenuRCTBridge.h"
-#import "EXDevMenu/DevMenuRCTDevSettings.h"
-#import "EXDevMenu/DevMenuRootView.h"
-#import "EXDevMenu/EXDevMenuAppInfo.h"
-#import "EXDevMenu/EXDevMenu.h"
-#import "EXDevMenu/RCTCxxBridge+Private.h"
-#import "EXDevMenu/RCTPerfMonitor+Private.h"
-#import "EXDevMenu/RCTRootView+Private.h"
+#import "DevClientNoOpLoadingView.h"
+#import "DevClientReactNativeFactoryDelegate.h"
+#import "DevMenuRCTBridge.h"
+#import "DevMenuRCTDevSettings.h"
+#import "DevMenuRootView.h"
+#import "EXDevMenuAppInfo.h"
+#import "EXDevMenu.h"
+#import "RCTCxxBridge+Private.h"
+#import "RCTPerfMonitor+Private.h"
+#import "RCTRootView+Private.h"
 
 FOUNDATION_EXPORT double EXDevMenuVersionNumber;
 FOUNDATION_EXPORT const unsigned char EXDevMenuVersionString[];

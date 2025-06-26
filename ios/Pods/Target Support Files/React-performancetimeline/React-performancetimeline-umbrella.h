@@ -19,6 +19,6 @@
 #import "react/performance/timeline/PerformanceObserver.h"
 #import "react/performance/timeline/PerformanceObserverRegistry.h"
 
-FOUNDATION_EXPORT double react_performance_timelineVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_performance_timelineVersionString[];
+FOUNDATION_EXPORT double React_performancetimelineVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_performancetimelineVersionString[];
 

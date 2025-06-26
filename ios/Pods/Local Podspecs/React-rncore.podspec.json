@@ -15,7 +15,7 @@
   "source_files": "dummyFile.cpp",
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "YES",
-    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)\" \"$(PODS_TARGET_SRCROOT)/ReactCommon\"",
+    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)\" \"$(PODS_TARGET_SRCROOT)/ReactCommon\" \"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers/react/nativemodule/core\"",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20"
   }
 }

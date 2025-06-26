@@ -1,1 +1,0 @@
-../../../../../../../../gRPC-C++/src/core/lib/surface/connection_context.h

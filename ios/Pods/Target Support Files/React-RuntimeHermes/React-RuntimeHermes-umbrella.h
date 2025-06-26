@@ -12,6 +12,6 @@
 
 #import "react/runtime/hermes/HermesInstance.h"
 
-FOUNDATION_EXPORT double react_runtime_hermesVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_runtime_hermesVersionString[];
+FOUNDATION_EXPORT double React_RuntimeHermesVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_RuntimeHermesVersionString[];
 

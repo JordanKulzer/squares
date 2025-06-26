@@ -1,4 +1,4 @@
-module react_runtime_hermes {
+framework module React_RuntimeHermes {
   umbrella header "React-RuntimeHermes-umbrella.h"
 
   export *

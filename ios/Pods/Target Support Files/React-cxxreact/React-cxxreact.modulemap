@@ -1,4 +1,4 @@
-module cxxreact {
+framework module cxxreact {
   umbrella header "React-cxxreact-umbrella.h"
 
   export *

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "2E9D5141F46D638B629DB5A31E3B77D9"
-               BuildableName = "libexpo-dev-menu-interface.a"
+               BuildableName = "EXDevMenuInterface.framework"
                BlueprintName = "expo-dev-menu-interface"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

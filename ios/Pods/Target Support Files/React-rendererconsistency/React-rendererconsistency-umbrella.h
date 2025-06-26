@@ -13,6 +13,6 @@
 #import "react/renderer/consistency/ScopedShadowTreeRevisionLock.h"
 #import "react/renderer/consistency/ShadowTreeRevisionConsistencyManager.h"
 
-FOUNDATION_EXPORT double react_renderer_consistencyVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_renderer_consistencyVersionString[];
+FOUNDATION_EXPORT double React_rendererconsistencyVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_rendererconsistencyVersionString[];
 

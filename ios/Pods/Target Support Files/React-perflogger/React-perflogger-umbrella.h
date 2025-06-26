@@ -10,14 +10,14 @@
 #endif
 #endif
 
-#import "reactperflogger/BridgeNativeModulePerfLogger.h"
-#import "reactperflogger/FuseboxPerfettoDataSource.h"
-#import "reactperflogger/HermesPerfettoDataSource.h"
-#import "reactperflogger/NativeModulePerfLogger.h"
-#import "reactperflogger/ReactPerfetto.h"
-#import "reactperflogger/ReactPerfettoCategories.h"
-#import "reactperflogger/ReactPerfettoLogger.h"
-#import "reactperflogger/FuseboxTracer.h"
+#import "BridgeNativeModulePerfLogger.h"
+#import "FuseboxPerfettoDataSource.h"
+#import "HermesPerfettoDataSource.h"
+#import "NativeModulePerfLogger.h"
+#import "ReactPerfetto.h"
+#import "ReactPerfettoCategories.h"
+#import "ReactPerfettoLogger.h"
+#import "FuseboxTracer.h"
 
 FOUNDATION_EXPORT double reactperfloggerVersionNumber;
 FOUNDATION_EXPORT const unsigned char reactperfloggerVersionString[];

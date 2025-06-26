@@ -1,4 +1,4 @@
-module ExpoCrypto {
+framework module ExpoCrypto {
   umbrella header "ExpoCrypto-umbrella.h"
 
   export *

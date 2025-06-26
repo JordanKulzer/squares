@@ -112,13 +112,13 @@
 #import "RNSVGTextPathManager.h"
 #import "RNSVGTSpanManager.h"
 #import "RNSVGUseManager.h"
-#import "rnsvg/RNSVGComponentDescriptors.h"
-#import "rnsvg/RNSVGConcreteShadowNode.h"
-#import "rnsvg/RNSVGImageComponentDescriptor.h"
-#import "rnsvg/RNSVGImageShadowNode.h"
-#import "rnsvg/RNSVGImageState.h"
-#import "rnsvg/RNSVGLayoutableShadowNode.h"
-#import "rnsvg/RNSVGShadowNodes.h"
+#import "RNSVGComponentDescriptors.h"
+#import "RNSVGConcreteShadowNode.h"
+#import "RNSVGImageComponentDescriptor.h"
+#import "RNSVGImageShadowNode.h"
+#import "RNSVGImageState.h"
+#import "RNSVGLayoutableShadowNode.h"
+#import "RNSVGShadowNodes.h"
 
 FOUNDATION_EXPORT double RNSVGVersionNumber;
 FOUNDATION_EXPORT const unsigned char RNSVGVersionString[];

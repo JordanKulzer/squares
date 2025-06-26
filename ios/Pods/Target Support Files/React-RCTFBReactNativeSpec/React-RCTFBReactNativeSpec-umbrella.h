@@ -10,8 +10,8 @@
 #endif
 #endif
 
-#import "FBReactNativeSpec/FBReactNativeSpec.h"
-#import "FBReactNativeSpec/FBReactNativeSpecJSI.h"
+#import "FBReactNativeSpec.h"
+#import "FBReactNativeSpecJSI.h"
 
 FOUNDATION_EXPORT double FBReactNativeSpecVersionNumber;
 FOUNDATION_EXPORT const unsigned char FBReactNativeSpecVersionString[];

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "6BF3D10B9952C9353C91EBFF2BFFE29D"
-               BuildableName = "libEXNotifications.a"
+               BuildableName = "EXNotifications.framework"
                BlueprintName = "EXNotifications"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

@@ -18,9 +18,11 @@
   "pod_target_xcconfig": {
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "OTHER_CFLAGS": "$(inherited) -DFOLLY_NO_CONFIG -DFOLLY_MOBILE=1 -DFOLLY_USE_LIBCPP=1 -DFOLLY_CFG_NO_COROUTINES=1 -DFOLLY_HAVE_CLOCK_GETTIME=1 -Wno-comma -Wno-shorten-64-to-32",
-    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/RCT-Folly\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-RCTFBReactNativeSpec/React_RCTFBReactNativeSpec.framework/Headers\"",
+    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/RCT-Folly\" \"$(PODS_TARGET_SRCROOT)/../../..\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-RCTFBReactNativeSpec/React_RCTFBReactNativeSpec.framework/Headers\"",
     "DEFINES_MODULE": "YES"
   },
+  "module_name": "React_microtasksnativemodule",
+  "header_mappings_dir": "../..",
   "dependencies": {
     "RCT-Folly": [
 

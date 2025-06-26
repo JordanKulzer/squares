@@ -13,6 +13,6 @@
 #import "jserrorhandler/JsErrorHandler.h"
 #import "jserrorhandler/StackTraceParser.h"
 
-FOUNDATION_EXPORT double jserrorhandlerVersionNumber;
-FOUNDATION_EXPORT const unsigned char jserrorhandlerVersionString[];
+FOUNDATION_EXPORT double React_jserrorhandlerVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_jserrorhandlerVersionString[];
 

@@ -1,1 +1,0 @@
-../../../Target Support Files/React-RCTFBReactNativeSpec/React-RCTFBReactNativeSpec-umbrella.h

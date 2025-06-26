@@ -1,1 +1,0 @@
-../../../../../../../../../../../../../../gRPC-C++/src/core/ext/upb-gen/envoy/extensions/filters/http/gcp_authn/v3/gcp_authn.upb_minitable.h

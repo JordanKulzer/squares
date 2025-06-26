@@ -19,9 +19,11 @@
   ],
   "header_dir": "react/renderer/graphics",
   "frameworks": "UIKit",
+  "module_name": "React_graphics",
+  "header_mappings_dir": "../../..",
   "pod_target_xcconfig": {
     "USE_HEADERMAP": "NO",
-    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/boost\" \"$(PODS_TARGET_SRCROOT)/../../../\" \"$(PODS_ROOT)/RCT-Folly\" \"$(PODS_ROOT)/DoubleConversion\" \"$(PODS_ROOT)/fast_float/include\" \"$(PODS_ROOT)/fmt/include\"",
+    "HEADER_SEARCH_PATHS": "\"$(PODS_ROOT)/boost\" \"$(PODS_TARGET_SRCROOT)/../../../\" \"$(PODS_ROOT)/RCT-Folly\" \"$(PODS_ROOT)/DoubleConversion\" \"$(PODS_ROOT)/fast_float/include\" \"$(PODS_ROOT)/fmt/include\" \"$(PODS_TARGET_SRCROOT)/platform/ios\"",
     "DEFINES_MODULE": "YES",
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20"
   },

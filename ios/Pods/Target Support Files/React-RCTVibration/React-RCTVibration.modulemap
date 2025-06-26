@@ -1,4 +1,4 @@
-module RCTVibration {
+framework module RCTVibration {
   umbrella header "React-RCTVibration-umbrella.h"
 
   export *

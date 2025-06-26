@@ -1,1 +1,0 @@
-../../../../../build/generated/ios/rnclipboard/rnclipboard.h

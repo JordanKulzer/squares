@@ -17,9 +17,11 @@
   "exclude_files": "tests",
   "pod_target_xcconfig": {
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
-    "HEADER_SEARCH_PATHS": "\"${PODS_CONFIGURATION_BUILD_DIR}/React-debug/React_debug.framework/Headers\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-utils/React_utils.framework/Headers\"",
+    "HEADER_SEARCH_PATHS": "\"$(PODS_TARGET_SRCROOT)/../../..\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-debug/React_debug.framework/Headers\" \"${PODS_CONFIGURATION_BUILD_DIR}/React-utils/React_utils.framework/Headers\"",
     "DEFINES_MODULE": "YES"
   },
+  "module_name": "React_renderercss",
+  "header_mappings_dir": "../../..",
   "dependencies": {
     "React-debug": [
 

@@ -17,6 +17,6 @@
 #import "react/renderer/components/image/ImageShadowNode.h"
 #import "react/renderer/components/image/ImageState.h"
 
-FOUNDATION_EXPORT double react_renderer_components_imageVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_renderer_components_imageVersionString[];
+FOUNDATION_EXPORT double React_FabricImageVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_FabricImageVersionString[];
 

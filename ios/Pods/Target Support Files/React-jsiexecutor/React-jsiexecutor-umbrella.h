@@ -10,8 +10,8 @@
 #endif
 #endif
 
-#import "jsireact/JSIExecutor.h"
-#import "jsireact/JSINativeModules.h"
+#import "JSIExecutor.h"
+#import "JSINativeModules.h"
 
 FOUNDATION_EXPORT double jsireactVersionNumber;
 FOUNDATION_EXPORT const unsigned char jsireactVersionString[];

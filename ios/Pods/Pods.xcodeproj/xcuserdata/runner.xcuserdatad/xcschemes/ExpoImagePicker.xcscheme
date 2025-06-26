@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9016468E1C5899FB5EE914C4C4E7A9A8"
-               BuildableName = "libExpoImagePicker.a"
+               BuildableName = "ExpoImagePicker.framework"
                BlueprintName = "ExpoImagePicker"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

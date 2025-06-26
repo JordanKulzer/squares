@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "263266A9E29FFF0E9C8CA0E4582BFCF4"
-               BuildableName = "libEXImageLoader.a"
+               BuildableName = "EXImageLoader.framework"
                BlueprintName = "EXImageLoader"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

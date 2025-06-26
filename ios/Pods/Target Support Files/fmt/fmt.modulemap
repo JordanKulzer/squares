@@ -1,4 +1,4 @@
-module fmt {
+framework module fmt {
   umbrella header "fmt-umbrella.h"
 
   export *

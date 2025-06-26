@@ -20,6 +20,6 @@
 #import "ReactCommon/RCTLegacyUIManagerConstantsProvider.h"
 #import "ReactCommon/RCTPerformanceLoggerUtils.h"
 
-FOUNDATION_EXPORT double ReactCommonVersionNumber;
-FOUNDATION_EXPORT const unsigned char ReactCommonVersionString[];
+FOUNDATION_EXPORT double React_RuntimeAppleVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_RuntimeAppleVersionString[];
 

@@ -1,4 +1,4 @@
-module ExpoDevice {
+framework module ExpoDevice {
   umbrella header "ExpoDevice-umbrella.h"
 
   export *

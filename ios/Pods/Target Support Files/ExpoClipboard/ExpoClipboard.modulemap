@@ -1,4 +1,4 @@
-module ExpoClipboard {
+framework module ExpoClipboard {
   umbrella header "ExpoClipboard-umbrella.h"
 
   export *

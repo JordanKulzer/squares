@@ -10,8 +10,8 @@
 #endif
 #endif
 
-#import "react/nativemodule/featureflags/NativeReactNativeFeatureFlags.h"
+#import "nativemodule/featureflags/NativeReactNativeFeatureFlags.h"
 
-FOUNDATION_EXPORT double react_nativemodule_featureflagsVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_nativemodule_featureflagsVersionString[];
+FOUNDATION_EXPORT double React_featureflagsnativemoduleVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_featureflagsnativemoduleVersionString[];
 

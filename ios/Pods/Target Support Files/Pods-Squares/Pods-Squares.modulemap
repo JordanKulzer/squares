@@ -1,4 +1,4 @@
-module Pods_Squares {
+framework module Pods_Squares {
   umbrella header "Pods-Squares-umbrella.h"
 
   export *

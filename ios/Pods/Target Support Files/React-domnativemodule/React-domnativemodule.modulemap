@@ -1,4 +1,4 @@
-module react_nativemodule_dom {
+framework module React_domnativemodule {
   umbrella header "React-domnativemodule-umbrella.h"
 
   export *

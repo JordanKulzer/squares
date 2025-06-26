@@ -1,4 +1,4 @@
-module RNFBApp {
+framework module RNFBApp {
   umbrella header "RNFBApp-umbrella.h"
 
   export *

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "813EEB1C56830B3AB177E9FB17893523"
-               BuildableName = "libexpo-dev-launcher.a"
+               BuildableName = "EXDevLauncher.framework"
                BlueprintName = "expo-dev-launcher"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

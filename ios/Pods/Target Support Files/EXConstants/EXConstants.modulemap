@@ -1,4 +1,4 @@
-module EXConstants {
+framework module EXConstants {
   umbrella header "EXConstants-umbrella.h"
 
   export *

@@ -1,4 +1,4 @@
-module react_native_date_picker {
+framework module react_native_date_picker {
   umbrella header "react-native-date-picker-umbrella.h"
 
   export *

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "6C1893932A69822CBE3502F2E0BCFB6D"
-               BuildableName = "libEXConstants.a"
+               BuildableName = "EXConstants.framework"
                BlueprintName = "EXConstants"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

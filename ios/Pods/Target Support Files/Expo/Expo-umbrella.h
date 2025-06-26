@@ -10,13 +10,13 @@
 #endif
 #endif
 
-#import "Expo/EXAppDelegatesLoader.h"
-#import "Expo/EXAppDelegateWrapper.h"
-#import "Expo/EXLegacyAppDelegateWrapper.h"
-#import "Expo/EXReactRootViewFactory.h"
-#import "Expo/RCTAppDelegateUmbrella.h"
-#import "Expo/EXAppDefinesLoader.h"
-#import "Expo/Expo.h"
+#import "EXAppDelegatesLoader.h"
+#import "EXAppDelegateWrapper.h"
+#import "EXLegacyAppDelegateWrapper.h"
+#import "EXReactRootViewFactory.h"
+#import "RCTAppDelegateUmbrella.h"
+#import "EXAppDefinesLoader.h"
+#import "Expo.h"
 
 FOUNDATION_EXPORT double ExpoVersionNumber;
 FOUNDATION_EXPORT const unsigned char ExpoVersionString[];

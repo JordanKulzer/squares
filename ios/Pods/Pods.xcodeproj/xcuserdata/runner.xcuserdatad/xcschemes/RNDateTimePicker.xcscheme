@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "D760AF58E12ABBB51F84160FB02B5F39"
-               BuildableName = "libRNDateTimePicker.a"
+               BuildableName = "RNDateTimePicker.framework"
                BlueprintName = "RNDateTimePicker"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

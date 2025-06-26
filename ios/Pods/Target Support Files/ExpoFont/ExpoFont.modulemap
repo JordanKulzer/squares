@@ -1,4 +1,4 @@
-module ExpoFont {
+framework module ExpoFont {
   umbrella header "ExpoFont-umbrella.h"
 
   export *

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1AEDCC056FB259475A44E0F2FC168000"
-               BuildableName = "libRNFBFirestore.a"
+               BuildableName = "RNFBFirestore.framework"
                BlueprintName = "RNFBFirestore"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

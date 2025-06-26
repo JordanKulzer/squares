@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "991A45CDDED646CD709B47B48E0B282C"
-               BuildableName = "libExpoLinking.a"
+               BuildableName = "ExpoLinking.framework"
                BlueprintName = "ExpoLinking"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

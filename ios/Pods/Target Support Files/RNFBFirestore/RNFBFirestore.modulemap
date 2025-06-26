@@ -1,4 +1,4 @@
-module RNFBFirestore {
+framework module RNFBFirestore {
   umbrella header "RNFBFirestore-umbrella.h"
 
   export *

@@ -1,1 +1,0 @@
-../../../Target Support Files/react-native-pager-view/react-native-pager-view-umbrella.h

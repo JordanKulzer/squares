@@ -1,6 +1,5 @@
-module react_runtime {
+framework module JSITooling {
   umbrella header "React-jsitooling-umbrella.h"
-  exclude header "React-RuntimeCore-umbrella.h"
 
   export *
   module * { export * }

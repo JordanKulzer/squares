@@ -10,16 +10,16 @@
 #endif
 #endif
 
-#import "double-conversion/bignum-dtoa.h"
-#import "double-conversion/bignum.h"
-#import "double-conversion/cached-powers.h"
-#import "double-conversion/diy-fp.h"
-#import "double-conversion/double-conversion.h"
-#import "double-conversion/fast-dtoa.h"
-#import "double-conversion/fixed-dtoa.h"
-#import "double-conversion/ieee.h"
-#import "double-conversion/strtod.h"
-#import "double-conversion/utils.h"
+#import "bignum-dtoa.h"
+#import "bignum.h"
+#import "cached-powers.h"
+#import "diy-fp.h"
+#import "double-conversion.h"
+#import "fast-dtoa.h"
+#import "fixed-dtoa.h"
+#import "ieee.h"
+#import "strtod.h"
+#import "utils.h"
 
 FOUNDATION_EXPORT double DoubleConversionVersionNumber;
 FOUNDATION_EXPORT const unsigned char DoubleConversionVersionString[];

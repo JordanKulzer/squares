@@ -1,4 +1,4 @@
-module EXDevLauncher {
+framework module EXDevLauncher {
   umbrella header "expo-dev-launcher-umbrella.h"
 
   export *

@@ -1,1 +1,0 @@
-../../../../../../../../../gRPC-C++/src/core/ext/filters/gcp_authentication/gcp_authentication_service_config_parser.h

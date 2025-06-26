@@ -10,8 +10,8 @@
 #endif
 #endif
 
-#import "react/nativemodule/defaults/DefaultTurboModules.h"
+#import "nativemodule/defaults/DefaultTurboModules.h"
 
-FOUNDATION_EXPORT double react_nativemodule_defaultsVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_nativemodule_defaultsVersionString[];
+FOUNDATION_EXPORT double React_defaultsnativemoduleVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_defaultsnativemoduleVersionString[];
 

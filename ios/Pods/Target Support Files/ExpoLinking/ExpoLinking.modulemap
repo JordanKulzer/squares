@@ -1,4 +1,4 @@
-module ExpoLinking {
+framework module ExpoLinking {
   umbrella header "ExpoLinking-umbrella.h"
 
   export *

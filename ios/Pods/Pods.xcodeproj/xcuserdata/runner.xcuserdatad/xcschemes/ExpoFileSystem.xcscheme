@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "61D0956690519FC30DB411716DB5D4E9"
-               BuildableName = "libExpoFileSystem.a"
+               BuildableName = "ExpoFileSystem.framework"
                BlueprintName = "ExpoFileSystem"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

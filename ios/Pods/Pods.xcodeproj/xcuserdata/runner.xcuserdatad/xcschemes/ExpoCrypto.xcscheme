@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "219BE94914A9A27C5B88F925A6F26253"
-               BuildableName = "libExpoCrypto.a"
+               BuildableName = "ExpoCrypto.framework"
                BlueprintName = "ExpoCrypto"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

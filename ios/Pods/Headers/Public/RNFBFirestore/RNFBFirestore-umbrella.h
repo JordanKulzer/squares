@@ -1,1 +1,0 @@
-../../../Target Support Files/RNFBFirestore/RNFBFirestore-umbrella.h

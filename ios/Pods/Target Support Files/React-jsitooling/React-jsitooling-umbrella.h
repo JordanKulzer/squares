@@ -13,6 +13,6 @@
 #import "react/runtime/JSRuntimeFactory.h"
 #import "react/runtime/JSRuntimeFactoryCAPI.h"
 
-FOUNDATION_EXPORT double react_runtimeVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_runtimeVersionString[];
+FOUNDATION_EXPORT double JSIToolingVersionNumber;
+FOUNDATION_EXPORT const unsigned char JSIToolingVersionString[];
 

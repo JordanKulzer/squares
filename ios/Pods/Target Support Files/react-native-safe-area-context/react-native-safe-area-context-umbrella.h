@@ -22,9 +22,9 @@
 #import "RNCSafeAreaViewLocalData.h"
 #import "RNCSafeAreaViewManager.h"
 #import "RNCSafeAreaViewMode.h"
-#import "react/renderer/components/safeareacontext/RNCSafeAreaViewComponentDescriptor.h"
-#import "react/renderer/components/safeareacontext/RNCSafeAreaViewShadowNode.h"
-#import "react/renderer/components/safeareacontext/RNCSafeAreaViewState.h"
+#import "RNCSafeAreaViewComponentDescriptor.h"
+#import "RNCSafeAreaViewShadowNode.h"
+#import "RNCSafeAreaViewState.h"
 #import "RNCSafeAreaProviderComponentView.h"
 #import "RNCSafeAreaViewComponentView.h"
 

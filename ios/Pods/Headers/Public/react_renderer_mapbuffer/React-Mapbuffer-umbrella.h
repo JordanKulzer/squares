@@ -1,1 +1,0 @@
-../../../Target Support Files/React-Mapbuffer/React-Mapbuffer-umbrella.h

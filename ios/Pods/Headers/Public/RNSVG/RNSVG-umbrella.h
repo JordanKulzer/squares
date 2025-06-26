@@ -1,1 +1,0 @@
-../../../Target Support Files/RNSVG/RNSVG-umbrella.h

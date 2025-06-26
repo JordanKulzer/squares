@@ -1,4 +1,4 @@
-module reactperflogger {
+framework module reactperflogger {
   umbrella header "React-perflogger-umbrella.h"
 
   export *

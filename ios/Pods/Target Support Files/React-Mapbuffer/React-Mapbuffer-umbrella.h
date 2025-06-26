@@ -13,6 +13,6 @@
 #import "react/renderer/mapbuffer/MapBuffer.h"
 #import "react/renderer/mapbuffer/MapBufferBuilder.h"
 
-FOUNDATION_EXPORT double react_renderer_mapbufferVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_renderer_mapbufferVersionString[];
+FOUNDATION_EXPORT double React_MapbufferVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_MapbufferVersionString[];
 

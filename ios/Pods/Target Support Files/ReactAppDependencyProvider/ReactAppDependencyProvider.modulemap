@@ -1,4 +1,4 @@
-module ReactAppDependencyProvider {
+framework module ReactAppDependencyProvider {
   umbrella header "ReactAppDependencyProvider-umbrella.h"
 
   export *

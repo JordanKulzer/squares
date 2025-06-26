@@ -1,1 +1,0 @@
-../../../../../../../BoringSSL-GRPC/src/crypto/fipsmodule/ec/scalar.c.inc

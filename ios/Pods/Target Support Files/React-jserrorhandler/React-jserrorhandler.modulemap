@@ -1,4 +1,4 @@
-module jserrorhandler {
+framework module React_jserrorhandler {
   umbrella header "React-jserrorhandler-umbrella.h"
 
   export *

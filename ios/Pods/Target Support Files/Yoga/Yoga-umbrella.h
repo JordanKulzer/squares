@@ -10,15 +10,15 @@
 #endif
 #endif
 
-#import "yoga/YGConfig.h"
-#import "yoga/YGEnums.h"
-#import "yoga/YGMacros.h"
-#import "yoga/YGNode.h"
-#import "yoga/YGNodeLayout.h"
-#import "yoga/YGNodeStyle.h"
-#import "yoga/YGPixelGrid.h"
-#import "yoga/YGValue.h"
-#import "yoga/Yoga.h"
+#import "YGConfig.h"
+#import "YGEnums.h"
+#import "YGMacros.h"
+#import "YGNode.h"
+#import "YGNodeLayout.h"
+#import "YGNodeStyle.h"
+#import "YGPixelGrid.h"
+#import "YGValue.h"
+#import "Yoga.h"
 
 FOUNDATION_EXPORT double yogaVersionNumber;
 FOUNDATION_EXPORT const unsigned char yogaVersionString[];

@@ -1,4 +1,4 @@
-module RNCPicker {
+framework module RNCPicker {
   umbrella header "RNCPicker-umbrella.h"
 
   export *

@@ -22,6 +22,7 @@
     "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
     "GCC_WARN_PEDANTIC": "YES"
   },
+  "header_mappings_dir": "./",
   "subspecs": [
     {
       "name": "turbomodule",

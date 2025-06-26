@@ -1,4 +1,4 @@
-module react_nativemodule_microtasks {
+framework module React_microtasksnativemodule {
   umbrella header "React-microtasksnativemodule-umbrella.h"
 
   export *

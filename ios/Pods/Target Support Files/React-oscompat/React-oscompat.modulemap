@@ -1,4 +1,4 @@
-module oscompat {
+framework module oscompat {
   umbrella header "React-oscompat-umbrella.h"
 
   export *

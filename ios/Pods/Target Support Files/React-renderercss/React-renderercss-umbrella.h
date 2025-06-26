@@ -37,6 +37,6 @@
 #import "react/renderer/css/CSSValueParser.h"
 #import "react/renderer/css/CSSZero.h"
 
-FOUNDATION_EXPORT double react_renderer_cssVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_renderer_cssVersionString[];
+FOUNDATION_EXPORT double React_renderercssVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_renderercssVersionString[];
 

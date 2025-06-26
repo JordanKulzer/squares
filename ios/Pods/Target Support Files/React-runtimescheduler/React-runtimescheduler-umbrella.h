@@ -21,6 +21,6 @@
 #import "react/renderer/runtimescheduler/SchedulerPriorityUtils.h"
 #import "react/renderer/runtimescheduler/Task.h"
 
-FOUNDATION_EXPORT double react_renderer_runtimeschedulerVersionNumber;
-FOUNDATION_EXPORT const unsigned char react_renderer_runtimeschedulerVersionString[];
+FOUNDATION_EXPORT double React_runtimeschedulerVersionNumber;
+FOUNDATION_EXPORT const unsigned char React_runtimeschedulerVersionString[];
 

@@ -1,4 +1,4 @@
-module react_renderer_mapbuffer {
+framework module React_Mapbuffer {
   umbrella header "React-Mapbuffer-umbrella.h"
 
   export *

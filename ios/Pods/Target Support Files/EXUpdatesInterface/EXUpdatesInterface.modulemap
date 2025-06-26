@@ -1,4 +1,4 @@
-module EXUpdatesInterface {
+framework module EXUpdatesInterface {
   umbrella header "EXUpdatesInterface-umbrella.h"
 
   export *

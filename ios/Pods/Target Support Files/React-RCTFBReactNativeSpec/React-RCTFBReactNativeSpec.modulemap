@@ -1,4 +1,4 @@
-module FBReactNativeSpec {
+framework module FBReactNativeSpec {
   umbrella header "React-RCTFBReactNativeSpec-umbrella.h"
 
   export *

@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "0A9E313F802B28B44A928D7969FB06FB"
-               BuildableName = "libExpoWebBrowser.a"
+               BuildableName = "ExpoWebBrowser.framework"
                BlueprintName = "ExpoWebBrowser"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>

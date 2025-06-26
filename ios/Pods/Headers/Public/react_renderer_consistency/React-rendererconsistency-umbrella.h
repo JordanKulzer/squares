@@ -1,1 +1,0 @@
-../../../Target Support Files/React-rendererconsistency/React-rendererconsistency-umbrella.h

@@ -1,1 +1,0 @@
-../../../../../../../gRPC-C++/src/core/util/examine_stack.h

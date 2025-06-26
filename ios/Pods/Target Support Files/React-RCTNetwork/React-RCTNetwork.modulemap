@@ -1,4 +1,4 @@
-module RCTNetwork {
+framework module RCTNetwork {
   umbrella header "React-RCTNetwork-umbrella.h"
 
   export *

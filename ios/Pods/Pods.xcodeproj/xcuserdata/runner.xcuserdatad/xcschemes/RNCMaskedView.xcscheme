@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1A0445474DA11CA659C4BCC5AB64B1BF"
-               BuildableName = "libRNCMaskedView.a"
+               BuildableName = "RNCMaskedView.framework"
                BlueprintName = "RNCMaskedView"
                ReferencedContainer = "container:Pods.xcodeproj">
             </BuildableReference>
