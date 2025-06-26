@@ -37,6 +37,8 @@ target 'Squares' do
     :privacy_file_aggregation_enabled => podfile_properties['apple.privacyManifestAggregationEnabled'] != 'false',
   )
 
+  pod 'hermes-engine', :podspec => '../node_modules/react-native/ReactCommon/hermes-engine.podspec'
+
   post_install do |installer|
     react_native_post_install(installer, config[:reactNativePath],
       :mac_catalyst_enabled => false,
