@@ -27,6 +27,9 @@ target 'Squares' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
+  # ✅ EXPLICITLY include Hermes or it won't link properly
+  pod 'hermes-engine', :podspec => '../node_modules/react-native/ReactCommon/hermes-engine.podspec'
+
   post_install do |installer|
     react_native_post_install(installer, config[:reactNativePath])
   end
