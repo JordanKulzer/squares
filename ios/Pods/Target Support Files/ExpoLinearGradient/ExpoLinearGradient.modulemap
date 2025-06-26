@@ -1,0 +1,6 @@
+framework module ExpoLinearGradient {
+  umbrella header "ExpoLinearGradient-umbrella.h"
+
+  export *
+  module * { export * }
+}
