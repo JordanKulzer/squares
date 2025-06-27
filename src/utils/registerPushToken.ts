@@ -1,7 +1,6 @@
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
-import { updateDoc, doc } from "firebase/firestore";
-import { db } from "../../firebaseConfig";
+import { supabase } from "../lib/supabase";
 
 export const registerPushToken = async (userId: string) => {
   console.log("🔔 Starting push token registration...");
@@ -31,11 +30,15 @@ export const registerPushToken = async (userId: string) => {
   console.log("📦 Got push token:", token);
 
   try {
-    await updateDoc(doc(db, "users", userId), {
-      pushToken: token,
-    });
-    console.log("✅ Push token saved to Firestore");
+    const { error } = await supabase
+      .from("users")
+      .update({ push_token: token }) // match your Supabase schema
+      .eq("id", userId);
+
+    if (error) throw error;
+
+    console.log("✅ Push token saved to Supabase");
   } catch (err) {
-    console.error("❌ Failed to save push token to Firestore:", err);
+    console.error("❌ Failed to save push token to Supabase:", err);
   }
 };

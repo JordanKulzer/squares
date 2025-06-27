@@ -3,7 +3,6 @@ import {
   Animated,
   View,
   Text,
-  Image,
   TouchableOpacity,
   ScrollView,
   TouchableWithoutFeedback,
@@ -17,9 +16,6 @@ import {
   TextInput,
 } from "react-native-paper";
 import { supabase } from "../lib/supabase";
-import firestore from "@react-native-firebase/firestore";
-import storage from "@react-native-firebase/storage";
-import * as ImagePicker from "expo-image-picker";
 
 const ProfileModal = ({ visible, onDismiss, userGames }) => {
   const [confirmVisible, setConfirmVisible] = useState(false);
@@ -29,6 +25,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   const [newName, setNewName] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
   const [imageUri, setImageUri] = useState(null);
+  const [winCount, setWinCount] = useState(0);
   const slideAnim = useRef(new Animated.Value(600)).current;
   const theme = useTheme();
 
@@ -37,34 +34,47 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
       toValue: visible ? 0 : 600,
       duration: 300,
       useNativeDriver: true,
-    }).start();
+    }).start(() => {
+      if (visible) {
+        fetchFirstName();
+      }
+    });
   }, [visible]);
 
+  const fetchFirstName = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("first_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error || !data) return;
+      setFirstName(data.first_name || "");
+    } catch (err) {
+      console.error("Failed to fetch user data:", err);
+    }
+  };
+
   useEffect(() => {
-    const fetchFirstName = async () => {
+    if (!visible) return;
+    const getWins = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
-
-      try {
-        const { data, error } = await supabase
-          .from("users")
-          .select("first_name, profile_image")
-          .eq("id", user.id)
-          .single();
-
-        if (error || !data) return;
-        setFirstName(data.first_name || "");
-        setImageUri(data.profile_image || null);
-      } catch (err) {
-        console.error("Failed to fetch user data:", err);
-      }
+      const uid = user?.id;
+      const count = userGames.reduce((acc, game) => {
+        const winners = game.winners || [];
+        return winners.includes(uid) ? acc + 1 : acc;
+      }, 0);
+      setWinCount(count);
     };
-
-    if (visible) {
-      fetchFirstName();
-    }
+    getWins();
   }, [visible]);
 
   const updateUserName = async () => {
@@ -360,7 +370,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                         marginTop: 4,
                       }}
                     >
-                      {getWinCount()}
+                      {winCount}
                     </Text>
                   </View>
                 </View>

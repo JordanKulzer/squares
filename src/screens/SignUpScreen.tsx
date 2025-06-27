@@ -50,7 +50,7 @@ const SignupScreen = ({ navigation }) => {
     setError("");
     try {
       const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
         options: {
           data: { firstName },
@@ -70,12 +70,12 @@ const SignupScreen = ({ navigation }) => {
         ]);
         if (insertError) throw insertError;
       }
+    } catch (err: any) {
+      console.error("Signup error:", err);
 
-      navigation.replace("Main");
-    } catch (err) {
-      if (err.message.includes("email")) {
+      if (err.message?.includes("email")) {
         setError("Email already in use or invalid.");
-      } else if (err.message.includes("password")) {
+      } else if (err.message?.includes("password")) {
         setError("Password must be at least 6 characters.");
       } else {
         setError("Signup failed. Try again.");

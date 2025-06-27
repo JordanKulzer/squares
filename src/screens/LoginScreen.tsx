@@ -37,8 +37,6 @@ const LoginScreen = ({ navigation }) => {
         } else {
           setError("Login failed. Try again.");
         }
-      } else {
-        navigation.replace("Main");
       }
     } catch (err) {
       setError("Unexpected error. Please try again.");

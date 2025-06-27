@@ -210,10 +210,11 @@ const SquareScreen = ({ route }) => {
       setXAxis(data.xAxis?.length === 10 ? data.xAxis : [...Array(10).keys()]);
       setYAxis(data.yAxis?.length === 10 ? data.yAxis : [...Array(10).keys()]);
 
-      if (data.createdBy === userId) setIsOwner(true);
+      if (data.created_by === userId) setIsOwner(true);
       if (data.deadline) setDeadlineValue(new Date(data.deadline));
-      if (typeof data.maxSelections === "number")
-        setMaxSelections(data.maxSelections);
+      if (typeof data.max_selection === "number")
+        console.log(data.max_selection);
+      setMaxSelections(data.max_selection);
       if (typeof data.hideAxisUntilDeadline === "boolean")
         setHideAxisUntilDeadline(data.hideAxisUntilDeadline);
     };
@@ -1017,7 +1018,6 @@ const SquareScreen = ({ route }) => {
                       textAlign: "center",
                     },
                   });
-
                   navigation.navigate("Main");
                 } catch (err) {
                   console.error("Failed to leave square:", err);
@@ -1068,7 +1068,6 @@ const SquareScreen = ({ route }) => {
                       textAlign: "center",
                     },
                   });
-
                   navigation.navigate("Main");
                 } catch (err) {
                   console.error("Failed to delete square:", err);

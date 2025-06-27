@@ -119,7 +119,7 @@ const HomeScreen = () => {
           .from("users")
           .select("first_name")
           .eq("id", user.id)
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error("Error fetching user name:", error);

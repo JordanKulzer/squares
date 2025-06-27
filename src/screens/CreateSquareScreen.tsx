@@ -125,7 +125,6 @@ const CreateSquareScreen = ({ navigation }) => {
         .insert([
           {
             title: inputTitle,
-            username,
             team1,
             team2,
             deadline,
