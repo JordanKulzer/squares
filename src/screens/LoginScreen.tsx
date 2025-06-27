@@ -11,9 +11,9 @@ import {
   useColorScheme,
 } from "react-native";
 import { TextInput as PaperInput, useTheme } from "react-native-paper";
-import auth from "@react-native-firebase/auth";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
+import { supabase } from "../lib/supabase";
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -24,18 +24,24 @@ const LoginScreen = ({ navigation }) => {
   const isDark = scheme === "dark";
 
   const handleLogin = async () => {
+    setError("");
     try {
-      await auth().signInWithEmailAndPassword(email, password);
-    } catch (err) {
-      if (err.code === "auth/invalid-email") {
-        setError("Invalid email address.");
-      } else if (err.code === "auth/user-not-found") {
-        setError("No account found with that email.");
-      } else if (err.code === "auth/wrong-password") {
-        setError("Incorrect password.");
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (loginError) {
+        if (loginError.message.includes("Invalid login credentials")) {
+          setError("Incorrect email or password.");
+        } else {
+          setError("Login failed. Try again.");
+        }
       } else {
-        setError("Login failed. Try again.");
+        navigation.replace("Main");
       }
+    } catch (err) {
+      setError("Unexpected error. Please try again.");
     }
   };
 

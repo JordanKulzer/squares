@@ -16,7 +16,7 @@ import {
   useTheme,
   TextInput,
 } from "react-native-paper";
-import auth from "@react-native-firebase/auth";
+import { supabase } from "../lib/supabase";
 import firestore from "@react-native-firebase/firestore";
 import storage from "@react-native-firebase/storage";
 import * as ImagePicker from "expo-image-picker";
@@ -42,18 +42,21 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
 
   useEffect(() => {
     const fetchFirstName = async () => {
-      const user = auth().currentUser;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
+
       try {
-        const docSnap = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setFirstName(data.firstName || "");
-          setImageUri(data.profileImage || null);
-        }
+        const { data, error } = await supabase
+          .from("users")
+          .select("first_name, profile_image")
+          .eq("id", user.id)
+          .single();
+
+        if (error || !data) return;
+        setFirstName(data.first_name || "");
+        setImageUri(data.profile_image || null);
       } catch (err) {
         console.error("Failed to fetch user data:", err);
       }
@@ -65,14 +68,19 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
   }, [visible]);
 
   const updateUserName = async () => {
-    const user = auth().currentUser;
-    if (!user) return;
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) return;
 
     try {
-      await firestore()
-        .collection("users")
-        .doc(user.uid)
-        .set({ firstName: newName.trim() }, { merge: true });
+      const { error } = await supabase
+        .from("users")
+        .update({ first_name: newName.trim() })
+        .eq("id", user.id);
+
+      if (error) throw error;
 
       setFirstName(newName.trim());
       setIsEditingName(false);
@@ -82,8 +90,11 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
     }
   };
 
-  const getWinCount = () => {
-    const uid = auth().currentUser?.uid;
+  const getWinCount = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const uid = user?.id;
     return userGames.reduce((count, game) => {
       const winners = game.winners || [];
       return winners.includes(uid) ? count + 1 : count;
@@ -92,21 +103,30 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
 
   const deleteUserData = async (uid) => {
     try {
-      await firestore().collection("users").doc(uid).delete();
+      const { error } = await supabase.from("users").delete().eq("id", uid);
+      if (error) throw error;
     } catch (err) {
       console.error("Failed to delete user data:", err);
     }
   };
 
   const deleteAccount = async () => {
-    const user = auth().currentUser;
-    if (!user) return;
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+    if (authError || !user) return;
+
     try {
-      const uid = user.uid;
-      await user.delete();
-      await deleteUserData(uid);
+      const { error: deleteError } = await supabase.auth.admin.deleteUser(
+        user.id
+      ); // OR:
+      // const { error: deleteError } = await supabase.auth.signOut(); // if not using admin API
+      if (deleteError) throw deleteError;
+
+      await deleteUserData(user.id);
     } catch (error) {
-      if (error.code === "auth/requires-recent-login") {
+      if (error.message.includes("recent-login")) {
         alert("Please re-authenticate to delete your account.");
       } else {
         alert(`Error deleting account: ${error.message}`);
@@ -114,39 +134,66 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
     }
   };
 
-  const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.7,
-    });
+  // const pickImage = async () => {
+  //   const result = await ImagePicker.launchImageLibraryAsync({
+  //     mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  //     allowsEditing: true,
+  //     quality: 0.7,
+  //   });
 
-    if (!result.canceled && result.assets.length > 0) {
-      const uri = result.assets[0].uri;
-      setImageUri(uri);
-      await uploadProfileImage(uri);
-    }
-  };
+  //   if (!result.canceled && result.assets.length > 0) {
+  //     const uri = result.assets[0].uri;
+  //     setImageUri(uri);
+  //     await uploadProfileImage(uri);
+  //   }
+  // };
 
-  const uploadProfileImage = async (uri) => {
-    const user = auth().currentUser;
-    if (!user) return;
+  // const uploadProfileImage = async (uri) => {
+  //   const {
+  //     data: { user },
+  //     error: authError,
+  //   } = await supabase.auth.getUser();
+  //   if (authError || !user) return;
 
-    try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const storageRef = storage().ref(`profileImages/${user.uid}.jpg`);
-      await storageRef.put(blob);
-      const downloadURL = await storageRef.getDownloadURL();
+  //   try {
+  //     const response = await fetch(uri);
+  //     const blob = await response.blob();
 
-      await firestore().collection("users").doc(user.uid).update({ profileImage: downloadURL });
+  //     const filePath = `profileImages/${user.id}.jpg`;
 
-      setImageUri(downloadURL);
-    } catch (err) {
-      console.error("Error uploading profile image:", err);
-      alert("Failed to upload profile image.");
-    }
-  };
+  //     const { error: uploadError } = await supabase.storage
+  //       .from("avatars") // 🔁 use your actual bucket name here
+  //       .upload(filePath, blob, {
+  //         cacheControl: "3600",
+  //         upsert: true,
+  //         contentType: "image/jpeg",
+  //       });
+
+  //     if (uploadError) throw uploadError;
+
+  //     const { data: publicUrlData, error: urlError } = supabase.storage
+  //       .from("avatars")
+  //       .getPublicUrl(filePath);
+
+  //     if (urlError || !publicUrlData?.publicUrl) {
+  //       throw urlError || new Error("Failed to get public URL.");
+  //     }
+
+  //     const downloadURL = publicUrlData.publicUrl;
+
+  //     const { error: updateError } = await supabase
+  //       .from("users")
+  //       .update({ profile_image: downloadURL })
+  //       .eq("id", user.id);
+
+  //     if (updateError) throw updateError;
+
+  //     setImageUri(downloadURL);
+  //   } catch (err) {
+  //     console.error("Error uploading profile image:", err);
+  //     alert("Failed to upload profile image.");
+  //   }
+  // };
 
   return (
     <>
@@ -377,7 +424,7 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
                 icon="logout"
                 mode="contained"
                 onPress={() => setLogoutVisible(true)}
-                buttonColor={theme.colors.primary} // or a specific color like "#5e60ce"
+                buttonColor={theme.colors.primary}
                 style={{
                   marginBottom: 12,
                 }}
@@ -465,9 +512,9 @@ const ProfileModal = ({ visible, onDismiss, userGames }) => {
           <Dialog.Actions>
             <Button onPress={() => setLogoutVisible(false)}>Cancel</Button>
             <Button
-              onPress={() => {
+              onPress={async () => {
                 setLogoutVisible(false);
-                auth().signOut();
+                await supabase.auth.signOut();
                 onDismiss();
               }}
               textColor={theme.colors.error}

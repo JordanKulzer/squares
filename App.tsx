@@ -12,7 +12,7 @@ import {
 } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { auth } from "./firebaseConfig";
+import { supabase } from "./src/lib/supabase";
 import JoinSquareScreen from "./src/screens/JoinSquareScreen";
 import * as Notifications from "expo-notifications";
 import CreateSquareScreen from "./src/screens/CreateSquareScreen";
@@ -79,44 +79,65 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged((firebaseUser) => {
-      setUser(firebaseUser);
+    const checkSession = async () => {
+      const {
+        data: { session },
+        error,
+      } = await supabase.auth.getSession();
 
-      if (firebaseUser) {
-        // Slight delay ensures auth.currentUser is populated
+      const currentUser = session?.user || null;
+      setUser(currentUser);
+
+      if (currentUser) {
         setTimeout(() => {
-          registerPushToken(firebaseUser.uid);
+          registerPushToken(currentUser.id);
         }, 500);
       }
 
       setLoading(false);
-    });
+    };
 
-    return unsubscribe;
+    checkSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        const u = session?.user || null;
+        setUser(u);
+        if (u) {
+          setTimeout(() => {
+            registerPushToken(u.id);
+          }, 500);
+        }
+      }
+    );
+
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
   }, []);
 
   const handleLogout = async () => {
     try {
-      await auth().signOut();
+      await supabase.auth.signOut();
       setUser(null);
     } catch (error) {
       console.error("Error logging out: ", error);
     }
   };
 
-  const linking = {
-    prefixes: [
-      "squaresgame://", // your custom URI scheme
-      "https://squares-41599.web.app", // your Firebase Hosting link
-    ],
-    config: {
-      screens: {
-        JoinSquareScreen: {
-          path: "session/:sessionId",
-        },
-      },
-    },
-  };
+  // const linking = {
+  //   prefixes: [
+  //     "squaresgame://", // your custom URI scheme
+  //     "https://squares-41599.web.app", // your Firebase Hosting link
+  //   ],
+  //   config: {
+  //     screens: {
+  //       JoinSquareScreen: {
+  //         path: "session/:sessionId",
+  //       },
+  //     },
+  //   },
+  // };
 
   if (loading) {
     return (
@@ -135,7 +156,7 @@ const App: React.FC = () => {
         }
       />
       <PaperProvider theme={paperTheme}>
-        <NavigationContainer theme={navigationTheme} linking={linking}>
+        <NavigationContainer theme={navigationTheme}>
           <Stack.Navigator>
             {user ? (
               <>
@@ -143,7 +164,7 @@ const App: React.FC = () => {
                 <Stack.Screen name="Main" options={{ headerShown: false }}>
                   {() => (
                     <HomeScreen
-                      userId={user.uid}
+                      userId={user.id}
                       onLogout={handleLogout}
                       isDarkTheme={isDarkTheme}
                       toggleTheme={toggleTheme}

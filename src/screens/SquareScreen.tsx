@@ -15,10 +15,8 @@ import {
   FlatList,
 } from "react-native";
 import { Button, Card, Dialog, Portal, useTheme } from "react-native-paper";
-import auth from "@react-native-firebase/auth";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { StackActions, useNavigation } from "@react-navigation/native";
-import firestore, { Timestamp } from "@react-native-firebase/firestore";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
@@ -29,18 +27,13 @@ import { API_BASE_URL } from "../utils/apiConfig";
 import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
+import { supabase } from "../lib/supabase";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
 
 const splitTeamName = (teamName) => {
   return teamName ? teamName.split("") : [];
-};
-
-const convertToDate = (deadline) => {
-  if (deadline instanceof Timestamp) return deadline.toDate();
-  if (deadline instanceof Date) return deadline;
-  return null;
 };
 
 const SquareScreen = ({ route }) => {
@@ -120,44 +113,69 @@ const SquareScreen = ({ route }) => {
 
   useEffect(() => {
     if (quarterScores.length > 0 && xAxis.length && yAxis.length) {
-      const ref = firestore().collection("squares").doc(gridId);
-      ref.get().then((docSnap) => {
-        const data = docSnap.data();
-        if (data?.selections) {
-          const winners = determineQuarterWinners(
-            quarterScores,
-            data.selections,
-            xAxis,
-            yAxis
-          );
-          setQuarterWinners(winners);
-        }
-      });
+      const fetchSelections = async () => {
+        const { data, error } = await supabase
+          .from("squares")
+          .select("selections")
+          .eq("id", gridId)
+          .single();
+
+        if (error || !data?.selections) return;
+
+        const winners = determineQuarterWinners(
+          quarterScores,
+          data.selections,
+          xAxis,
+          yAxis
+        );
+        setQuarterWinners(winners);
+      };
+
+      fetchSelections();
     }
-  }, [quarterScores, xAxis, yAxis]);
+  }, [quarterScores, xAxis, yAxis, gridId]);
 
   useEffect(() => {
-    const unsubscribe = auth().onAuthStateChanged((user) => {
-      setUserId(user?.uid || null);
-    });
-    return unsubscribe;
+    const getUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      setUserId(user?.id || null);
+    };
+
+    getUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUserId(session?.user?.id || null);
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    const ref = firestore().collection("squares").doc(gridId);
-    const unsub = ref.onSnapshot((docSnap) => {
-      const data = docSnap.data();
-      if (!data) return;
+    const fetchSquareData = async () => {
+      const { data, error } = await supabase
+        .from("squares")
+        .select("*")
+        .eq("id", gridId)
+        .single();
+
+      if (error || !data) return;
+
       const colorMapping = {};
       const nameMapping = {};
 
       setTeam1(data.team1 || "");
       setTeam2(data.team2 || "");
+      setTeam1Mascot(data.team1?.split(" ").slice(-1)[0]);
+      setTeam2Mascot(data.team2?.split(" ").slice(-1)[0]);
 
-      setTeam1Mascot(data.team1.split(" ").slice(-1)[0]);
-      setTeam2Mascot(data.team2.split(" ").slice(-1)[0]);
-
-      if (data?.players) {
+      if (data.players) {
         data.players.forEach((p) => {
           colorMapping[p.userId] = p.color || "#999";
           nameMapping[p.userId] = p.username || p.userId;
@@ -166,7 +184,7 @@ const SquareScreen = ({ route }) => {
         setPlayerUsernames(nameMapping);
       }
 
-      if (data?.selections) {
+      if (data.selections) {
         const squareMap = {};
         data.selections.forEach((sel) => {
           const id = `${sel.x},${sel.y}`;
@@ -174,15 +192,14 @@ const SquareScreen = ({ route }) => {
         });
         setSquareColors(squareMap);
 
-        if (userId && Array.isArray(data.selections)) {
+        if (userId) {
           const mySelections = data.selections.filter(
-            (sel) => sel.userId === userId
+            (s) => s.userId === userId
           );
-          const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
+          const mySet = new Set(mySelections.map((s) => `${s.x},${s.y}`));
           const allPendingResolved = [...pendingSquares].every((sq) =>
             mySet.has(sq)
           );
-
           if (allPendingResolved || pendingSquares.size === 0) {
             setSelectedSquares(mySet);
             setPendingSquares(new Set());
@@ -190,38 +207,19 @@ const SquareScreen = ({ route }) => {
         }
       }
 
-      if (Array.isArray(data?.xAxis) && data.xAxis.length === 10) {
-        setXAxis(data.xAxis);
-      } else {
-        setXAxis([...Array(10).keys()]);
-      }
+      setXAxis(data.xAxis?.length === 10 ? data.xAxis : [...Array(10).keys()]);
+      setYAxis(data.yAxis?.length === 10 ? data.yAxis : [...Array(10).keys()]);
 
-      if (Array.isArray(data?.yAxis) && data.yAxis.length === 10) {
-        setYAxis(data.yAxis);
-      } else {
-        setYAxis([...Array(10).keys()]);
-      }
-
-      if (data?.createdBy === auth().currentUser?.uid) {
-        setIsOwner(true);
-      }
-
-      if (data?.deadline) {
-        const deadlineDate = convertToDate(data.deadline);
-        setDeadlineValue(deadlineDate);
-      }
-
-      if (typeof data?.maxSelections === "number") {
+      if (data.createdBy === userId) setIsOwner(true);
+      if (data.deadline) setDeadlineValue(new Date(data.deadline));
+      if (typeof data.maxSelections === "number")
         setMaxSelections(data.maxSelections);
-      }
-
-      if (typeof data?.hideAxisUntilDeadline === "boolean") {
+      if (typeof data.hideAxisUntilDeadline === "boolean")
         setHideAxisUntilDeadline(data.hideAxisUntilDeadline);
-      }
-    });
+    };
 
-    return unsub;
-  }, [gridId]);
+    fetchSquareData();
+  }, [gridId, userId]);
 
   useEffect(() => {
     if (!deadlineValue) return;
@@ -326,8 +324,10 @@ const SquareScreen = ({ route }) => {
     }
     setDeadlineValue(safeDeadline);
     try {
-      const ref = firestore().collection("squares").doc(gridId);
-      await ref.update({ deadline: selectedDate });
+      await supabase
+        .from("squares")
+        .update({ deadline: safeDeadline.toISOString() }) // convert Date to ISO string
+        .eq("id", gridId);
 
       await scheduleDeadlineNotifications(selectedDate);
     } catch (err) {
@@ -414,41 +414,20 @@ const SquareScreen = ({ route }) => {
     });
   }, [navigation, isOwner]);
 
-  const selectSquareInFirestore = useCallback(
-    async (x, y) => {
-      if (!userId) return;
+  const selectSquareInSupabase = async (x, y) => {
+    await supabase.rpc("add_selection", {
+      grid_id: gridId,
+      new_selection: { x, y, userId, username: currentUsername },
+    });
+  };
 
-      const gridRef = firestore().collection("squares").doc(gridId);
+  const deselectSquareInSupabase = async (x, y) => {
+    await supabase.rpc("remove_selection", {
+      grid_id: gridId,
+      selection_to_remove: { x, y, userId, username: currentUsername },
+    });
+  };
 
-      await gridRef.update({
-        selections: firestore.FieldValue.arrayUnion({
-          x: Number(x),
-          y: Number(y),
-          userId,
-          username: currentUsername,
-        }),
-      });
-    },
-    [gridId, userId, currentUsername]
-  );
-
-  const deselectSquareInFirestore = useCallback(
-    async (x, y) => {
-      if (!userId) return;
-
-      const gridRef = firestore().collection("squares").doc(gridId);
-
-      await gridRef.update({
-        selections: firestore.FieldValue.arrayRemove({
-          x: Number(x),
-          y: Number(y),
-          userId,
-          username: currentUsername,
-        }),
-      });
-    },
-    [gridId, userId, currentUsername]
-  );
   const handlePress = useCallback(
     async (x, y) => {
       const squareId = `${x},${y}`;
@@ -473,14 +452,14 @@ const SquareScreen = ({ route }) => {
       }
 
       if (isSelected) {
-        await deselectSquareInFirestore(x, y);
+        await deselectSquareInSupabase(x, y);
 
         updatedSet.delete(squareId);
         const newColors = { ...squareColors };
         delete newColors[squareId];
         setSquareColors(newColors);
       } else {
-        await selectSquareInFirestore(x, y);
+        await selectSquareInSupabase(x, y);
 
         updatedSet.add(squareId);
         setSquareColors((prev) => ({
@@ -501,28 +480,32 @@ const SquareScreen = ({ route }) => {
       playerColors,
       userId,
       selectedSquares,
-      deselectSquareInFirestore,
-      selectSquareInFirestore,
+      deselectSquareInSupabase,
+      selectSquareInSupabase,
       playerUsernames,
     ]
   );
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !gridId) return;
 
-    const ref = firestore().collection("squares").doc(gridId);
-    const unsub = ref.onSnapshot((docSnap) => {
-      const data = docSnap.data();
-      if (!data?.selections) return;
+    const interval = setInterval(async () => {
+      const { data, error } = await supabase
+        .from("squares")
+        .select("selections")
+        .eq("id", gridId)
+        .single();
+
+      if (error || !data?.selections) return;
 
       const mySelections = data.selections.filter(
         (sel) => sel.userId === userId
       );
       const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
       setSelectedSquares(mySet);
-    });
+    }, 5000); // every 5 seconds
 
-    return unsub;
+    return () => clearInterval(interval);
   }, [userId, gridId]);
 
   const renderSquareGrid = ({
@@ -988,11 +971,14 @@ const SquareScreen = ({ route }) => {
                 setShowLeaveConfirm(false);
                 setSessionOptionsVisible(false);
                 try {
-                  const ref = firestore().collection("squares").doc(gridId);
-                  const docSnap = await ref.get();
-                  if (!docSnap.exists()) return;
+                  const { data, error } = await supabase
+                    .from("squares")
+                    .select("playerIds, players, selections")
+                    .eq("id", gridId)
+                    .single();
 
-                  const data = docSnap.data();
+                  if (error || !data) return;
+
                   const updatedPlayerIds = (data.playerIds || []).filter(
                     (id) => id !== userId
                   );
@@ -1003,11 +989,20 @@ const SquareScreen = ({ route }) => {
                     (sel) => sel.userId !== userId
                   );
 
-                  await ref.update({
-                    playerIds: updatedPlayerIds,
-                    players: updatedPlayers,
-                    selections: updatedSelections,
-                  });
+                  // Update the square
+                  await supabase
+                    .from("squares")
+                    .update({
+                      playerIds: updatedPlayerIds,
+                      players: updatedPlayers,
+                      selections: updatedSelections,
+                    })
+                    .eq("id", gridId);
+
+                  // Optionally delete if no players left
+                  if (updatedPlayers.length === 0) {
+                    await supabase.from("squares").delete().eq("id", gridId);
+                  }
 
                   Toast.show({
                     type: "error",
@@ -1022,10 +1017,6 @@ const SquareScreen = ({ route }) => {
                       textAlign: "center",
                     },
                   });
-
-                  if (updatedPlayers.length === 0) {
-                    await ref.delete()
-                  }
 
                   navigation.navigate("Main");
                 } catch (err) {
@@ -1062,8 +1053,8 @@ const SquareScreen = ({ route }) => {
                 setShowDeleteConfirm(false);
                 setSessionOptionsVisible(false);
                 try {
-                  const ref = firestore().collection("squares").doc(gridId);
-                  await ref.delete();
+                  await supabase.from("squares").delete().eq("id", gridId);
+
                   Toast.show({
                     type: "error",
                     text1: `You’ve deleted ${inputTitle}!`,
@@ -1077,6 +1068,7 @@ const SquareScreen = ({ route }) => {
                       textAlign: "center",
                     },
                   });
+
                   navigation.navigate("Main");
                 } catch (err) {
                   console.error("Failed to delete square:", err);

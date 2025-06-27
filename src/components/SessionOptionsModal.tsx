@@ -12,8 +12,7 @@ import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import * as Clipboard from "expo-clipboard";
 import Toast from "react-native-toast-message";
 import QRCode from "react-native-qrcode-svg";
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
+import { supabase } from "../lib/supabase";
 import NotificationSettingsModal from "./NotificationsModal";
 
 const SessionOptionsModal = ({
@@ -44,17 +43,24 @@ const SessionOptionsModal = ({
   useEffect(() => {
     const loadNotifySettings = async () => {
       try {
-        const userId = auth().currentUser?.uid;
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        const userId = user?.id;
+
         if (!userId || !gridId) return;
 
-        const squareRef = firestore().collection("squares").doc(gridId);
-        const snap = await squareRef.get();
-        if (snap.exists()) {
-          const data = snap.data();
-          const player = data.players?.find((p) => p.userId === userId);
-          if (player?.notifySettings) {
-            setNotifySettings(player.notifySettings);
-          }
+        const { data, error } = await supabase
+          .from("squares")
+          .select("players")
+          .eq("id", gridId)
+          .single();
+
+        if (error || !data) return;
+
+        const player = data.players?.find((p) => p.userId === userId);
+        if (player?.notifySettings) {
+          setNotifySettings(player.notifySettings);
         }
       } catch (err) {
         console.warn("Failed to load notify settings:", err);
@@ -344,17 +350,30 @@ const SessionOptionsModal = ({
         settings={notifySettings}
         onSave={async (newSettings) => {
           try {
-            const squareRef = firestore().collection("squares").doc(gridId);
-            const snap = await squareRef.get();
-            const userId = auth().currentUser?.uid;
-            if (!snap.exists() || !userId) return;
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+            const userId = user?.id;
 
-            const data = snap.data();
+            if (!userId) return;
+
+            const { data, error } = await supabase
+              .from("squares")
+              .select("players")
+              .eq("id", gridId)
+              .single();
+
+            if (error || !data) return;
+
             const updatedPlayers = data.players.map((p) =>
               p.userId === userId ? { ...p, notifySettings: newSettings } : p
             );
 
-            await squareRef.update({ players: updatedPlayers });
+            await supabase
+              .from("squares")
+              .update({ players: updatedPlayers })
+              .eq("id", gridId);
+
             setNotifySettings(newSettings);
           } catch (err) {
             console.error("Failed to save notify settings:", err);

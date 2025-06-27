@@ -12,8 +12,6 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
@@ -22,6 +20,8 @@ import NotificationsModal from "../components/NotificationsModal";
 import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { supabase } from "../lib/supabase";
+import { User } from "@supabase/supabase-js";
 
 const JoinSquareScreen = () => {
   const navigation =
@@ -29,7 +29,21 @@ const JoinSquareScreen = () => {
       NativeStackNavigationProp<RootStackParamList, "JoinSquareScreen">
     >();
   const route = useRoute<RouteProp<RootStackParamList, "JoinSquareScreen">>();
-  const user = auth().currentUser;
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data?.user) {
+        alert("You must be logged in.");
+        navigation.goBack();
+      } else {
+        setUser(data.user);
+      }
+    };
+
+    getUser();
+  }, []);
   const theme = useTheme();
 
   const params = route.params;
@@ -72,32 +86,42 @@ const JoinSquareScreen = () => {
   );
 
   useEffect(() => {
-    if (paramTitle && paramDeadline && paramUsedColors) return; // nothing to fetch
-
+    if (!gridId) {
+      alert("Invalid session ID.");
+      navigation.goBack();
+      return;
+    }
     const fetchSession = async () => {
-      try {
-        const doc = await firestore().collection("squares").doc(gridId).get();
-        if (!doc.exists) {
-          alert("Session not found.");
-          navigation.goBack();
-          return;
-        }
+      const { data: square, error } = await supabase
+        .from("squares")
+        .select("title, deadline")
+        .eq("id", gridId)
+        .single();
 
-        const data = doc.data();
-        setInputTitle(data.title || "Untitled");
-        setDeadline(data.deadline || null);
-        setUsedColors(data.players?.map((p: any) => p.color) || []);
-      } catch (error) {
-        console.error("Error fetching session:", error);
-        alert("Something went wrong.");
+      if (error || !square) {
+        alert("Session not found.");
+        navigation.goBack();
+        return;
       }
+
+      setInputTitle(square.title || "Untitled");
+      setDeadline(square.deadline || null);
+
+      const { data: players } = await supabase
+        .from("players")
+        .select("color")
+        .eq("square_id", gridId);
+
+      const takenColors = players?.map((p) => p.color) || [];
+      setUsedColors(takenColors);
     };
 
-    if (gridId) fetchSession();
+    fetchSession();
   }, [gridId]);
 
   const joinSquare = async () => {
     Keyboard.dismiss();
+
     if (!username) {
       alert("Please enter a username.");
       return;
@@ -114,34 +138,40 @@ const JoinSquareScreen = () => {
     }
 
     try {
-      const squareRef = firestore().collection("squares").doc(gridId);
-      await squareRef.set(
-        {
-          players: firestore.FieldValue.arrayUnion({
-            userId: user.uid,
-            username,
-            color: selectedColor,
-            notifySettings,
-          }),
-          playerIds: firestore.FieldValue.arrayUnion(user.uid),
-        },
-        { merge: true }
-      );
+      // 1. Insert player record
+      const { error: insertError } = await supabase.from("players").insert({
+        square_id: gridId,
+        user_id: user?.id,
+        username,
+        color: selectedColor,
+        notify_deadline: notifySettings.deadlineReminders,
+        notify_quarters: notifySettings.quarterResults,
+        notify_player_joined: notifySettings.playerJoined,
+        joined_at: new Date().toISOString(),
+      });
 
+      if (insertError) {
+        console.error("Insert player error:", insertError);
+        alert("Failed to join square.");
+        return;
+      }
+
+      // 2. Schedule deadline notification if needed
       if (notifySettings.deadlineReminders && deadline) {
         const deadlineDate = new Date(deadline);
         await scheduleDeadlineNotifications(deadlineDate);
       }
 
+      // 3. Navigate to the game
       navigation.navigate("SquareScreen", {
         gridId,
         inputTitle,
         username,
         deadline,
-        eventId: "",
+        eventId: "", // ← optional, can add Supabase event_id later
       });
-    } catch (error) {
-      console.error("Error joining grid:", error);
+    } catch (err) {
+      console.error("Unexpected error:", err);
       alert("Something went wrong when trying to join.");
     }
   };

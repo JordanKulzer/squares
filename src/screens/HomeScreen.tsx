@@ -14,9 +14,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
 import { IconButton, useTheme } from "react-native-paper";
-import auth from "@react-native-firebase/auth";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import ProfileModal from "../components/ProfileModal";
@@ -25,6 +23,7 @@ import colors from "../../assets/constants/colorOptions";
 import { Animated } from "react-native";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { supabase } from "../lib/supabase";
 
 const HomeScreen = () => {
   const navigation =
@@ -47,20 +46,27 @@ const HomeScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      const user = auth().currentUser;
-      if (!user) return;
+      const fetchUserSquares = async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) return;
 
-      const userSquaresRef = firestore()
-        .collection("squares")
-        .where("playerIds", "array-contains", user.uid);
+        const { data, error } = await supabase
+          .from("squares")
+          .select("*")
+          .contains("player_ids", [user.id]);
 
-      const unsubscribe = userSquaresRef.onSnapshot((querySnapshot) => {
-        const squaresList = querySnapshot.docs.map((doc) => {
-          const data = doc.data();
-          const userPlayer = data.players.find((p) => p.uid === user.uid);
+        if (error) {
+          console.error("Error fetching squares:", error);
+          return;
+        }
+
+        const squaresList = data.map((item) => {
+          const userPlayer = item.players?.find((p) => p.uid === user.id);
           return {
-            id: doc.id,
-            ...data,
+            id: item.id,
+            ...item,
             username: userPlayer?.username || "Unknown",
           };
         });
@@ -95,27 +101,34 @@ const HomeScreen = () => {
         ).start();
 
         setLoading(false);
-      });
+      };
 
-      return () => unsubscribe();
+      fetchUserSquares();
     }, [])
   );
 
   useEffect(() => {
     const fetchFirstName = async () => {
-      const user = auth().currentUser;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
+
       try {
-        const userDocSnap = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-        if (userDocSnap.exists) {
-          const userData = userDocSnap.data();
-          setFirstName(userData.firstName || "");
+        const { data, error } = await supabase
+          .from("users")
+          .select("first_name")
+          .eq("id", user.id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching user name:", error);
+          return;
         }
+
+        setFirstName(data?.first_name || "");
       } catch (err) {
-        console.error("Error fetching user name:", err);
+        console.error("Unexpected error:", err);
       }
     };
 
@@ -293,10 +306,11 @@ const HomeScreen = () => {
                             }}
                           >
                             {item.playerIds?.length || 0} players •{" "}
-                            {item.deadline?.toDate?.() > new Date()
-                              ? `Ends ${item.deadline
-                                  .toDate()
-                                  .toLocaleDateString()}`
+                            {item.deadline &&
+                            new Date(item.deadline) > new Date()
+                              ? `Ends ${new Date(
+                                  item.deadline
+                                ).toLocaleDateString()}`
                               : "Finalized"}
                           </Text>
                         </View>

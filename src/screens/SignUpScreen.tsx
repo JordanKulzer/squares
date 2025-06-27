@@ -13,11 +13,10 @@ import {
   useColorScheme,
 } from "react-native";
 import { TextInput as PaperInput, useTheme } from "react-native-paper";
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
-import colors from "../../assets/constants/colorOptions";
 import { FontAwesome } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { supabase } from "../lib/supabase";
+import colors from "../../assets/constants/colorOptions";
 
 const SignupScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -29,11 +28,13 @@ const SignupScreen = ({ navigation }) => {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
 
-  const gradientColors = useMemo(() => {
-    return theme.dark
-      ? ["#121212", "#1d1d1d", "#2b2b2d"]
-      : ["#fdfcf9", "#e0e7ff"];
-  }, [theme.dark]);
+  const gradientColors = useMemo(
+    () =>
+      theme.dark
+        ? (["#121212", "#1d1d1d", "#2b2b2d"] as [string, string, ...string[]])
+        : (["#fdfcf9", "#e0e7ff"] as [string, string]),
+    [theme.dark]
+  );
 
   const handleSignup = async () => {
     if (!firstName || !email || !password) {
@@ -48,25 +49,33 @@ const SignupScreen = ({ navigation }) => {
 
     setError("");
     try {
-      const userCredential = await auth().createUserWithEmailAndPassword(
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
-        password
-      );
-      const user = userCredential.user;
-
-      await firestore().collection("users").doc(user.uid).set({
-        firstName: firstName,
-        email: email,
-        createdAt: new Date(),
+        password,
+        options: {
+          data: { firstName },
+        },
       });
+
+      if (signUpError) throw signUpError;
+
+      const userId = data?.user?.id;
+      if (userId) {
+        const { error: insertError } = await supabase.from("users").insert([
+          {
+            id: userId,
+            email,
+            first_name: firstName,
+          },
+        ]);
+        if (insertError) throw insertError;
+      }
 
       navigation.replace("Main");
     } catch (err) {
-      if (err.code === "auth/email-already-in-use") {
-        setError("Email already in use.");
-      } else if (err.code === "auth/invalid-email") {
-        setError("Invalid email address.");
-      } else if (err.code === "auth/weak-password") {
+      if (err.message.includes("email")) {
+        setError("Email already in use or invalid.");
+      } else if (err.message.includes("password")) {
         setError("Password must be at least 6 characters.");
       } else {
         setError("Signup failed. Try again.");

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { Text, StyleSheet } from "react-native";
 import {
   Modal,
   Portal,
@@ -9,9 +9,9 @@ import {
   useTheme,
 } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
-import firestore from "@react-native-firebase/firestore";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../utils/types";
+import { supabase } from "../lib/supabase";
 
 const JoinSessionModal = ({ visible, onDismiss }) => {
   const navigation =
@@ -22,19 +22,22 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
   const theme = useTheme();
 
   const handleJoin = async () => {
-    if (!sessionCode) return;
+    if (!sessionCode.trim()) return;
+
     setLoadingSession(true);
     try {
-      const docRef = firestore().collection("squares").doc(sessionCode.trim());
-      const docSnap = await docRef.get();
+      const { data, error: fetchError } = await supabase
+        .from("squares")
+        .select("title, deadline, players")
+        .eq("id", sessionCode.trim())
+        .single();
 
-      if (!docSnap.exists) {
+      if (fetchError || !data) {
         setError("Session not found.");
         setLoadingSession(false);
         return;
       }
 
-      const data = docSnap.data();
       const usedColors = data.players?.map((p) => p.color) || [];
 
       onDismiss();
@@ -46,7 +49,7 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
         usedColors,
       });
     } catch (err) {
-      console.error(err);
+      console.error("Join session error:", err);
       setError("Something went wrong.");
     } finally {
       setLoadingSession(false);

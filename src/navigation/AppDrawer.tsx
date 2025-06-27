@@ -16,8 +16,7 @@ import * as Linking from "expo-linking";
 import MaterialCommunityIcons from "react-native-vector-icons/MaterialCommunityIcons";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import ThemeToggle from "../components/ThemeToggle";
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
+import { supabase } from "../lib/supabase";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 
@@ -43,23 +42,42 @@ const AppDrawerContent = ({
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const theme = useTheme();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setLogoutConfirmVisible(false);
-    onLogout();
+    try {
+      await supabase.auth.signOut();
+      onLogout();
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
   };
 
   const handleDeleteAccount = async () => {
     try {
       setDeleteConfirmVisible(false);
-      const user = auth().currentUser;
-      if (user) {
-        await firestore().collection("users").doc(user.uid).delete();
-        await user.delete();
-        onLogout();
-      }
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError || !user) throw new Error("User not found");
+
+      // Delete from users table
+      const { error: deleteError } = await supabase
+        .from("users")
+        .delete()
+        .eq("id", user.id);
+
+      if (deleteError) throw deleteError;
+
+      // Sign out user (since we cannot delete auth user from client)
+      await supabase.auth.signOut();
+      onLogout();
     } catch (error) {
       console.error("Error deleting account:", error);
-      Alert.alert("Error", "Failed to delete account. Try again later.");
+      Alert.alert(
+        "Error",
+        "Failed to delete account. Please try again later or contact support."
+      );
     }
   };
 

@@ -26,6 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
 import NotificationsModal from "../components/NotificationsModal";
+import { supabase } from "../lib/supabase";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -106,7 +107,9 @@ const CreateSquareScreen = ({ navigation }) => {
 
   const createSquareSession = async () => {
     Keyboard.dismiss();
-    const user = auth().currentUser;
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) return;
 
     try {
@@ -117,38 +120,47 @@ const CreateSquareScreen = ({ navigation }) => {
         ? generateShuffledArray()
         : [...Array(10).keys()];
 
-      const squareRef = await firestore()
-        .collection("squares")
-        .add({
-          title: inputTitle,
-          username,
-          team1,
-          team2,
-          deadline,
-          createdBy: user.uid,
-          players: [
-            {
-              userId: user.uid,
-              username,
-              color: selectedColor || "#000000",
-              notifySettings,
-            },
-          ],
-          playerIds: [user.uid],
-          selections: [],
-          xAxis,
-          yAxis,
-          maxSelections: parseInt(maxSelections, 10),
-          eventId: eventId || "",
-          hideAxisUntilDeadline,
-        });
+      const { data, error } = await supabase
+        .from("squares")
+        .insert([
+          {
+            title: inputTitle,
+            username,
+            team1,
+            team2,
+            deadline,
+            created_by: user.id,
+            players: [
+              {
+                userId: user.id,
+                username,
+                color: selectedColor || "#000000",
+                notifySettings,
+              },
+            ],
+            player_ids: [user.id],
+            selections: [],
+            x_axis: xAxis,
+            y_axis: yAxis,
+            max_selection: parseInt(maxSelections, 10),
+            event_id: eventId || "",
+            axis_hidden: hideAxisUntilDeadline,
+          },
+        ])
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("Error inserting into Supabase:", error);
+        return;
+      }
 
       if (notifySettings.deadlineReminders) {
         await scheduleDeadlineNotifications(deadline);
       }
 
       navigation.navigate("SquareScreen", {
-        gridId: squareRef.id,
+        gridId: data.id,
         inputTitle,
         username,
         deadline,

@@ -11,8 +11,8 @@ import {
   useColorScheme,
 } from "react-native";
 import { TextInput as PaperInput, useTheme } from "react-native-paper";
-import { sendPasswordResetEmail } from "firebase/auth";
-import auth from "@react-native-firebase/auth";
+import { supabase } from "../lib/supabase";
+
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 import { FontAwesome } from "@expo/vector-icons";
@@ -38,19 +38,30 @@ const ForgotPasswordScreen = ({ navigation }) => {
     }
 
     try {
-      await auth().sendPasswordResetEmail(email);
-      setMessage({
-        text: "Password reset email sent. Check your inbox.",
-        type: "success",
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: "https://your-app-url.com/reset", // SWITCH TO DEEPLINKING
       });
-    } catch (error) {
-      let errorMsg = "Something went wrong.";
-      if (error.code === "auth/invalid-email") {
-        errorMsg = "Invalid email address.";
-      } else if (error.code === "auth/user-not-found") {
-        errorMsg = "No user found with this email.";
+
+      if (error) {
+        const isInvalid = error.message.toLowerCase().includes("invalid");
+        const isNotFound = error.message
+          .toLowerCase()
+          .includes("user not found");
+
+        let errorMsg = "Something went wrong.";
+        if (isInvalid) errorMsg = "Invalid email address.";
+        else if (isNotFound) errorMsg = "No user found with this email.";
+
+        setMessage({ text: errorMsg, type: "error" });
+      } else {
+        setMessage({
+          text: "Password reset email sent. Check your inbox.",
+          type: "success",
+        });
       }
-      setMessage({ text: errorMsg, type: "error" });
+    } catch (e) {
+      setMessage({ text: "Unexpected error occurred.", type: "error" });
+      console.error("Reset error:", e);
     }
   };
 
