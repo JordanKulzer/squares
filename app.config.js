@@ -7,7 +7,7 @@ export default {
     icon: "./assets/icons/squares-logo-white.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
-    jsEngine: "jsc",
+    jsEngine: "hermes",
     scheme: "squaresgame",
     deepLinks: ["squaresgame://"],
     splash: {
@@ -45,7 +45,7 @@ export default {
           ios: {
             deploymentTarget: "16.4",
             useModularHeaders: true,
-            podfile: "./podfile.template", // 👈 this tells Expo to copy your file into /ios
+            jsEngine: "hermes",
           },
         },
       ],
