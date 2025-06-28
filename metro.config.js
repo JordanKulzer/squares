@@ -1,23 +1,18 @@
-// Learn more https://docs.expo.io/guides/customizing-metro
 const { getDefaultConfig } = require("expo/metro-config");
+const path = require("path");
 
-/** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
-config.resolver.resolveRequest = (context, moduleImport, platform) => {
-  // Always import the ESM version of all `@firebase/*` packages
-  if (moduleImport.startsWith("@firebase/")) {
-    return context.resolveRequest(
-      {
-        ...context,
-        isESMImport: true, // Mark the import method as ESM
-      },
-      moduleImport,
-      platform
-    );
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === "css-select") {
+    console.log("⚠️ Metro intercepted 'css-select' → using emptyShim.js");
+    return {
+      type: "sourceFile",
+      filePath: path.resolve(__dirname, "shims/emptyShim.js"),
+    };
   }
 
-  return context.resolveRequest(context, moduleImport, platform);
+  return context.resolveRequest(context, moduleName, platform);
 };
 
 module.exports = config;
