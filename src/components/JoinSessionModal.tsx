@@ -106,7 +106,7 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
         <Button
           onPress={onDismiss}
           style={{ marginTop: 10 }}
-          textColor={theme.colors.primary}
+          textColor={theme.colors.error}
         >
           Cancel
         </Button>

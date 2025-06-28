@@ -88,6 +88,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
   const surfaceColor = theme.colors.surface;
   const onSurfaceColor = theme.colors.onSurface;
   const outlineColor = theme.colors.outlineVariant;
+  const dividerColor = theme.dark ? "#333" : "#eee";
 
   return (
     <Portal>
@@ -112,6 +113,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
             transform: [{ translateY: slideAnim }],
             backgroundColor: surfaceColor,
             shadowColor: theme.colors.backdrop,
+            borderLeftColor: theme.colors.primary,
             borderTopColor: theme.dark ? "#333" : "#ddd",
           },
         ]}
@@ -121,7 +123,13 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
           <Text style={[styles.title, { color: onSurfaceColor }]}>
             Notification Settings
           </Text>
-
+          <View
+            style={{
+              height: 1,
+              backgroundColor: dividerColor,
+              marginBottom: 20,
+            }}
+          />
           <Text
             style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}
           >
@@ -207,17 +215,29 @@ const styles = StyleSheet.create({
   },
   sheet: {
     position: "absolute",
-    bottom: 0,
-    width: "100%",
+    bottom: -35,
+    left: 0,
+    right: 0,
     maxHeight: 480,
-    borderTopWidth: 1,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 32,
+    paddingBottom: 75,
     elevation: 10,
+    // Explicitly define sides
+    borderTopWidth: 1.5,
+    borderLeftWidth: 5,
+    borderRightWidth: 1.5,
+    borderBottomWidth: 0,
+    borderTopColor: "rgba(94, 96, 206, 0.4)",
+    borderRightColor: "rgba(94, 96, 206, 0.4)",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: -4 },
+    shadowRadius: 6,
   },
+
   title: {
     fontSize: 20,
     fontWeight: "700",

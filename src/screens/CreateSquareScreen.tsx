@@ -27,6 +27,7 @@ import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
 import NotificationsModal from "../components/NotificationsModal";
 import { supabase } from "../lib/supabase";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -60,6 +61,7 @@ const CreateSquareScreen = ({ navigation }) => {
     quarterResults: false,
     playerJoined: false,
   });
+  const insets = useSafeAreaInsets();
 
   const route =
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
@@ -144,6 +146,7 @@ const CreateSquareScreen = ({ navigation }) => {
             max_selection: parseInt(maxSelections, 10),
             event_id: eventId || "",
             axis_hidden: hideAxisUntilDeadline,
+            randomize_axis: randomizeAxis,
           },
         ])
         .select("id")
@@ -224,7 +227,9 @@ const CreateSquareScreen = ({ navigation }) => {
           </Text>
           <View style={styles.gameCardRow}>
             <Text style={{ color: theme.colors.onSurface }}>
-              {team1 && team2 ? `${team1} vs ${team2}` : "Pick a NFL game"}
+              {team1 && team2
+                ? `${team1} vs ${team2}`
+                : "Click here to pick a NFL game"}
             </Text>
             <Icon
               name="chevron-forward"
@@ -502,13 +507,30 @@ const CreateSquareScreen = ({ navigation }) => {
               >
                 {step === 0 ? renderStepOne() : renderStepTwo()}
               </ScrollView>
-              {renderStepIndicator()}
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: insets.bottom + 40,
+                  left: 0,
+                  right: 0,
+                  alignItems: "center",
+                  zIndex: 3,
+                }}
+              >
+                {renderStepIndicator()}
+              </View>
               <View
                 style={[
                   styles.buttonContainer,
                   {
                     backgroundColor: theme.colors.surface,
                     shadowColor: theme.dark ? "#000" : "#aaa",
+                    position: "absolute",
+                    bottom: -40,
+                    left: 0,
+                    right: 0,
+                    paddingBottom: insets.bottom + 12,
+                    zIndex: 2,
                   },
                 ]}
               >

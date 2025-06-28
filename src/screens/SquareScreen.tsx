@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -13,8 +14,16 @@ import {
   Dimensions,
   TouchableOpacity,
   FlatList,
+  Animated,
 } from "react-native";
-import { Button, Card, Dialog, Portal, useTheme } from "react-native-paper";
+import {
+  Button,
+  Card,
+  Dialog,
+  Modal,
+  Portal,
+  useTheme,
+} from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { StackActions, useNavigation } from "@react-navigation/native";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
@@ -70,6 +79,42 @@ const SquareScreen = ({ route }) => {
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(false);
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
+  const leaveAnim = useRef(new Animated.Value(0)).current;
+  const deleteAnim = useRef(new Animated.Value(0)).current;
+
+  const openAnimatedDialog = (setter, animRef) => {
+    setSessionOptionsVisible(false); // Close the session modal
+    setTimeout(() => {
+      setter(true);
+      Animated.timing(animRef, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }, 250);
+  };
+
+  const closeAnimatedDialog = (setter, animRef) => {
+    Animated.timing(animRef, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => {
+      setter(false);
+    });
+  };
+
+  const getAnimatedDialogStyle = (animRef) => ({
+    opacity: animRef,
+    transform: [
+      {
+        scale: animRef.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.95, 1],
+        }),
+      },
+    ],
+  });
 
   const currentUsername = useMemo(() => {
     return userId && playerUsernames[userId]
@@ -301,11 +346,11 @@ const SquareScreen = ({ route }) => {
   }, [eventId, deadlineValue]);
 
   const handleLeaveSquare = () => {
-    setShowLeaveConfirm(true);
+    openAnimatedDialog(setShowLeaveConfirm, leaveAnim);
   };
 
   const handleDeleteSquare = () => {
-    setShowDeleteConfirm(true);
+    openAnimatedDialog(setShowDeleteConfirm, deleteAnim);
   };
 
   const handleDeadlineChange = async (event, selectedDate) => {
@@ -509,6 +554,8 @@ const SquareScreen = ({ route }) => {
     return () => clearInterval(interval);
   }, [userId, gridId]);
 
+  const dividerColor = theme.dark ? "#333" : "#eee";
+
   const renderSquareGrid = ({
     editable,
     onSquarePress,
@@ -605,7 +652,7 @@ const SquareScreen = ({ route }) => {
           <Card.Content>
             <Card
               style={[
-                styles.winnerCard,
+                styles.teamTitleCard,
                 {
                   backgroundColor: theme.colors.elevation.level1,
                   borderColor: "rgba(94, 96, 206, 0.4)",
@@ -949,136 +996,213 @@ const SquareScreen = ({ route }) => {
         setShowDeadlineModal={setShowDeadlineModal}
       />
       <Portal>
-        <Dialog
+        <Modal
           visible={showLeaveConfirm}
-          onDismiss={() => setShowLeaveConfirm(false)}
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderRadius: 12,
-          }}
+          onDismiss={() => closeAnimatedDialog(setShowLeaveConfirm, leaveAnim)}
         >
-          <Dialog.Title style={{ color: theme.colors.onSurface }}>
-            Leave Square
-          </Dialog.Title>
-          <Dialog.Content>
-            <Text style={{ color: theme.colors.onSurface }}>
+          <Animated.View
+            style={[
+              {
+                backgroundColor: theme.colors.surface,
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: "rgba(94, 96, 206, 0.4)",
+                borderLeftWidth: 5,
+                borderBottomWidth: 0,
+                borderLeftColor: theme.colors.primary,
+                marginHorizontal: 16,
+                paddingVertical: 20,
+                paddingHorizontal: 16,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 6,
+              },
+              getAnimatedDialogStyle(leaveAnim),
+            ]}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "bold",
+                color: theme.colors.onSurface,
+                marginBottom: 12,
+              }}
+            >
+              Leave Square
+            </Text>
+            <View
+              style={{
+                height: 1,
+                backgroundColor: dividerColor,
+                marginBottom: 20,
+              }}
+            />
+            <Text style={{ color: theme.colors.onSurface, marginBottom: 20 }}>
               Are you sure you want to leave this square?
             </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setShowLeaveConfirm(false)}>Cancel</Button>
-            <Button
-              onPress={async () => {
-                setShowLeaveConfirm(false);
-                setSessionOptionsVisible(false);
-                try {
-                  const { data, error } = await supabase
-                    .from("squares")
-                    .select("playerIds, players, selections")
-                    .eq("id", gridId)
-                    .single();
-
-                  if (error || !data) return;
-
-                  const updatedPlayerIds = (data.playerIds || []).filter(
-                    (id) => id !== userId
-                  );
-                  const updatedPlayers = (data.players || []).filter(
-                    (p) => p.userId !== userId
-                  );
-                  const updatedSelections = (data.selections || []).filter(
-                    (sel) => sel.userId !== userId
-                  );
-
-                  // Update the square
-                  await supabase
-                    .from("squares")
-                    .update({
-                      playerIds: updatedPlayerIds,
-                      players: updatedPlayers,
-                      selections: updatedSelections,
-                    })
-                    .eq("id", gridId);
-
-                  // Optionally delete if no players left
-                  if (updatedPlayers.length === 0) {
-                    await supabase.from("squares").delete().eq("id", gridId);
-                  }
-
-                  Toast.show({
-                    type: "error",
-                    text1: `You’ve left ${inputTitle}`,
-                    position: "bottom",
-                    visibilityTime: 2500,
-                    bottomOffset: 60,
-                    text1Style: {
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: "#333",
-                      textAlign: "center",
-                    },
-                  });
-                  navigation.navigate("Main");
-                } catch (err) {
-                  console.error("Failed to leave square:", err);
+            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+              <Button
+                onPress={() =>
+                  closeAnimatedDialog(setShowLeaveConfirm, leaveAnim)
                 }
-              }}
-              textColor={theme.colors.error}
-            >
-              Leave
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
+                textColor={theme.colors.error}
+              >
+                Cancel
+              </Button>
+              <Button
+                onPress={async () => {
+                  closeAnimatedDialog(setShowLeaveConfirm, leaveAnim);
+                  try {
+                    const { data, error } = await supabase
+                      .from("squares")
+                      .select("playerIds, players, selections")
+                      .eq("id", gridId)
+                      .single();
 
-        <Dialog
+                    if (error || !data) return;
+
+                    const updatedPlayerIds = (data.playerIds || []).filter(
+                      (id) => id !== userId
+                    );
+                    const updatedPlayers = (data.players || []).filter(
+                      (p) => p.userId !== userId
+                    );
+                    const updatedSelections = (data.selections || []).filter(
+                      (sel) => sel.userId !== userId
+                    );
+
+                    await supabase
+                      .from("squares")
+                      .update({
+                        playerIds: updatedPlayerIds,
+                        players: updatedPlayers,
+                        selections: updatedSelections,
+                      })
+                      .eq("id", gridId);
+
+                    if (updatedPlayers.length === 0) {
+                      await supabase.from("squares").delete().eq("id", gridId);
+                    }
+
+                    Toast.show({
+                      type: "error",
+                      text1: `You’ve left ${inputTitle}`,
+                      position: "bottom",
+                      visibilityTime: 2500,
+                      bottomOffset: 60,
+                      text1Style: {
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#333",
+                        textAlign: "center",
+                      },
+                    });
+
+                    navigation.navigate("Main");
+                  } catch (err) {
+                    console.error("Failed to leave square:", err);
+                  }
+                }}
+                textColor={theme.colors.primary}
+              >
+                Leave
+              </Button>
+            </View>
+          </Animated.View>
+        </Modal>
+      </Portal>
+
+      <Portal>
+        <Modal
           visible={showDeleteConfirm}
-          onDismiss={() => setShowDeleteConfirm(false)}
-          style={{
-            backgroundColor: theme.colors.surface,
-            borderRadius: 12,
-          }}
+          onDismiss={() =>
+            closeAnimatedDialog(setShowDeleteConfirm, deleteAnim)
+          }
         >
-          <Dialog.Title style={{ color: theme.colors.onSurface }}>
-            Delete Square
-          </Dialog.Title>
-          <Dialog.Content>
-            <Text style={{ color: theme.colors.onSurface }}>
+          <Animated.View
+            style={[
+              {
+                backgroundColor: theme.colors.surface,
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: "rgba(94, 96, 206, 0.4)",
+                borderLeftWidth: 5,
+                borderBottomWidth: 0,
+                borderLeftColor: theme.colors.primary,
+                marginHorizontal: 16,
+                paddingVertical: 20,
+                paddingHorizontal: 16,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.2,
+                shadowRadius: 8,
+                elevation: 6,
+              },
+              getAnimatedDialogStyle(deleteAnim),
+            ]}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontWeight: "bold",
+                color: theme.colors.onSurface,
+                marginBottom: 12,
+              }}
+            >
+              Delete Square
+            </Text>
+            <View
+              style={{
+                height: 1,
+                backgroundColor: dividerColor,
+                marginBottom: 20,
+              }}
+            />
+            <Text style={{ color: theme.colors.onSurface, marginBottom: 20 }}>
               Are you sure you want to permanently delete this square?
             </Text>
-          </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setShowDeleteConfirm(false)}>Cancel</Button>
-            <Button
-              onPress={async () => {
-                setShowDeleteConfirm(false);
-                setSessionOptionsVisible(false);
-                try {
-                  await supabase.from("squares").delete().eq("id", gridId);
-
-                  Toast.show({
-                    type: "error",
-                    text1: `You’ve deleted ${inputTitle}!`,
-                    position: "bottom",
-                    visibilityTime: 2500,
-                    bottomOffset: 60,
-                    text1Style: {
-                      fontSize: 16,
-                      fontWeight: "600",
-                      color: "#333",
-                      textAlign: "center",
-                    },
-                  });
-                  navigation.navigate("Main");
-                } catch (err) {
-                  console.error("Failed to delete square:", err);
+            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+              <Button
+                onPress={() =>
+                  closeAnimatedDialog(setShowDeleteConfirm, deleteAnim)
                 }
-              }}
-              textColor={theme.colors.error}
-            >
-              Delete
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
+                textColor={theme.colors.error}
+              >
+                Cancel
+              </Button>
+              <Button
+                onPress={async () => {
+                  closeAnimatedDialog(setShowDeleteConfirm, deleteAnim);
+                  try {
+                    await supabase.from("squares").delete().eq("id", gridId);
+
+                    Toast.show({
+                      type: "error",
+                      text1: `You’ve deleted ${inputTitle}!`,
+                      position: "bottom",
+                      visibilityTime: 2500,
+                      bottomOffset: 60,
+                      text1Style: {
+                        fontSize: 16,
+                        fontWeight: "600",
+                        color: "#333",
+                        textAlign: "center",
+                      },
+                    });
+                    navigation.navigate("Main");
+                  } catch (err) {
+                    console.error("Failed to delete square:", err);
+                  }
+                }}
+                textColor={theme.colors.primary}
+              >
+                Delete
+              </Button>
+            </View>
+          </Animated.View>
+        </Modal>
       </Portal>
     </LinearGradient>
   );
@@ -1175,14 +1299,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     borderRadius: 16,
     borderWidth: 1,
-    borderLeftColor: colors.primary,
-    borderColor: "rgba(94, 96, 206, 0.4)",
+    // borderLeftColor: colors.primary,
+    // borderColor: "rgba(94, 96, 206, 0.4)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
-    borderLeftWidth: 5,
+    // borderLeftWidth: 5,
   },
   titleText: {
     fontSize: 22,
@@ -1214,6 +1338,16 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderLeftWidth: 5,
     borderLeftColor: colors.primary,
+  },
+  teamTitleCard: {
+    backgroundColor: colors.highlightBackground,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.neutralBorder,
+    marginBottom: 16,
+    elevation: 2,
+    // borderLeftWidth: 5,
+    // borderLeftColor: colors.primary,
   },
   quarterLabel: {
     fontSize: 16,

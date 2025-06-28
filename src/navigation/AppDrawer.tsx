@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   createDrawerNavigator,
   DrawerContentScrollView,
@@ -19,6 +19,7 @@ import ThemeToggle from "../components/ThemeToggle";
 import { supabase } from "../lib/supabase";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
+import { Animated } from "react-native";
 
 const Drawer = createDrawerNavigator();
 
@@ -41,6 +42,24 @@ const AppDrawerContent = ({
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const theme = useTheme();
+  const logoutAnim = useRef(new Animated.Value(600)).current;
+  const deleteAnim = useRef(new Animated.Value(600)).current;
+
+  useEffect(() => {
+    Animated.timing(logoutAnim, {
+      toValue: logoutConfirmVisible ? 0 : 600,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [logoutConfirmVisible]);
+
+  useEffect(() => {
+    Animated.timing(deleteAnim, {
+      toValue: deleteConfirmVisible ? 0 : 600,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [deleteConfirmVisible]);
 
   const handleLogout = async () => {
     setLogoutConfirmVisible(false);
@@ -92,6 +111,25 @@ const AppDrawerContent = ({
       <Text style={[styles.settingLabel, { color: labelColor }]}>{label}</Text>
     </TouchableOpacity>
   );
+
+  const dividerColor = theme.dark ? "#333" : "#eee";
+
+  const dialogCardStyle = {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: theme.dark ? "#444" : "#ccc",
+    borderLeftWidth: 5,
+    borderLeftColor: theme.colors.primary,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    marginHorizontal: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
@@ -192,69 +230,85 @@ const AppDrawerContent = ({
         <Modal
           visible={logoutConfirmVisible}
           onDismiss={() => setLogoutConfirmVisible(false)}
-          contentContainerStyle={[
-            styles.modalContainer,
-            { backgroundColor: theme.colors.surface },
-          ]}
+          contentContainerStyle={{ backgroundColor: "transparent" }}
         >
-          <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
-            Confirm Logout
-          </Text>
-          <Text
-            style={[
-              styles.modalSubtitle,
-              { color: theme.colors.onSurfaceVariant },
-            ]}
-          >
-            Are you sure you want to log out?
-          </Text>
-          <View style={styles.modalButtonRow}>
-            <Button onPress={() => setLogoutConfirmVisible(false)}>
-              Cancel
-            </Button>
-            <Button
-              onPress={handleLogout}
-              mode="contained"
-              buttonColor={theme.colors.error}
-              textColor="#fff"
+          <Animated.View style={[dialogCardStyle]}>
+            <Text
+              style={[styles.modalTitle, { color: theme.colors.onSurface }]}
             >
-              Log Out
-            </Button>
-          </View>
+              Confirm Logout
+            </Text>
+            <View
+              style={{
+                height: 1,
+                backgroundColor: dividerColor,
+                marginBottom: 20,
+              }}
+            />
+            <Text
+              style={[
+                styles.modalSubtitle,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Are you sure you want to log out?
+            </Text>
+            <View style={styles.modalButtonRow}>
+              <Button onPress={() => setLogoutConfirmVisible(false)}>
+                Cancel
+              </Button>
+              <Button
+                onPress={handleLogout}
+                mode="text"
+                textColor={theme.colors.error}
+                labelStyle={{ fontSize: 16 }}
+              >
+                Log Out
+              </Button>
+            </View>
+          </Animated.View>
         </Modal>
 
         <Modal
           visible={deleteConfirmVisible}
           onDismiss={() => setDeleteConfirmVisible(false)}
-          contentContainerStyle={[
-            styles.modalContainer,
-            { backgroundColor: theme.colors.surface },
-          ]}
+          contentContainerStyle={{ backgroundColor: "transparent" }}
         >
-          <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
-            Delete Account
-          </Text>
-          <Text
-            style={[
-              styles.modalSubtitle,
-              { color: theme.colors.onSurfaceVariant },
-            ]}
-          >
-            This will permanently delete your account and data. Continue?
-          </Text>
-          <View style={styles.modalButtonRow}>
-            <Button onPress={() => setDeleteConfirmVisible(false)}>
-              Cancel
-            </Button>
-            <Button
-              onPress={handleDeleteAccount}
-              mode="contained"
-              buttonColor={theme.colors.error}
-              textColor="#fff"
+          <Animated.View style={[dialogCardStyle]}>
+            <Text
+              style={[styles.modalTitle, { color: theme.colors.onSurface }]}
             >
-              Delete
-            </Button>
-          </View>
+              Delete Account
+            </Text>
+            <View
+              style={{
+                height: 1,
+                backgroundColor: dividerColor,
+                marginBottom: 20,
+              }}
+            />
+            <Text
+              style={[
+                styles.modalSubtitle,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              This will permanently delete your account and data. Continue?
+            </Text>
+            <View style={styles.modalButtonRow}>
+              <Button onPress={() => setDeleteConfirmVisible(false)}>
+                Cancel
+              </Button>
+              <Button
+                onPress={handleDeleteAccount}
+                mode="text"
+                textColor={theme.colors.error}
+                labelStyle={{ fontSize: 16 }}
+              >
+                Delete
+              </Button>
+            </View>
+          </Animated.View>
         </Modal>
       </Portal>
     </View>

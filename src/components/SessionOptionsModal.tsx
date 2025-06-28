@@ -7,10 +7,12 @@ import {
   ScrollView,
   Animated,
   Share,
+  useColorScheme,
 } from "react-native";
-import { Modal, Portal, Button, useTheme } from "react-native-paper";
+import { Portal, Button, useTheme, Modal } from "react-native-paper";
 import * as Clipboard from "expo-clipboard";
 import Toast from "react-native-toast-message";
+import { getToastConfig } from "../components/ToastConfig";
 import QRCode from "react-native-qrcode-svg";
 import { supabase } from "../lib/supabase";
 import NotificationSettingsModal from "./NotificationsModal";
@@ -27,17 +29,31 @@ const SessionOptionsModal = ({
   setShowDeadlineModal,
 }) => {
   const theme = useTheme();
-  const slideAnim = useRef(new Animated.Value(600)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [notifySettings, setNotifySettings] = useState(null);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
 
+  const translateY = useRef(new Animated.Value(600)).current;
+  const isDarkMode = useColorScheme() === "dark";
+
+  <Toast config={getToastConfig(isDarkMode)} />;
+
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: visible ? 0 : 600,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    if (visible) {
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(translateY, {
+        toValue: 600,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
   }, [visible]);
 
   useEffect(() => {
@@ -74,18 +90,28 @@ const SessionOptionsModal = ({
   const onSurfaceColor = theme.colors.onSurface;
   const dividerColor = theme.dark ? "#333" : "#eee";
 
+  const handleTransition = (action) => {
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onDismiss();
+      setTimeout(action, 250);
+    });
+  };
+
   return (
     <>
       <Portal>
-        <Modal
-          visible={visible}
-          onDismiss={onDismiss}
-          dismissable={false}
-          contentContainerStyle={{
-            height: "100%",
-            backgroundColor: "transparent",
-          }}
-        >
+        {visible && (
           <TouchableWithoutFeedback onPress={onDismiss}>
             <View
               style={{
@@ -98,252 +124,164 @@ const SessionOptionsModal = ({
               }}
             />
           </TouchableWithoutFeedback>
+        )}
 
-          <Animated.View
-            style={{
-              transform: [{ translateY: slideAnim }],
-              backgroundColor: surfaceColor,
-              elevation: 12,
-              shadowColor: theme.colors.backdrop,
-              borderTopWidth: 1,
-              borderTopColor: dividerColor,
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              width: "100%",
-              position: "absolute",
-              bottom: 0,
-              maxHeight: 500,
-              paddingHorizontal: 20,
-              paddingTop: 24,
-              paddingBottom: 32,
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 6,
-            }}
-          >
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <View
+        <Animated.View
+          pointerEvents={visible ? "auto" : "none"}
+          style={{
+            transform: [{ translateY }],
+            backgroundColor: surfaceColor,
+            position: "absolute",
+            bottom: -35,
+            left: 0,
+            right: 0,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingHorizontal: 20,
+            paddingTop: 24,
+            paddingBottom: 75,
+            maxHeight: 500,
+            borderWidth: 1.5,
+            borderLeftWidth: 5,
+            borderBottomWidth: 0,
+            borderColor: "rgba(94, 96, 206, 0.4)",
+            borderLeftColor: theme.colors.primary,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.2,
+            shadowRadius: 8,
+            elevation: 10,
+          }}
+        >
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 24,
+              }}
+            >
+              <Text
                 style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 24,
+                  fontSize: 20,
+                  fontWeight: "700",
+                  color: onSurfaceColor,
                 }}
               >
+                Session Options
+              </Text>
+              <TouchableOpacity onPress={onDismiss}>
                 <Text
                   style={{
-                    fontSize: 20,
-                    fontWeight: "700",
-                    color: onSurfaceColor,
-                  }}
-                >
-                  Session Options
-                </Text>
-                <TouchableOpacity onPress={onDismiss}>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      fontWeight: "600",
-                      color: theme.colors.primary,
-                    }}
-                  >
-                    Cancel
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <View
-                style={{
-                  height: 1,
-                  backgroundColor: dividerColor,
-                  marginBottom: 20,
-                }}
-              />
-
-              <Button
-                icon="share-variant"
-                mode="outlined"
-                onPress={() => setShowInviteModal(true)}
-                style={{ marginBottom: 12 }}
-                labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
-              >
-                Invite Friends
-              </Button>
-              <Button
-                icon="bell-outline"
-                mode="outlined"
-                onPress={() => setNotifModalVisible(true)}
-                style={{ marginBottom: 12 }}
-                labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
-              >
-                Edit Notifications
-              </Button>
-
-              {isOwner && (
-                <Button
-                  icon="calendar"
-                  mode="outlined"
-                  onPress={() => {
-                    onDismiss();
-                    setTempDeadline(deadlineValue);
-                    setShowDeadlineModal(true);
-                  }}
-                  style={{
-                    marginBottom: 12,
-                    borderColor: theme.colors.primary,
-                    borderRadius: 20,
-                    paddingHorizontal: 12,
-                  }}
-                  labelStyle={{
+                    fontSize: 14,
                     fontWeight: "600",
-                    color: theme.colors.primary,
-                    textTransform: "none",
+                    color: theme.colors.error,
                   }}
                 >
-                  Change Deadline
-                </Button>
-              )}
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
 
+            <View
+              style={{
+                height: 1,
+                backgroundColor: dividerColor,
+                marginBottom: 20,
+              }}
+            />
+
+            <Button
+              icon="share-variant"
+              mode="outlined"
+              onPress={() => {
+                onDismiss(); // closes SessionOptionsModal
+                setTimeout(() => {
+                  setShowInviteModal(true); // delay so it doesn’t stack
+                }, 300);
+              }}
+              style={{ marginBottom: 12 }}
+              labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
+            >
+              Invite Friends
+            </Button>
+            <Button
+              icon="bell-outline"
+              mode="outlined"
+              onPress={() => setNotifModalVisible(true)}
+              style={{ marginBottom: 12 }}
+              labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
+            >
+              Edit Notifications
+            </Button>
+
+            {isOwner && (
               <Button
-                icon="exit-to-app"
+                icon="calendar"
                 mode="outlined"
-                onPress={handleLeaveSquare}
+                onPress={() => {
+                  onDismiss();
+                  setTempDeadline(deadlineValue);
+                  setShowDeadlineModal(true);
+                }}
                 style={{
                   marginBottom: 12,
-                  borderColor: theme.colors.error,
+                  borderColor: theme.colors.primary,
+                  borderRadius: 20,
+                  paddingHorizontal: 12,
+                }}
+                labelStyle={{
+                  fontWeight: "600",
+                  color: theme.colors.primary,
+                  textTransform: "none",
+                }}
+              >
+                Change Deadline
+              </Button>
+            )}
+
+            <Button
+              icon="exit-to-app"
+              mode="outlined"
+              onPress={handleLeaveSquare}
+              style={{
+                marginBottom: 12,
+                borderColor: theme.colors.error,
+                borderRadius: 20,
+              }}
+              labelStyle={{
+                fontWeight: "600",
+                color: theme.colors.error,
+                textTransform: "none",
+              }}
+            >
+              Leave Square
+            </Button>
+
+            {isOwner && (
+              <Button
+                icon="delete"
+                mode="contained"
+                onPress={handleDeleteSquare}
+                style={{
+                  backgroundColor: theme.colors.error,
+                  marginBottom: 12,
                   borderRadius: 20,
                 }}
                 labelStyle={{
                   fontWeight: "600",
-                  color: theme.colors.error,
+                  color: theme.colors.onPrimary,
                   textTransform: "none",
                 }}
               >
-                Leave Square
+                Delete Square
               </Button>
-
-              {isOwner && (
-                <Button
-                  icon="delete"
-                  mode="contained"
-                  onPress={handleDeleteSquare}
-                  style={{
-                    backgroundColor: theme.colors.error,
-                    marginBottom: 12,
-                    borderRadius: 20,
-                  }}
-                  labelStyle={{
-                    fontWeight: "600",
-                    color: theme.colors.onPrimary,
-                    textTransform: "none",
-                  }}
-                >
-                  Delete Square
-                </Button>
-              )}
-            </ScrollView>
-          </Animated.View>
-        </Modal>
+            )}
+          </ScrollView>
+        </Animated.View>
       </Portal>
 
-      <Portal>
-        <Modal
-          visible={showInviteModal}
-          onDismiss={() => setShowInviteModal(false)}
-          contentContainerStyle={{
-            backgroundColor: surfaceColor,
-            padding: 24,
-            margin: 20,
-            borderRadius: 12,
-            elevation: 6,
-            shadowColor: theme.colors.backdrop,
-            borderColor: theme.dark ? "#444" : "#ccc",
-            borderWidth: 1,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: onSurfaceColor,
-              marginBottom: 16,
-            }}
-          >
-            Invite Friends
-          </Text>
-
-          <View
-            style={{
-              height: 1,
-              backgroundColor: dividerColor,
-              marginBottom: 20,
-            }}
-          />
-
-          <View style={{ alignItems: "center", marginBottom: 16 }}>
-            <QRCode value={`squaresgame://session/${gridId}`} size={180} />
-          </View>
-
-          <TouchableOpacity
-            onPress={async () => {
-              await Clipboard.setStringAsync(gridId);
-              setShowInviteModal(false);
-              onDismiss();
-              Toast.show({
-                type: "success",
-                text1: "Session ID copied!",
-              });
-            }}
-            style={{
-              marginTop: 20,
-              padding: 12,
-              borderRadius: 8,
-              backgroundColor: theme.colors.primary,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "bold" }}>
-              Copy Session ID
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={async () => {
-              await Share.share({
-                message: `Join my Squares game! Tap here:\n\nhttps://squares-41599.web.app/session/${gridId}\n\nOr enter this session ID in the app: ${gridId}`,
-              });
-
-              setShowInviteModal(false);
-              onDismiss();
-            }}
-            style={{
-              marginTop: 12,
-              padding: 12,
-              borderRadius: 8,
-              backgroundColor: theme.dark ? "#555" : "#ddd",
-              alignItems: "center",
-            }}
-          >
-            <Text
-              style={{
-                fontWeight: "600",
-                color: onSurfaceColor,
-              }}
-            >
-              Share Game Link
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setShowInviteModal(false)}
-            style={{ marginTop: 16, alignItems: "center" }}
-          >
-            <Text style={{ color: theme.colors.error, fontWeight: "600" }}>
-              Close
-            </Text>
-          </TouchableOpacity>
-        </Modal>
-      </Portal>
       <NotificationSettingsModal
         visible={notifModalVisible}
         onDismiss={() => setNotifModalVisible(false)}
@@ -380,6 +318,99 @@ const SessionOptionsModal = ({
           }
         }}
       />
+      <Portal>
+        <Modal
+          visible={showInviteModal}
+          onDismiss={() => setShowInviteModal(false)}
+          contentContainerStyle={{
+            backgroundColor: theme.colors.surface,
+            marginHorizontal: 24,
+            padding: 20,
+            borderRadius: 16,
+            borderWidth: 1.5,
+            borderColor: "rgba(94, 96, 206, 0.4)",
+            borderLeftWidth: 5,
+            borderLeftColor: theme.colors.primary,
+            elevation: 5,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "bold",
+              marginBottom: 12,
+              color: theme.colors.onSurface,
+            }}
+          >
+            Invite Friends
+          </Text>
+          <View
+            style={{
+              height: 1,
+              backgroundColor: dividerColor,
+              marginBottom: 20,
+            }}
+          />
+          <View style={{ alignItems: "center", marginBottom: 12 }}>
+            <QRCode value={gridId} size={150} />
+          </View>
+          <Text style={{ marginBottom: 8, color: theme.colors.onSurface }}>
+            Copy and share this session ID:
+          </Text>
+          <TouchableOpacity
+            onPress={async () => {
+              await Clipboard.setStringAsync(gridId);
+              Toast.show({
+                type: "info",
+                text1: "Copied to clipboard!",
+                position: "bottom",
+                visibilityTime: 1500,
+                bottomOffset: 60,
+              });
+            }}
+            style={{
+              padding: 10,
+              backgroundColor: theme.dark ? "#333" : "#f4f4f4",
+              borderRadius: 8,
+              marginBottom: 16,
+            }}
+          >
+            <Text
+              style={{
+                textAlign: "center",
+                fontWeight: "600",
+                color: theme.colors.primary,
+              }}
+            >
+              {gridId}
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={{ marginBottom: 8, color: theme.colors.onSurface }}>
+            Or share via:
+          </Text>
+          <Button
+            icon="share-variant"
+            mode="contained"
+            onPress={async () => {
+              try {
+                await Share.share({
+                  message: `Join my Squares game using this code: ${gridId}`,
+                });
+              } catch (error) {
+                console.warn("Error sharing:", error);
+              }
+            }}
+            style={{ marginBottom: 16 }}
+          >
+            Share
+          </Button>
+
+          <Button mode="text" onPress={() => setShowInviteModal(false)}>
+            Close
+          </Button>
+        </Modal>
+      </Portal>
     </>
   );
 };

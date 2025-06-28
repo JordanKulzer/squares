@@ -314,7 +314,7 @@ const GamePickerScreen = () => {
           <Dialog.Actions>
             <Button
               onPress={() => setShowWeekModal(false)}
-              textColor={theme.colors.primary}
+              textColor={theme.colors.error}
             >
               Cancel
             </Button>
