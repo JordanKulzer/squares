@@ -11,8 +11,6 @@ import {
   TouchableWithoutFeedback,
   Keyboard,
 } from "react-native";
-import firestore from "@react-native-firebase/firestore";
-import auth from "@react-native-firebase/auth";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import { RouteProp, useRoute } from "@react-navigation/native";

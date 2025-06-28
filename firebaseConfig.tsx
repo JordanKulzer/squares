@@ -1,5 +1,5 @@
-// firebaseConfig.js
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+// // firebaseConfig.js
+// import auth from '@react-native-firebase/auth';
+// import firestore from '@react-native-firebase/firestore';
 
-export { auth, firestore };
+// export { auth, firestore };
