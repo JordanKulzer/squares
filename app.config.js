@@ -45,7 +45,6 @@ export default {
           ios: {
             deploymentTarget: "16.4",
             useModularHeaders: true,
-            jsEngine: "hermes",
           },
         },
       ],
