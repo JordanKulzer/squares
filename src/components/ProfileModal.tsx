@@ -230,7 +230,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                       color: theme.colors.error,
                     }}
                   >
-                    Cancel
+                    Close
                   </Text>
                 </TouchableOpacity>
               </View>

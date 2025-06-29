@@ -221,13 +221,11 @@ const CreateSquareScreen = ({ navigation }) => {
           ]}
         >
           <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
-            NFL Game
+            {team1 && team2 ? `${team1} vs ${team2}` : "Game Selection"}
           </Text>
           <View style={styles.gameCardRow}>
             <Text style={{ color: theme.colors.onSurface }}>
-              {team1 && team2
-                ? `${team1} vs ${team2}`
-                : "Click here to pick a NFL game"}
+              Click here to choose your game
             </Text>
             <Icon
               name="chevron-forward"
@@ -260,24 +258,23 @@ const CreateSquareScreen = ({ navigation }) => {
         <TouchableOpacity
           onPress={() => setShowPicker(true)}
           style={[
-            styles.deadlinePickerButton,
+            styles.gameCard,
             { backgroundColor: theme.colors.elevation.level1 },
           ]}
         >
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              fontSize: 16,
-              fontWeight: "500",
-            }}
-          >
+          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
             {deadline.toLocaleString()}
           </Text>
-          <Icon
-            name="chevron-forward"
-            size={20}
-            color={theme.colors.onSurface}
-          />
+          <View style={styles.gameCardRow}>
+            <Text style={{ color: theme.colors.onSurface }}>
+              Click here to change the deadline
+            </Text>
+            <Icon
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.onSurface}
+            />
+          </View>
         </TouchableOpacity>
 
         <DeadlinePickerModal

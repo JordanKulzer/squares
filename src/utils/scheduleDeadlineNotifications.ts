@@ -55,7 +55,10 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
   };
 
   const offset30Min = 30 * 60 * 1000;
+  const offset5Min = 5 * 60 * 1000;
+
   const thirtyMinBefore = new Date(deadlineTime - offset30Min);
+  const fiveMinBefore = new Date(deadlineTime - offset5Min);
 
   const permissions = await Notifications.getPermissionsAsync();
   if (!permissions.granted) {
@@ -66,6 +69,12 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
     thirtyMinBefore,
     "⏰ 30 minutes left!",
     "Only 30 minutes left to pick your Squares!"
+  );
+
+  await scheduleIfInFuture(
+    fiveMinBefore,
+    "⏰ 5 minutes left!",
+    "Time is running out to pick your Squares!"
   );
 
   await scheduleIfInFuture(

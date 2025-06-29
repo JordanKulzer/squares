@@ -32,9 +32,9 @@ const HowToPlay = () => {
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          Squares is a fun game based on real NFL games. Players select squares
-          on a 10x10 grid. Each axis represents the last digit of a team's
-          score. If your square matches the actual score at the end of a
+          Squares is a fun game based on live sports games. Players select
+          squares on a 10x10 grid. Each axis represents the last digit of a
+          team's score. If your square matches the actual score at the end of a
           quarter, you win!
         </Text>
 
@@ -46,10 +46,11 @@ const HowToPlay = () => {
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          1. Create or join a game session.{"\n"}2. Pick a username and color.
+          1. Create or join a game session based on a sports event.{"\n"}2. Pick
+          a username and color.
           {"\n"}3. Select available squares before the game starts.{"\n"}4. Once
           the deadline passes, the grid numbers are revealed.{"\n"}5. Winners
-          are determined each quarter based on live scores!
+          are determined after each quarter based on live scores!
         </Text>
 
         <Text
@@ -95,7 +96,7 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 22,
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: 10,
     textAlign: "center",
   },
   sectionTitle: {
@@ -109,7 +110,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   backButton: {
-    marginTop: 30,
+    marginTop: 40,
     alignSelf: "center",
     paddingVertical: 12,
     paddingHorizontal: 24,

@@ -138,7 +138,11 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
 
           {[
             { key: "quarterResults", label: "Quarter Results" },
-            { key: "deadlineReminders", label: "Deadline Reminders" },
+            {
+              key: "deadlineReminders",
+              label:
+                "Deadline Reminders (30 min, 5 min, and when deadline ends)",
+            },
             {
               key: "playerJoined",
               label: "Someone Joins My Session (Managers only)",

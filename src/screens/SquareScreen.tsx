@@ -252,16 +252,18 @@ const SquareScreen = ({ route }) => {
         }
       }
 
-      setXAxis(data.xAxis?.length === 10 ? data.xAxis : [...Array(10).keys()]);
-      setYAxis(data.yAxis?.length === 10 ? data.yAxis : [...Array(10).keys()]);
+      setXAxis(
+        data.x_axis?.length === 10 ? data.x_axis : [...Array(10).keys()]
+      );
+      setYAxis(
+        data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()]
+      );
 
       if (data.created_by === userId) setIsOwner(true);
       if (data.deadline) setDeadlineValue(new Date(data.deadline));
-      if (typeof data.max_selection === "number")
-        console.log(data.max_selection);
       setMaxSelections(data.max_selection);
-      if (typeof data.hideAxisUntilDeadline === "boolean")
-        setHideAxisUntilDeadline(data.hideAxisUntilDeadline);
+      if (typeof data.axis_hidden === "boolean")
+        setHideAxisUntilDeadline(data.axis_hidden);
     };
 
     fetchSquareData();
@@ -441,9 +443,10 @@ const SquareScreen = ({ route }) => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: inputTitle,
+      gestureEnabled: false, // ⛔ disables swipe back gesture
       headerLeft: () => (
         <TouchableOpacity
-          onPress={() => navigation.dispatch(StackActions.popToTop())}
+          onPress={() => navigation.navigate("Main")}
           style={{ paddingLeft: 12 }}
         >
           <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />

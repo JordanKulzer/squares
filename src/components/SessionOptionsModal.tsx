@@ -179,7 +179,7 @@ const SessionOptionsModal = ({
                     color: theme.colors.error,
                   }}
                 >
-                  Cancel
+                  Close
                 </Text>
               </TouchableOpacity>
             </View>
@@ -406,7 +406,11 @@ const SessionOptionsModal = ({
             Share
           </Button>
 
-          <Button mode="text" onPress={() => setShowInviteModal(false)}>
+          <Button
+            mode="text"
+            textColor={theme.colors.error}
+            onPress={() => setShowInviteModal(false)}
+          >
             Close
           </Button>
         </Modal>

@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
-    paddingTop: 20,
+    paddingTop: 10,
   },
   settingItem: {
     flexDirection: "row",

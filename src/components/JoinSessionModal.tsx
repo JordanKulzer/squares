@@ -1,5 +1,11 @@
-import React, { useState } from "react";
-import { Text, StyleSheet } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  Text,
+  StyleSheet,
+  View,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import {
   Modal,
   Portal,
@@ -21,6 +27,14 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
   const [error, setError] = useState("");
   const theme = useTheme();
 
+  useEffect(() => {
+    if (!visible) {
+      setSessionCode("");
+      setError("");
+      setLoadingSession(false);
+    }
+  }, [visible]);
+
   const handleJoin = async () => {
     if (!sessionCode.trim()) return;
 
@@ -34,14 +48,12 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
 
       if (fetchError || !data) {
         setError("Session not found.");
-        setLoadingSession(false);
         return;
       }
 
       const usedColors = data.players?.map((p) => p.color) || [];
 
       onDismiss();
-      setSessionCode("");
       navigation.navigate("JoinSquareScreen", {
         gridId: sessionCode.trim(),
         inputTitle: data.title,
@@ -56,60 +68,70 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
     }
   };
 
+  const dividerColor = theme.dark ? "#333" : "#eee";
+
   return (
     <Portal>
       <Modal
         visible={visible}
         onDismiss={onDismiss}
         contentContainerStyle={[
-          styles.container,
+          styles.modal,
           { backgroundColor: theme.colors.surface },
         ]}
       >
-        <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-          Enter Session ID
-        </Text>
-
-        <TextInput
-          label="Session ID"
-          mode="outlined"
-          value={sessionCode}
-          onChangeText={(text) => {
-            setSessionCode(text);
-            setError("");
-          }}
-          style={{
-            marginBottom: 16,
-            backgroundColor: theme.colors.surface,
-          }}
-          theme={{ colors: { text: theme.colors.onSurface } }}
-        />
-
-        {error ? (
-          <Text style={[styles.error, { color: theme.colors.error }]}>
-            {error}
-          </Text>
-        ) : null}
-
-        {loadingSession ? (
-          <ActivityIndicator animating color={theme.colors.primary} />
-        ) : (
-          <Button
-            mode="contained"
-            onPress={handleJoin}
-            style={{ marginTop: 10 }}
-          >
-            Join
-          </Button>
-        )}
-
-        <Button
-          onPress={onDismiss}
-          style={{ marginTop: 10 }}
-          textColor={theme.colors.error}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          Cancel
-        </Button>
+          <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+            Join a Session
+          </Text>
+          <View
+            style={{
+              height: 1,
+              backgroundColor: dividerColor,
+              marginBottom: 20,
+            }}
+          />
+
+          <TextInput
+            label="Enter Session ID"
+            mode="outlined"
+            value={sessionCode}
+            onChangeText={(text) => {
+              setSessionCode(text);
+              setError("");
+            }}
+            style={[styles.input, { backgroundColor: theme.colors.surface }]}
+            theme={{ colors: { text: theme.colors.onSurface } }}
+          />
+
+          {error ? (
+            <Text style={[styles.error, { color: theme.colors.error }]}>
+              {error}
+            </Text>
+          ) : null}
+
+          {loadingSession ? (
+            <ActivityIndicator
+              animating
+              color={theme.colors.primary}
+              style={styles.spinner}
+            />
+          ) : (
+            <Button mode="contained" onPress={handleJoin} style={styles.button}>
+              Join
+            </Button>
+          )}
+
+          <Button
+            onPress={onDismiss}
+            textColor={theme.colors.error}
+            style={styles.closeButton}
+          >
+            Cancel
+          </Button>
+        </KeyboardAvoidingView>
       </Modal>
     </Portal>
   );
@@ -118,19 +140,34 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
 export default JoinSessionModal;
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
+  modal: {
     margin: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderLeftWidth: 5,
+    borderColor: "rgba(94, 96, 206, 0.4)", // matches SessionOptionsModal
+    elevation: 8,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 10,
-    textAlign: "center",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  input: {
+    marginBottom: 16,
   },
   error: {
-    marginBottom: 10,
     textAlign: "center",
+    marginBottom: 10,
+  },
+  spinner: {
+    marginVertical: 10,
+  },
+  button: {
+    marginTop: 8,
+  },
+  closeButton: {
+    marginTop: 4,
   },
 });

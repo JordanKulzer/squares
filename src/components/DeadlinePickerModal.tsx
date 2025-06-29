@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Platform, Pressable } from "react-native";
 import { Modal, Portal, Text, Button, useTheme } from "react-native-paper";
 import Constants from "expo-constants";
@@ -25,6 +25,12 @@ const DeadlinePickerModal = ({
   const [tempDate, setTempDate] = useState(date);
   const [mode, setMode] = useState<"date" | "time">("date");
   const [showPicker, setShowPicker] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setTempDate(date);
+    }
+  }, [visible, date]);
 
   const handleConfirm = (selected: Date) => {
     setShowPicker(false);
@@ -112,8 +118,6 @@ const DeadlinePickerModal = ({
           </Button>
         </View>
       </Modal>
-
-      {/* ✅ Conditional pickers below */}
 
       {isExpoGo ? (
         <>
