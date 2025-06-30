@@ -307,7 +307,7 @@ const HomeScreen = () => {
                             color: theme.colors.onSurface,
                           }}
                         >
-                          {item.playerIds?.length || 0} players •{" "}
+                          {item.player_ids?.length || 0} players •{" "}
                           {item.deadline && new Date(item.deadline) > new Date()
                             ? `Ends ${new Date(
                                 item.deadline

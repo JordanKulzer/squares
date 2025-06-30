@@ -22,6 +22,8 @@ import {
 } from "react-native-paper";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/MaterialIcons";
+import Icons from "react-native-vector-icons/Ionicons";
+
 import colors from "../../assets/constants/colorOptions";
 import { API_BASE_URL } from "../utils/apiConfig";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -286,6 +288,25 @@ const GamePickerScreen = () => {
     );
   };
 
+  const dividerColor = theme.dark ? "#333" : "#eee";
+
+  const dialogCardStyle = {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(94, 96, 206, 0.4)",
+    borderLeftWidth: 5,
+    borderLeftColor: theme.colors.primary,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    marginHorizontal: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  };
+
   return (
     <Provider>
       <SafeAreaView
@@ -442,7 +463,7 @@ const GamePickerScreen = () => {
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={[
-                      styles.card,
+                     dialogCardStyle ,
                       { backgroundColor: theme.colors.surface },
                     ]}
                     onPress={() => handleSelectGame(item)}
@@ -519,10 +540,7 @@ const GamePickerScreen = () => {
         <Dialog
           visible={showWeekModal}
           onDismiss={() => setShowWeekModal(false)}
-          style={[
-            styles.dialogContainer,
-            { backgroundColor: theme.colors.surface },
-          ]}
+          style={[dialogCardStyle, { backgroundColor: theme.colors.surface }]}
         >
           <Dialog.Title
             style={[styles.dialogTitle, { color: theme.colors.onSurface }]}
@@ -532,20 +550,37 @@ const GamePickerScreen = () => {
           <Dialog.ScrollArea>
             <ScrollView style={styles.scrollArea}>
               {Array.from({ length: 20 }, (_, i) => (
-                <TouchableOpacity
-                  key={i}
-                  style={styles.weekItem}
-                  onPress={() => {
-                    setWeekOffset(i);
-                    setShowWeekModal(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.weekText, { color: theme.colors.onSurface }]}
+                <>
+                  <TouchableOpacity
+                    key={i}
+                    style={styles.weekItem}
+                    onPress={() => {
+                      setWeekOffset(i);
+                      setShowWeekModal(false);
+                    }}
                   >
-                    {formatWeekLabel(getStartOfWeek(gameType, i))}
-                  </Text>
-                </TouchableOpacity>
+                    <Text
+                      style={[
+                        styles.weekText,
+                        { color: theme.colors.onSurface },
+                      ]}
+                    >
+                      {formatWeekLabel(getStartOfWeek(gameType, i))}
+                    </Text>
+                    <Icons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.colors.onSurface}
+                      style={{ paddingRight: 15 }}
+                    />
+                  </TouchableOpacity>
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: dividerColor,
+                    }}
+                  />
+                </>
               ))}
             </ScrollView>
           </Dialog.ScrollArea>
@@ -641,21 +676,21 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   dialogTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 12,
   },
   scrollArea: {
     maxHeight: 320,
-    paddingHorizontal: 16,
   },
   weekItem: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderColor: "#eee",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   weekText: {
-    fontSize: 16,
+    marginVertical: 20,
+    // paddingVertical: 12,
   },
 });
 

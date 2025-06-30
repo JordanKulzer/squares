@@ -78,23 +78,20 @@ const CreateSquareScreen = ({ navigation }) => {
   }, [route.params]);
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerLeft: () => (
-        <TouchableOpacity
-          onPress={() => {
-            if (step === 0) {
-              navigation.goBack();
-            } else {
-              setStep(0);
-            }
-          }}
-          style={{ paddingLeft: 12 }}
-        >
-          <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, step]);
+  navigation.setOptions({
+    headerLeft: () => (
+      <TouchableOpacity
+        onPress={() => {
+          navigation.navigate("Main");
+        }}
+        style={{ paddingLeft: 12 }}
+      >
+        <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
+      </TouchableOpacity>
+    ),
+  });
+}, [navigation, theme.colors.onBackground]);
+
 
   const generateShuffledArray = () => {
     const arr = [...Array(10).keys()];
