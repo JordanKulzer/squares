@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   ScrollView,
   Platform,
+  Animated,
 } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
 import {
@@ -29,11 +30,13 @@ import DateSelectorModal from "../components/DateSelectorModal";
 const gameTypeBehaviors = {
   NFL: { usesWeeks: true, startDate: new Date("2025-07-28T12:00:00") },
   NCAAF: { usesWeeks: true, startDate: new Date("2025-08-24T12:00:00") },
-  NBA: { usesWeeks: false },
-  MLB: { usesWeeks: false },
-  NHL: { usesWeeks: false },
+  // NBA: { usesWeeks: false },
+  // MLB: { usesWeeks: false },
+  // NHL: { usesWeeks: false },
 };
-const gameTypes = ["NFL", "NCAAF", "NBA", "MLB", "NHL"];
+const gameTypes = ["NFL", "NCAAF"] as const; // "NBA", "MLB", "NHL"];
+type GameType = (typeof gameTypes)[number]; // "NFL" | "NCAAF"
+const AnimatedChipBase = Animated.createAnimatedComponent(Chip);
 
 type RootStackParamList = {
   CreateSquareScreen: {
@@ -91,14 +94,12 @@ const GamePickerScreen = () => {
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [weekStart, setWeekStart] = useState(getStartOfWeek("NFL"));
-  const [gameType, setGameType] = useState("NFL");
+  const [gameType, setGameType] = useState<GameType>("NFL");
   const [deadline, setDeadline] = useState(new Date());
   const [showWeekModal, setShowWeekModal] = useState(false);
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
-  const [selectedSport, setSelectedSport] = useState<
-    "nfl" | "ncaaf" | "nba" | "mlb" | "nhl"
-  >("nfl");
+  const selectedSport = gameType.toLowerCase(); // derived, no state
 
   const {
     inputTitle = "",
@@ -116,9 +117,9 @@ const GamePickerScreen = () => {
     const formattedDate = date.toISOString().split("T")[0];
     try {
       const path =
-        selectedSport === "nfl"
+        gameType === "NFL"
           ? "/schedule"
-          : selectedSport === "ncaaf"
+          : gameType === "NCAAF"
           ? "/ncaaf/schedule"
           : null;
 
@@ -181,8 +182,84 @@ const GamePickerScreen = () => {
     }
   };
 
+  type AnimatedChipProps = {
+    type: string;
+    selectedKey: string;
+    onPress: () => void;
+  };
+
+  const AnimatedChip: React.FC<AnimatedChipProps> = ({
+    type,
+    selectedKey,
+    onPress,
+  }) => {
+    const theme = useTheme();
+    const localScale = useRef(new Animated.Value(1)).current;
+    const isSelected = selectedKey === type;
+
+    const handlePress = () => {
+      localScale.setValue(0.9);
+
+      Animated.spring(localScale, {
+        toValue: 1.02,
+        friction: 2,
+        tension: 160,
+        useNativeDriver: true,
+      }).start(() => {
+        Animated.spring(localScale, {
+          toValue: 1,
+          friction: 5,
+          tension: 120,
+          useNativeDriver: true,
+        }).start();
+      });
+
+      setTimeout(() => {
+        if (!isSelected) onPress();
+      }, 50);
+    };
+
+    return (
+      <AnimatedChipBase
+        onPress={handlePress}
+        selected={isSelected}
+        selectedColor={theme.colors.onPrimary}
+        mode="outlined"
+        icon={() =>
+          isSelected ? (
+            <Icon
+              name="check"
+              size={18}
+              color={theme.colors.onPrimary}
+              style={{ marginRight: 4 }}
+            />
+          ) : null
+        }
+        style={{
+          marginRight: 8,
+          height: 36,
+          alignSelf: "center",
+          minWidth: 175,
+          transform: [{ scale: localScale }],
+          backgroundColor: isSelected
+            ? theme.colors.primary
+            : theme.colors.surfaceVariant,
+        }}
+        textStyle={{
+          color: isSelected
+            ? theme.colors.onPrimary
+            : theme.colors.onSurfaceVariant,
+          fontWeight: "600",
+        }}
+      >
+        {type}
+      </AnimatedChipBase>
+    );
+  };
+
   const GameTypeSelector = ({ selected, onSelect }) => {
     const theme = useTheme();
+
     return (
       <ScrollView
         horizontal
@@ -190,41 +267,21 @@ const GamePickerScreen = () => {
         contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}
         style={{ maxHeight: 48 }}
       >
-        {gameTypes.map((type) => (
-          <Chip
-            key={type}
-            selected={selected === type}
-            onPress={() => {
-              const sportMap = {
-                NFL: "nfl",
-                NCAAF: "ncaaf",
-                NBA: "nba",
-                MLB: "mlb",
-                NHL: "nhl",
-              };
-              setSelectedSport(sportMap[type]);
-              onSelect(type);
-            }}
-            style={{
-              marginRight: 8,
-              height: 36,
-              alignSelf: "center",
-              backgroundColor:
-                selected === type
-                  ? theme.colors.primary
-                  : theme.colors.surfaceVariant,
-            }}
-            textStyle={{
-              color:
-                selected === type
-                  ? theme.colors.onPrimary
-                  : theme.colors.onSurfaceVariant,
-              fontWeight: "600",
-            }}
-          >
-            {type}
-          </Chip>
-        ))}
+        {gameTypes.map((type) => {
+          const sportMap = {
+            NFL: "nfl",
+            NCAAF: "ncaaf",
+          };
+
+          return (
+            <AnimatedChip
+              key={type}
+              type={type}
+              selectedKey={selected}
+              onPress={() => onSelect(type)} // ✅ now you're calling the right function
+            />
+          );
+        })}
       </ScrollView>
     );
   };
@@ -354,82 +411,99 @@ const GamePickerScreen = () => {
           )}
         </View>
 
-        {gameType === "NBA" || gameType === "MLB" || gameType === "NHL" ? (
-          <Text
-            style={[
-              styles.noGamesText,
-              { color: theme.colors.onSurfaceVariant },
-            ]}
-          >
-            Support for {gameType} is coming soon.
-          </Text>
-        ) : loading ? (
-          <ActivityIndicator size="large" style={{ marginTop: 30 }} />
-        ) : games.length === 0 ? (
-          <Text
-            style={[
-              styles.noGamesText,
-              { color: theme.colors.onSurfaceVariant },
-            ]}
-          >
-            No {gameType} games scheduled.
-          </Text>
-        ) : (
-          <FlatList
-            data={games}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={{ paddingBottom: 20 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: theme.colors.surface }]}
-                onPress={() => handleSelectGame(item)}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    marginBottom: 6,
-                  }}
-                >
-                  <Text
-                    style={[styles.gameText, { color: theme.colors.onSurface }]}
-                  >
-                    {item.awayTeam}
-                  </Text>
-                  <Text
+        {
+          // gameType === "NBA" || gameType === "MLB" || gameType === "NHL" ? (
+          //   <Text
+          //     style={[
+          //       styles.noGamesText,
+          //       { color: theme.colors.onSurfaceVariant },
+          //     ]}
+          //   >
+          //     Support for {gameType} is coming soon.
+          //   </Text>
+          // ) :
+          loading ? (
+            <ActivityIndicator size="large" style={{ marginTop: 30 }} />
+          ) : games.length === 0 ? (
+            <Text
+              style={[
+                styles.noGamesText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              No {gameType} games scheduled.
+            </Text>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <FlatList
+                data={games}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
                     style={[
-                      styles.gameText,
-                      { color: theme.colors.onSurface, marginHorizontal: 6 },
+                      styles.card,
+                      { backgroundColor: theme.colors.surface },
                     ]}
+                    onPress={() => handleSelectGame(item)}
                   >
-                    @
-                  </Text>
-                  <Text
-                    style={[styles.gameText, { color: theme.colors.onSurface }]}
-                  >
-                    {item.homeTeam}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.dateText,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  Kickoff: {new Date(item.date).toLocaleString()}
-                </Text>
-                <Text
-                  style={[
-                    styles.statusText,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  Status: {item.status}
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        )}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 6,
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.gameText,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
+                        {item.awayTeam}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.gameText,
+                          {
+                            color: theme.colors.onSurface,
+                            marginHorizontal: 6,
+                          },
+                        ]}
+                      >
+                        @
+                      </Text>
+                      <Text
+                        style={[
+                          styles.gameText,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
+                        {item.homeTeam}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.dateText,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      Kickoff: {new Date(item.date).toLocaleString()}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      Status: {item.status}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )
+        }
       </SafeAreaView>
 
       {showCalendar && (

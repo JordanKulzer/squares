@@ -205,7 +205,7 @@ const CreateSquareScreen = ({ navigation }) => {
 
         <TouchableOpacity
           onPress={() =>
-            navigation.replace("GamePickerScreen", {
+            navigation.navigate("GamePickerScreen", {
               team1,
               team2,
               deadline: deadline.toISOString(),
@@ -253,7 +253,7 @@ const CreateSquareScreen = ({ navigation }) => {
             marginBottom: 10,
           }}
         >
-          Deadline For Your Square
+          Final Deadline
         </Text>
         <TouchableOpacity
           onPress={() => setShowPicker(true)}
@@ -295,7 +295,7 @@ const CreateSquareScreen = ({ navigation }) => {
         </Text>
         <View style={styles.toggleRow}>
           <Text style={{ color: theme.colors.onSurface }}>
-            Randomize Axis Numbers
+            Toggle On To Randomize Axis Numbers
           </Text>
           <Chip
             mode="outlined"
@@ -322,7 +322,7 @@ const CreateSquareScreen = ({ navigation }) => {
 
         <View style={styles.toggleRow}>
           <Text style={{ color: theme.colors.onSurface }}>
-            Mask X & Y Axis Until Deadline
+            Toggle On To Mask X & Y Axis Until Deadline
           </Text>
           <Chip
             mode="outlined"
@@ -415,14 +415,10 @@ const CreateSquareScreen = ({ navigation }) => {
         </ScrollView>
         <TouchableOpacity
           onPress={() => setNotifModalVisible(true)}
-          style={{
-            marginTop: 20,
-            padding: 12,
-            backgroundColor: theme.colors.elevation.level1,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: theme.colors.outlineVariant,
-          }}
+          style={[
+            styles.gameCard,
+            { backgroundColor: theme.colors.elevation.level1 },
+          ]}
         >
           <View
             style={{
@@ -595,8 +591,8 @@ const styles = StyleSheet.create({
     padding: 16,
     borderLeftWidth: 5,
     borderLeftColor: colors.primary,
-    borderWidth: 1.5, // Increased border all around
-    borderColor: "rgba(94, 96, 206, 0.4)", // Semi-transparent highlight color
+    borderWidth: 1.5,
+    borderColor: "rgba(94, 96, 206, 0.4)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
@@ -608,6 +604,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginVertical: 8,
+    maxWidth: 250,
   },
   buttonContainer: {
     flexDirection: "row",
