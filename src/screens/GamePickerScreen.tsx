@@ -11,7 +11,12 @@ import {
   Platform,
   Animated,
 } from "react-native";
-import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
+import {
+  useRoute,
+  useNavigation,
+  RouteProp,
+  StackActions,
+} from "@react-navigation/native";
 import {
   Dialog,
   Portal,
@@ -28,6 +33,8 @@ import colors from "../../assets/constants/colorOptions";
 import { API_BASE_URL } from "../utils/apiConfig";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import DateSelectorModal from "../components/DateSelectorModal";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
 
 const gameTypeBehaviors = {
   NFL: { usesWeeks: true, startDate: new Date("2025-07-28T12:00:00") },
@@ -152,7 +159,14 @@ const GamePickerScreen = () => {
 
       setLoading(true);
       const weekGames = await fetchGamesForDate(dateToUse);
-      setGames(weekGames);
+
+      const extractedGames = Array.isArray(weekGames)
+        ? weekGames
+        : Array.isArray(weekGames?.games)
+        ? weekGames.games
+        : [];
+
+      setGames(extractedGames);
       setLoading(false);
     };
 
@@ -160,6 +174,7 @@ const GamePickerScreen = () => {
   }, [weekOffset, gameType, calendarDate, selectedSport]);
 
   const handleSelectGame = (game) => {
+    navigation.dispatch(StackActions.pop(1));
     navigation.navigate("CreateSquareScreen", {
       team1: game.awayTeam,
       team2: game.homeTeam,
@@ -280,7 +295,7 @@ const GamePickerScreen = () => {
               key={type}
               type={type}
               selectedKey={selected}
-              onPress={() => onSelect(type)} // ✅ now you're calling the right function
+              onPress={() => onSelect(type)}
             />
           );
         })}
@@ -309,223 +324,252 @@ const GamePickerScreen = () => {
 
   return (
     <Provider>
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      <LinearGradient
+        colors={theme.dark ? ["#1e1e1e", "#121212"] : ["#fdfcf9", "#e0e7ff"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ flex: 1 }}
       >
-        <GameTypeSelector selected={gameType} onSelect={setGameType} />
+        <SafeAreaView style={{ flex: 1 }}>
+          <GameTypeSelector selected={gameType} onSelect={setGameType} />
 
-        <View
-          style={[
-            styles.header,
-            {
-              backgroundColor: theme.colors.elevation.level2,
-              borderColor: isDarkMode ? "#444" : "#ddd",
-            },
-          ]}
-        >
-          {gameTypeBehaviors[gameType]?.usesWeeks ? (
-            <>
-              <Text
-                style={[styles.weekLabel, { color: theme.colors.onBackground }]}
-              >
-                {" "}
-                {formatWeekLabel(weekStart)}
-              </Text>
-              <View style={styles.navButtons}>
-                <TouchableOpacity
-                  onPress={() =>
-                    weekOffset > 0 && setWeekOffset(weekOffset - 1)
-                  }
-                  disabled={weekOffset <= 0}
+          <View
+            style={[
+              styles.header,
+              {
+                // backgroundColor: theme.colors.elevation.level2,
+                // borderColor: isDarkMode ? "#444" : "#ddd",
+              },
+            ]}
+          >
+            {gameTypeBehaviors[gameType]?.usesWeeks ? (
+              <>
+                <Text
                   style={[
-                    styles.navButton,
-                    weekOffset <= 0 && { backgroundColor: theme.colors.error },
+                    styles.weekLabel,
+                    { color: theme.colors.onBackground },
                   ]}
                 >
-                  <Text style={styles.navButtonText}>← Prev</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowWeekModal(true)}
-                  style={[
-                    styles.navButtonAlt,
-                    { backgroundColor: theme.colors.elevation.level1 },
-                  ]}
-                >
-                  <View style={styles.altButtonContent}>
-                    <Icon
-                      name="calendar-today"
-                      size={18}
-                      color={theme.colors.onSurface}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text
-                      style={[
-                        styles.navButtonAltText,
-                        { color: theme.colors.onSurface },
-                      ]}
-                    >
-                      Select Week
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setWeekOffset(weekOffset + 1)}
-                  style={styles.navButton}
-                >
-                  <Text style={styles.navButtonText}>Next →</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              <Text
-                style={[styles.weekLabel, { color: theme.colors.onBackground }]}
-              >
-                {" "}
-                {formatDateLabel(calendarDate)}
-              </Text>
-              <View style={styles.navButtons}>
-                <TouchableOpacity
-                  onPress={() => incrementDate(-1)}
-                  style={[
-                    styles.navButton,
-                    calendarDate.toDateString() ===
-                      new Date().toDateString() && {
-                      backgroundColor: theme.colors.error,
-                    },
-                  ]}
-                >
-                  <Text style={styles.navButtonText}>← Prev</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowCalendar(true)}
-                  style={[
-                    styles.navButtonAlt,
-                    { backgroundColor: theme.colors.elevation.level1 },
-                  ]}
-                >
-                  <View style={styles.altButtonContent}>
-                    <Icon
-                      name="event"
-                      size={18}
-                      color={theme.colors.onSurface}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text
-                      style={[
-                        styles.navButtonAltText,
-                        { color: theme.colors.onSurface },
-                      ]}
-                    >
-                      Select Date
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => incrementDate(1)}
-                  style={[styles.navButton, { paddingHorizontal: 12 }]}
-                >
-                  <Text style={styles.navButtonText}>Next →</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-        </View>
-
-        {
-          // gameType === "NBA" || gameType === "MLB" || gameType === "NHL" ? (
-          //   <Text
-          //     style={[
-          //       styles.noGamesText,
-          //       { color: theme.colors.onSurfaceVariant },
-          //     ]}
-          //   >
-          //     Support for {gameType} is coming soon.
-          //   </Text>
-          // ) :
-          loading ? (
-            <ActivityIndicator size="large" style={{ marginTop: 30 }} />
-          ) : games.length === 0 ? (
-            <Text
-              style={[
-                styles.noGamesText,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              No {gameType} games scheduled.
-            </Text>
-          ) : (
-            <View style={{ flex: 1 }}>
-              <FlatList
-                data={games}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={{ paddingBottom: 20 }}
-                renderItem={({ item }) => (
+                  {" "}
+                  {formatWeekLabel(weekStart)}
+                </Text>
+                <View style={styles.navButtons}>
                   <TouchableOpacity
+                    onPress={() =>
+                      weekOffset > 0 && setWeekOffset(weekOffset - 1)
+                    }
+                    disabled={weekOffset <= 0}
                     style={[
-                     dialogCardStyle ,
-                      { backgroundColor: theme.colors.surface },
+                      styles.navButton,
+                      weekOffset <= 0 && {
+                        backgroundColor: theme.colors.error,
+                      },
                     ]}
-                    onPress={() => handleSelectGame(item)}
                   >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        marginBottom: 6,
-                      }}
-                    >
+                    <Text style={styles.navButtonText}>← Prev</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setShowWeekModal(true)}
+                    style={[
+                      styles.navButtonAlt,
+                      { backgroundColor: theme.colors.elevation.level1 },
+                    ]}
+                  >
+                    <View style={styles.altButtonContent}>
+                      <Icon
+                        name="calendar-today"
+                        size={18}
+                        color={theme.colors.onSurface}
+                        style={{ marginRight: 6 }}
+                      />
                       <Text
                         style={[
-                          styles.gameText,
+                          styles.navButtonAltText,
                           { color: theme.colors.onSurface },
                         ]}
                       >
-                        {item.awayTeam}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.gameText,
-                          {
-                            color: theme.colors.onSurface,
-                            marginHorizontal: 6,
-                          },
-                        ]}
-                      >
-                        @
-                      </Text>
-                      <Text
-                        style={[
-                          styles.gameText,
-                          { color: theme.colors.onSurface },
-                        ]}
-                      >
-                        {item.homeTeam}
+                        Select Week
                       </Text>
                     </View>
-                    <Text
-                      style={[
-                        styles.dateText,
-                        { color: theme.colors.onSurfaceVariant },
-                      ]}
-                    >
-                      Kickoff: {new Date(item.date).toLocaleString()}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: theme.colors.onSurfaceVariant },
-                      ]}
-                    >
-                      Status: {item.status}
-                    </Text>
                   </TouchableOpacity>
-                )}
-              />
-            </View>
-          )
-        }
-      </SafeAreaView>
+                  <TouchableOpacity
+                    onPress={() => setWeekOffset(weekOffset + 1)}
+                    style={styles.navButton}
+                  >
+                    <Text style={styles.navButtonText}>Next →</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text
+                  style={[
+                    styles.weekLabel,
+                    { color: theme.colors.onBackground },
+                  ]}
+                >
+                  {" "}
+                  {formatDateLabel(calendarDate)}
+                </Text>
+                <View style={styles.navButtons}>
+                  <TouchableOpacity
+                    onPress={() => incrementDate(-1)}
+                    style={[
+                      styles.navButton,
+                      calendarDate.toDateString() ===
+                        new Date().toDateString() && {
+                        backgroundColor: theme.colors.error,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.navButtonText}>← Prev</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => setShowCalendar(true)}
+                    style={[
+                      styles.navButtonAlt,
+                      { backgroundColor: theme.colors.elevation.level1 },
+                    ]}
+                  >
+                    <View style={styles.altButtonContent}>
+                      <Icon
+                        name="event"
+                        size={18}
+                        color={theme.colors.onSurface}
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text
+                        style={[
+                          styles.navButtonAltText,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
+                        Select Date
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => incrementDate(1)}
+                    style={[styles.navButton, { paddingHorizontal: 12 }]}
+                  >
+                    <Text style={styles.navButtonText}>Next →</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+
+          {
+            // gameType === "NBA" || gameType === "MLB" || gameType === "NHL" ? (
+            //   <Text
+            //     style={[
+            //       styles.noGamesText,
+            //       { color: theme.colors.onSurfaceVariant },
+            //     ]}
+            //   >
+            //     Support for {gameType} is coming soon.
+            //   </Text>
+            // ) :
+            loading ? (
+              <ActivityIndicator size="large" style={{ marginTop: 30 }} />
+            ) : games.length === 0 ? (
+              <Text
+                style={[
+                  styles.noGamesText,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
+              >
+                No {gameType} games scheduled.
+              </Text>
+            ) : (
+              <View style={{ flex: 1 }}>
+                <FlatList
+                  data={games}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[
+                        dialogCardStyle,
+                        { backgroundColor: theme.colors.surface },
+                      ]}
+                      onPress={() => handleSelectGame(item)}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <View style={{ flex: 1, paddingRight: 8 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              marginBottom: 6,
+                            }}
+                          >
+                            <Text
+                              style={[
+                                styles.gameText,
+                                { color: theme.colors.onSurface },
+                              ]}
+                            >
+                              {item.awayTeam}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.gameText,
+                                {
+                                  color: theme.colors.onSurface,
+                                  marginHorizontal: 6,
+                                },
+                              ]}
+                            >
+                              @
+                            </Text>
+                            <Text
+                              style={[
+                                styles.gameText,
+                                { color: theme.colors.onSurface },
+                              ]}
+                            >
+                              {item.homeTeam}
+                            </Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.dateText,
+                              { color: theme.colors.onSurfaceVariant },
+                            ]}
+                          >
+                            Kickoff: {new Date(item.date).toLocaleString()}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statusText,
+                              { color: theme.colors.onSurfaceVariant },
+                            ]}
+                          >
+                            Status: {item.status}
+                          </Text>
+                        </View>
+
+                        <MaterialIcons
+                          name="chevron-right"
+                          size={24}
+                          color={theme.colors.onSurfaceVariant}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            )
+          }
+        </SafeAreaView>
+      </LinearGradient>
 
       {showCalendar && (
         <DateSelectorModal
@@ -550,9 +594,8 @@ const GamePickerScreen = () => {
           <Dialog.ScrollArea>
             <ScrollView style={styles.scrollArea}>
               {Array.from({ length: 20 }, (_, i) => (
-                <>
+                <React.Fragment key={i}>
                   <TouchableOpacity
-                    key={i}
                     style={styles.weekItem}
                     onPress={() => {
                       setWeekOffset(i);
@@ -580,7 +623,7 @@ const GamePickerScreen = () => {
                       backgroundColor: dividerColor,
                     }}
                   />
-                </>
+                </React.Fragment>
               ))}
             </ScrollView>
           </Dialog.ScrollArea>
@@ -603,7 +646,7 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
+    // borderBottomWidth: 1,
   },
   weekLabel: {
     fontSize: 18,

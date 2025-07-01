@@ -77,7 +77,10 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
         onDismiss={onDismiss}
         contentContainerStyle={[
           styles.modal,
-          { backgroundColor: theme.colors.surface },
+          {
+            borderLeftColor: theme.colors.primary,
+            backgroundColor: theme.colors.surface,
+          },
         ]}
       >
         <KeyboardAvoidingView

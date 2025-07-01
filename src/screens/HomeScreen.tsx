@@ -269,7 +269,7 @@ const HomeScreen = () => {
                     style={[
                       styles.gameCard,
                       {
-                        backgroundColor: theme.colors.elevation.level2,
+                        backgroundColor: theme.colors.surface,
                         borderLeftColor: theme.colors.primary,
                       },
                     ]}

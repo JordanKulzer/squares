@@ -347,7 +347,12 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               }}
             />
             <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-              <Button onPress={() => setShowEditName(false)}>Cancel</Button>
+              <Button
+                textColor={theme.colors.error}
+                onPress={() => setShowEditName(false)}
+              >
+                Close
+              </Button>
               <Button
                 onPress={async () => {
                   if (!newName.trim()) return;
@@ -401,9 +406,13 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               Are you sure you want to log out?
             </Text>
             <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-              <Button onPress={() => setShowLogout(false)}>Cancel</Button>
               <Button
                 textColor={theme.colors.error}
+                onPress={() => setShowLogout(false)}
+              >
+                Close
+              </Button>
+              <Button
                 onPress={async () => {
                   setShowLogout(false);
                   await supabase.auth.signOut();
@@ -456,11 +465,13 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               cannot be undone.
             </Text>
             <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-              <Button onPress={() => setShowConfirmDelete(false)}>
-                Cancel
-              </Button>
               <Button
                 textColor={theme.colors.error}
+                onPress={() => setShowConfirmDelete(false)}
+              >
+                Close
+              </Button>
+              <Button
                 onPress={async () => {
                   setShowConfirmDelete(false);
                   await deleteAccount();

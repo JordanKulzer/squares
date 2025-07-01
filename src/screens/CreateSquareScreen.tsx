@@ -77,21 +77,20 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.eventId) setEventId(params.eventId);
   }, [route.params]);
 
-  useLayoutEffect(() => {
-  navigation.setOptions({
-    headerLeft: () => (
-      <TouchableOpacity
-        onPress={() => {
-          navigation.navigate("Main");
-        }}
-        style={{ paddingLeft: 12 }}
-      >
-        <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
-      </TouchableOpacity>
-    ),
-  });
-}, [navigation, theme.colors.onBackground]);
-
+  // useLayoutEffect(() => {
+  //   navigation.setOptions({
+  //     headerLeft: () => (
+  //       <TouchableOpacity
+  //         onPress={() => {
+  //           navigation.navigate("Main");
+  //         }}
+  //         style={{ paddingLeft: 12 }}
+  //       >
+  //         <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
+  //       </TouchableOpacity>
+  //     ),
+  //   });
+  // }, [navigation, theme.colors.onBackground]);
 
   const generateShuffledArray = () => {
     const arr = [...Array(10).keys()];
