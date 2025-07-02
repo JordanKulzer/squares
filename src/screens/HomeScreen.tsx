@@ -157,7 +157,7 @@ const HomeScreen = () => {
   const isNewUser = !loading && userGames.length === 0;
   const welcomeTitle = isNewUser
     ? `Welcome${firstName ? `, ${firstName}` : ""}!`
-    : `Welcome back${firstName ? `, ${firstName}` : ""}!`;
+    : `Welcome Back${firstName ? `, ${firstName}` : ""}!`;
 
   const welcomeSubtitle = isNewUser
     ? "Let's get started by joining or creating a square."

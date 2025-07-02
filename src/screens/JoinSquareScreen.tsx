@@ -197,7 +197,7 @@ const JoinSquareScreen = () => {
                 <Text
                   style={[styles.title, { color: theme.colors.onBackground }]}
                 >
-                  Joining {inputTitle}
+                  Welcome to {inputTitle}
                 </Text>
 
                 <Card
