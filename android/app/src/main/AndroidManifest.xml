@@ -27,6 +27,7 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="squaresgame"/>
+        <data android:scheme="exp+squares"/>
       </intent-filter>
     </activity>
   </application>
