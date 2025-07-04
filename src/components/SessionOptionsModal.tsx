@@ -29,12 +29,9 @@ const SessionOptionsModal = ({
   setShowDeadlineModal,
 }) => {
   const theme = useTheme();
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [notifySettings, setNotifySettings] = useState(null);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
-
   const translateY = useRef(new Animated.Value(600)).current;
   const isDarkMode = useColorScheme() === "dark";
 
@@ -89,24 +86,6 @@ const SessionOptionsModal = ({
   const surfaceColor = theme.colors.surface;
   const onSurfaceColor = theme.colors.onSurface;
   const dividerColor = theme.dark ? "#333" : "#eee";
-
-  const handleTransition = (action) => {
-    Animated.parallel([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      onDismiss();
-      setTimeout(action, 250);
-    });
-  };
 
   return (
     <>
@@ -167,6 +146,7 @@ const SessionOptionsModal = ({
                   fontSize: 20,
                   fontWeight: "700",
                   color: onSurfaceColor,
+                  fontFamily: "SoraBold",
                 }}
               >
                 Session Options
@@ -175,8 +155,8 @@ const SessionOptionsModal = ({
                 <Text
                   style={{
                     fontSize: 14,
-                    fontWeight: "600",
                     color: theme.colors.error,
+                    fontFamily: "Sora",
                   }}
                 >
                   Close
@@ -196,13 +176,17 @@ const SessionOptionsModal = ({
               icon="share-variant"
               mode="outlined"
               onPress={() => {
-                onDismiss(); // closes SessionOptionsModal
+                onDismiss();
                 setTimeout(() => {
-                  setShowInviteModal(true); // delay so it doesn’t stack
+                  setShowInviteModal(true);
                 }, 300);
               }}
               style={{ marginBottom: 12 }}
-              labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
+              labelStyle={{
+                fontWeight: "600",
+                color: onSurfaceColor,
+                fontFamily: "Sora",
+              }}
             >
               Invite Friends
             </Button>
@@ -211,7 +195,11 @@ const SessionOptionsModal = ({
               mode="outlined"
               onPress={() => setNotifModalVisible(true)}
               style={{ marginBottom: 12 }}
-              labelStyle={{ fontWeight: "600", color: onSurfaceColor }}
+              labelStyle={{
+                fontWeight: "600",
+                color: onSurfaceColor,
+                fontFamily: "Sora",
+              }}
             >
               Edit Notifications
             </Button>
@@ -235,6 +223,7 @@ const SessionOptionsModal = ({
                   fontWeight: "600",
                   color: theme.colors.primary,
                   textTransform: "none",
+                  fontFamily: "Sora",
                 }}
               >
                 Change Deadline
@@ -254,6 +243,7 @@ const SessionOptionsModal = ({
                 fontWeight: "600",
                 color: theme.colors.error,
                 textTransform: "none",
+                fontFamily: "Sora",
               }}
             >
               Leave Square
@@ -273,6 +263,7 @@ const SessionOptionsModal = ({
                   fontWeight: "600",
                   color: theme.colors.onPrimary,
                   textTransform: "none",
+                  fontFamily: "Sora",
                 }}
               >
                 Delete Square
@@ -340,6 +331,7 @@ const SessionOptionsModal = ({
               fontWeight: "bold",
               marginBottom: 12,
               color: theme.colors.onSurface,
+              fontFamily: "SoraBold",
             }}
           >
             Invite Friends
@@ -354,7 +346,13 @@ const SessionOptionsModal = ({
           <View style={{ alignItems: "center", marginBottom: 12 }}>
             <QRCode value={gridId} size={150} />
           </View>
-          <Text style={{ marginBottom: 8, color: theme.colors.onSurface }}>
+          <Text
+            style={{
+              marginBottom: 8,
+              color: theme.colors.onSurface,
+              fontFamily: "Sora",
+            }}
+          >
             Copy and share this session ID:
           </Text>
           <TouchableOpacity
@@ -380,13 +378,20 @@ const SessionOptionsModal = ({
                 textAlign: "center",
                 fontWeight: "600",
                 color: theme.colors.primary,
+                fontFamily: "Sora",
               }}
             >
               {gridId}
             </Text>
           </TouchableOpacity>
 
-          <Text style={{ marginBottom: 8, color: theme.colors.onSurface }}>
+          <Text
+            style={{
+              marginBottom: 8,
+              color: theme.colors.onSurface,
+              fontFamily: "Sora",
+            }}
+          >
             Or share via:
           </Text>
           <Button
@@ -402,6 +407,7 @@ const SessionOptionsModal = ({
               }
             }}
             style={{ marginBottom: 16 }}
+            labelStyle={{ fontFamily: "Sora" }}
           >
             Share
           </Button>
@@ -410,6 +416,7 @@ const SessionOptionsModal = ({
             mode="text"
             textColor={theme.colors.error}
             onPress={() => setShowInviteModal(false)}
+            labelStyle={{ fontFamily: "Sora" }}
           >
             Close
           </Button>

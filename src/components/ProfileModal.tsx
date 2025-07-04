@@ -218,6 +218,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                     fontSize: 20,
                     fontWeight: "700",
                     color: onSurfaceColor,
+                    fontFamily: "SoraBold",
                   }}
                 >
                   Your Profile
@@ -226,8 +227,8 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                   <Text
                     style={{
                       fontSize: 14,
-                      fontWeight: "600",
                       color: theme.colors.error,
+                      fontFamily: "Sora",
                     }}
                   >
                     Close
@@ -243,7 +244,13 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 }}
               />
 
-              <Text style={{ fontSize: 16, color: onSurfaceColor }}>
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: onSurfaceColor,
+                  fontFamily: "Sora",
+                }}
+              >
                 Name: {firstName}
               </Text>
               <TouchableOpacity
@@ -253,15 +260,21 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                   setTimeout(() => setShowEditName(true), 300);
                 }}
               >
-                <Text style={{ color: theme.colors.primary, marginBottom: 20 }}>
+                <Text
+                  style={{
+                    color: theme.colors.primary,
+                    marginBottom: 20,
+                    fontFamily: "Sora",
+                  }}
+                >
                   Edit Name
                 </Text>
               </TouchableOpacity>
 
-              <Text style={{ color: onSurfaceColor }}>
+              <Text style={{ color: onSurfaceColor, fontFamily: "Sora" }}>
                 Games Joined: {userGames.length}
               </Text>
-              <Text style={{ color: onSurfaceColor }}>
+              <Text style={{ color: onSurfaceColor, fontFamily: "Sora" }}>
                 Squares Won: {winCount}
               </Text>
 
@@ -273,6 +286,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                   setTimeout(() => setShowLogout(true), 300); // delay to avoid overlap
                 }}
                 style={{ marginTop: 24 }}
+                labelStyle={{ fontWeight: "600", fontFamily: "Sora" }}
               >
                 Log Out
               </Button>
@@ -292,6 +306,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 }}
                 labelStyle={{
                   fontWeight: "600",
+                  fontFamily: "Sora",
                   color: theme.dark
                     ? theme.colors.onPrimary
                     : theme.colors.error,
@@ -325,6 +340,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 fontSize: 18,
                 marginBottom: 12,
                 color: onSurfaceColor,
+                fontFamily: "Sora",
               }}
             >
               Edit Name
@@ -350,6 +366,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               <Button
                 textColor={theme.colors.error}
                 onPress={() => setShowEditName(false)}
+                labelStyle={{ fontFamily: "Sora" }}
               >
                 Close
               </Button>
@@ -360,6 +377,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                   onNameChange?.();
                   setShowEditName(false);
                 }}
+                labelStyle={{ fontFamily: "Sora" }}
               >
                 Save
               </Button>
@@ -368,7 +386,6 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
         </Modal>
       </Portal>
 
-      {/* Log Out Modal */}
       <Portal>
         <Modal
           visible={showLogout}
@@ -387,10 +404,10 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
           >
             <Text
               style={{
-                fontWeight: "bold",
                 fontSize: 18,
                 marginBottom: 12,
                 color: onSurfaceColor,
+                fontFamily: "SoraBold",
               }}
             >
               Log Out
@@ -402,17 +419,25 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 marginBottom: 20,
               }}
             />
-            <Text style={{ color: onSurfaceColor, marginBottom: 20 }}>
+            <Text
+              style={{
+                color: onSurfaceColor,
+                marginBottom: 20,
+                fontFamily: "Sora",
+              }}
+            >
               Are you sure you want to log out?
             </Text>
             <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
               <Button
                 textColor={theme.colors.error}
+                labelStyle={{ fontFamily: "Sora" }}
                 onPress={() => setShowLogout(false)}
               >
                 Close
               </Button>
               <Button
+                labelStyle={{ fontFamily: "Sora" }}
                 onPress={async () => {
                   setShowLogout(false);
                   await supabase.auth.signOut();
@@ -445,10 +470,10 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
           >
             <Text
               style={{
-                fontWeight: "bold",
                 fontSize: 18,
                 marginBottom: 12,
                 color: onSurfaceColor,
+                fontFamily: "SoraBold",
               }}
             >
               Delete Account
@@ -460,18 +485,26 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 marginBottom: 20,
               }}
             />
-            <Text style={{ color: onSurfaceColor, marginBottom: 20 }}>
+            <Text
+              style={{
+                color: onSurfaceColor,
+                marginBottom: 20,
+                fontFamily: "Sora",
+              }}
+            >
               Are you sure you want to permanently delete your account? This
               cannot be undone.
             </Text>
             <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
               <Button
                 textColor={theme.colors.error}
+                labelStyle={{ fontFamily: "Sora" }}
                 onPress={() => setShowConfirmDelete(false)}
               >
                 Close
               </Button>
               <Button
+                labelStyle={{ fontFamily: "Sora" }}
                 onPress={async () => {
                   setShowConfirmDelete(false);
                   await deleteAccount();

@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -76,21 +76,6 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.selectedColor) setSelectedColor(params.selectedColor);
     if (params.eventId) setEventId(params.eventId);
   }, [route.params]);
-
-  // useLayoutEffect(() => {
-  //   navigation.setOptions({
-  //     headerLeft: () => (
-  //       <TouchableOpacity
-  //         onPress={() => {
-  //           navigation.navigate("Main");
-  //         }}
-  //         style={{ paddingLeft: 12 }}
-  //       >
-  //         <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
-  //       </TouchableOpacity>
-  //     ),
-  //   });
-  // }, [navigation, theme.colors.onBackground]);
 
   const generateShuffledArray = () => {
     const arr = [...Array(10).keys()];
@@ -247,6 +232,7 @@ const CreateSquareScreen = ({ navigation }) => {
             color: theme.colors.onSurface,
             fontWeight: "600",
             marginBottom: 10,
+            fontFamily: "SoraBold",
           }}
         >
           Final Deadline
@@ -285,12 +271,13 @@ const CreateSquareScreen = ({ navigation }) => {
             color: theme.colors.onSurface,
             fontWeight: "600",
             marginTop: 20,
+            fontFamily: "SoraBold",
           }}
         >
           X & Y Axis
         </Text>
         <View style={styles.toggleRow}>
-          <Text style={{ color: theme.colors.onSurface }}>
+          <Text style={{ color: theme.colors.onSurface, fontFamily: "Sora" }}>
             Toggle On To Randomize Axis Numbers
           </Text>
           <Chip
@@ -310,6 +297,7 @@ const CreateSquareScreen = ({ navigation }) => {
             textStyle={{
               color: randomizeAxis ? "#fff" : theme.colors.onSurface,
               fontWeight: "600",
+              fontFamily: "Sora",
             }}
           >
             {randomizeAxis ? "On" : "Off"}
@@ -317,7 +305,7 @@ const CreateSquareScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.toggleRow}>
-          <Text style={{ color: theme.colors.onSurface }}>
+          <Text style={{ color: theme.colors.onSurface, fontFamily: "Sora" }}>
             Toggle On To Mask X & Y Axis Until Deadline
           </Text>
           <Chip
@@ -337,6 +325,7 @@ const CreateSquareScreen = ({ navigation }) => {
             textStyle={{
               color: hideAxisUntilDeadline ? "#fff" : theme.colors.onSurface,
               fontWeight: "600",
+              fontFamily: "Sora",
             }}
           >
             {hideAxisUntilDeadline ? "On" : "Off"}
@@ -365,6 +354,7 @@ const CreateSquareScreen = ({ navigation }) => {
           style={{
             color: theme.colors.onSurfaceVariant || theme.colors.outline,
             fontSize: 13,
+            fontFamily: "Sora",
           }}
         >
           Choose a color to represent your squares on the board.
@@ -578,8 +568,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     marginVertical: 20,
+    fontFamily: "SoraBold",
   },
-  sectionHeader: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
+  sectionHeader: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+    fontFamily: "Sora",
+  },
   input: { marginBottom: 15 },
   cardSection: {
     borderRadius: 12,
@@ -619,14 +615,21 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     marginRight: 10,
+    fontFamily: "Sora",
   },
   saveButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
+    fontFamily: "Sora",
   },
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+    fontFamily: "Sora",
+  },
   progressRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -636,10 +639,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
     marginHorizontal: 12,
+    fontFamily: "Sora",
   },
   activeStep: {
     fontWeight: "bold",
     color: "#5e60ce",
+    fontFamily: "Sora",
   },
   colorScrollContainer: { paddingVertical: 10 },
   colorRowsContainer: { marginBottom: 10 },

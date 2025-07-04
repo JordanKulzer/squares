@@ -8,7 +8,7 @@ export const getToastConfig = (isDarkMode: boolean) => {
   const backgroundColor = isDarkMode ? "#1e1e1e" : "#fff";
   const textColor = isDarkMode ? "#eee" : "#333";
   const borderLeftColor = isDarkMode ? "#7f81ff" : colors.primary;
-  const errorColor = "#ff4d4f"; // Your app's deletion color
+  const errorColor = "#ff4d4f";
 
   return {
     info: (props) => (
@@ -64,5 +64,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 15,
     fontWeight: "600",
+    fontFamily: "Sora",
   },
 });

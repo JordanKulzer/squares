@@ -12,6 +12,7 @@ import {
 } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useFonts } from "expo-font";
 import { supabase } from "./src/lib/supabase";
 import JoinSquareScreen from "./src/screens/JoinSquareScreen";
 import * as Notifications from "expo-notifications";
@@ -139,7 +140,12 @@ const App: React.FC = () => {
   //   },
   // };
 
-  if (loading) {
+  const [fontsLoaded] = useFonts({
+    Sora: require("./assets/fonts/Sora-Regular.ttf"),
+    SoraBold: require("./assets/fonts/Sora-Bold.ttf"),
+  });
+
+  if (!fontsLoaded || loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0000ff" />

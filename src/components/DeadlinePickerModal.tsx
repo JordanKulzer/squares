@@ -74,7 +74,7 @@ const DeadlinePickerModal = ({
               },
             ]}
           >
-            <Text style={{ color: theme.colors.onSurface }}>
+            <Text style={{ fontFamily: "Sora", color: theme.colors.onSurface }}>
               {tempDate.toDateString()}
             </Text>
           </Pressable>
@@ -92,7 +92,7 @@ const DeadlinePickerModal = ({
               },
             ]}
           >
-            <Text style={{ color: theme.colors.onSurface }}>
+            <Text style={{ fontFamily: "Sora", color: theme.colors.onSurface }}>
               {tempDate.toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
@@ -106,6 +106,7 @@ const DeadlinePickerModal = ({
             onPress={onDismiss}
             textColor={theme.colors.error}
             mode="text"
+            labelStyle={{ fontFamily: "Sora" }}
           >
             Cancel
           </Button>
@@ -113,6 +114,7 @@ const DeadlinePickerModal = ({
             onPress={handleModalConfirm}
             textColor={"#fff"}
             mode="contained"
+            labelStyle={{ fontFamily: "Sora" }}
           >
             Confirm
           </Button>
@@ -193,8 +195,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "bold",
     marginBottom: 16,
+    fontFamily: "SoraBold",
   },
   inputRow: {
     flexDirection: "row",

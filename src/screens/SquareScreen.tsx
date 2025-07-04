@@ -13,19 +13,14 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
+  Image,
   FlatList,
   Animated,
 } from "react-native";
-import {
-  Button,
-  Card,
-  Dialog,
-  Modal,
-  Portal,
-  useTheme,
-} from "react-native-paper";
+import { Button, Card, Modal, Portal, useTheme } from "react-native-paper";
+import { useFonts } from "expo-font";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { StackActions, useNavigation } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
@@ -46,7 +41,7 @@ const splitTeamName = (teamName) => {
 };
 
 const SquareScreen = ({ route }) => {
-  const { gridId, inputTitle, deadline, eventId } = route.params;
+  const { gridId, inputTitle, eventId } = route.params;
   const [now, setNow] = useState(new Date());
 
   const theme = useTheme();
@@ -83,7 +78,7 @@ const SquareScreen = ({ route }) => {
   const deleteAnim = useRef(new Animated.Value(0)).current;
 
   const openAnimatedDialog = (setter, animRef) => {
-    setSessionOptionsVisible(false); // Close the session modal
+    setSessionOptionsVisible(false);
     setTimeout(() => {
       setter(true);
       Animated.timing(animRef, {
@@ -427,7 +422,7 @@ const SquareScreen = ({ route }) => {
     const key = `${x},${y}`;
     const userColor = squareColors[key];
     const userId = Object.entries(playerColors).find(
-      ([id, color]) => color === userColor
+      ([, color]) => color === userColor
     )?.[0];
     const username = playerUsernames[userId] || "Unknown Player";
     const xLabel = xAxis[x];
@@ -442,8 +437,14 @@ const SquareScreen = ({ route }) => {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: inputTitle,
-      gestureEnabled: false, // ⛔ disables swipe back gesture
+      headerTitle: () => (
+        <Image
+          source={require("../../assets/icons/squares-logo.png")}
+          style={{ width: 100, height: 100 }}
+          resizeMode="contain"
+        />
+      ),
+      gestureEnabled: false,
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.navigate("Main")}
@@ -484,7 +485,7 @@ const SquareScreen = ({ route }) => {
 
       if (currentColor && currentColor !== playerColors[userId]) {
         const username = Object.entries(playerColors).find(
-          ([id, color]) => color === currentColor
+          ([, color]) => color === currentColor
         )?.[0];
         showSquareToast(
           `${playerUsernames[username] || "Someone"} already owns this square.`
@@ -655,50 +656,26 @@ const SquareScreen = ({ route }) => {
           <Card.Content>
             <Card
               style={[
-                styles.teamTitleCard,
+                styles.sessionTitleCard,
                 {
-                  backgroundColor: theme.colors.elevation.level1,
-                  borderColor: "rgba(94, 96, 206, 0.4)",
-                  borderWidth: StyleSheet.hairlineWidth,
+                  backgroundColor: theme.colors.elevation.level2,
                 },
               ]}
             >
               <Card.Content style={{ alignItems: "center" }}>
-                <View style={styles.teamRow}>
-                  {/* <Image
-                    source={{ uri: team1Logo || fallbackLogo }}
-                    style={styles.teamLogo}
-                    resizeMode="contain"
-                  /> */}
+                <View style={styles.titleContent}>
                   <Text
                     style={[
-                      styles.titleText,
+                      styles.sessionTitle,
                       { color: theme.colors.onSurface },
                     ]}
                   >
-                    {team1}
+                    {inputTitle}
                   </Text>
                 </View>
-                <Text
-                  style={[styles.vsText, { color: theme.colors.onSurface }]}
-                >
-                  vs
+                <Text style={styles.sessionSubtitle}>
+                  {team1} vs {team2}
                 </Text>
-                <View style={styles.teamRow}>
-                  {/* <Image
-                    source={{ uri: team2Logo || fallbackLogo }}
-                    style={styles.teamLogo}
-                    resizeMode="contain"
-                  /> */}
-                  <Text
-                    style={[
-                      styles.titleText,
-                      { color: theme.colors.onSurface },
-                    ]}
-                  >
-                    {team2}
-                  </Text>
-                </View>
               </Card.Content>
             </Card>
             <View style={{ alignItems: "center", marginBottom: 8 }}>
@@ -764,7 +741,7 @@ const SquareScreen = ({ route }) => {
       const userSquareCount: Record<string, number> = {};
       Object.entries(squareColors).forEach(([_, color]) => {
         const uid = Object.entries(playerColors).find(
-          ([id, userColor]) => userColor === color
+          ([, userColor]) => userColor === color
         )?.[0];
         if (uid) {
           userSquareCount[uid] = (userSquareCount[uid] || 0) + 1;
@@ -797,7 +774,6 @@ const SquareScreen = ({ route }) => {
               renderItem={({ item: [uid, color] }) => {
                 const username = playerUsernames[uid] || uid;
                 const count = userSquareCount[uid] || 0;
-                const isMaxed = count >= maxSelections;
 
                 return (
                   <View style={styles.playerRow}>
@@ -844,9 +820,13 @@ const SquareScreen = ({ route }) => {
                 (w) => w?.username && w.username !== "No Winner"
               )
                 ? "Congratulations Winners!"
-                : "No Winners Yet.  Be patient"
+                : "No Winners Yet."
             }
-            titleStyle={[styles.winnerTitle, { color: theme.colors.onSurface }]}
+            titleStyle={[
+              styles.tabSectionTitle,
+              { color: theme.colors.onSurface },
+            ]}
+            style={{ marginBottom: 8, paddingHorizontal: 12 }}
           />
           <Card.Content>
             {quarterScores.length > 0 ? (
@@ -858,12 +838,8 @@ const SquareScreen = ({ route }) => {
                   <Card
                     key={i}
                     style={[
-                      styles.winnerCard,
-                      {
-                        backgroundColor: theme.colors.elevation.level1,
-                        borderColor: "rgba(94, 96, 206, 0.4)",
-                        borderWidth: StyleSheet.hairlineWidth,
-                      },
+                      styles.sessionTitleCard,
+                      { backgroundColor: theme.colors.elevation.level2 },
                     ]}
                   >
                     <Card.Content>
@@ -923,7 +899,13 @@ const SquareScreen = ({ route }) => {
                 );
               })
             ) : (
-              <Text style={{ color: theme.colors.onSurface, marginTop: 10 }}>
+              <Text
+                style={{
+                  color: theme.colors.onSurface,
+                  marginTop: 10,
+                  fontFamily: "Sora",
+                }}
+              >
                 Scores not yet available.
               </Text>
             )}
@@ -1234,12 +1216,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ddd",
   },
-  axisText: { fontSize: 15, fontWeight: "bold", textAlign: "center" },
+  axisText: {
+    fontSize: 15,
+    fontWeight: "bold",
+    textAlign: "center",
+    fontFamily: "Sora",
+  },
   row: { flexDirection: "row" },
   teamLabel: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
-    fontFamily: "Courier",
+    fontFamily: "Sora",
     textTransform: "uppercase",
     textAlign: "center",
     marginHorizontal: 2,
@@ -1253,9 +1240,9 @@ const styles = StyleSheet.create({
     marginLeft: -10,
   },
   teamLetter: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
-    fontFamily: "Courier",
+    fontFamily: "Sora",
     textTransform: "uppercase",
   },
   legendRow: { flexDirection: "row", alignItems: "center", marginVertical: 6 },
@@ -1270,7 +1257,7 @@ const styles = StyleSheet.create({
   yAxisText: {
     fontSize: 14,
     fontWeight: "bold",
-    fontFamily: "Courier",
+    fontFamily: "Sora",
     marginTop: 5,
   },
   deadlineContainer: {
@@ -1290,11 +1277,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#444",
+    fontFamily: "Sora",
   },
   deadlineValue: {
     fontSize: 16,
     color: "#333",
     marginTop: 4,
+    fontFamily: "Sora",
   },
   titleCard: {
     marginBottom: 24,
@@ -1302,14 +1291,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
     borderRadius: 16,
     borderWidth: 1,
-    // borderLeftColor: colors.primary,
-    // borderColor: "rgba(94, 96, 206, 0.4)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 2,
-    // borderLeftWidth: 5,
   },
   titleText: {
     fontSize: 22,
@@ -1349,8 +1335,6 @@ const styles = StyleSheet.create({
     borderColor: colors.neutralBorder,
     marginBottom: 16,
     elevation: 2,
-    // borderLeftWidth: 5,
-    // borderLeftColor: colors.primary,
   },
   quarterLabel: {
     fontSize: 16,
@@ -1392,16 +1376,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#222",
+    fontFamily: "Sora",
   },
   playerSubtext: {
     fontSize: 13,
     color: "#666",
     marginTop: 2,
+    fontFamily: "Sora",
   },
   tabSectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     color: colors.primaryText,
+    fontFamily: "Sora",
+  },
+  sessionTitleCard: {
+    marginBottom: 12,
+    borderRadius: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderWidth: 1.25,
+    borderColor: "rgba(94, 96, 206, 0.3)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  titleContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 2,
+  },
+  sessionTitle: {
+    fontSize: 22,
+    fontFamily: "SoraBold",
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  sessionSubtitle: {
+    fontSize: 16,
+    color: "#666",
+    fontFamily: "Sora",
+    textAlign: "center",
   },
 });
 

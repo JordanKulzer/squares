@@ -237,6 +237,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 10,
+    fontFamily: "SoraBold",
   },
   input: {
     marginBottom: 10,
@@ -252,6 +253,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+    fontFamily: "Sora",
   },
   errorBox: {
     padding: 10,
@@ -268,6 +270,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     marginLeft: 6,
+    fontFamily: "Sora",
   },
 });
 

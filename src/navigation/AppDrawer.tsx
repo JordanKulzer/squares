@@ -209,6 +209,7 @@ const AppDrawerContent = ({
           labelStyle={{
             fontWeight: "600",
             color: theme.dark ? theme.colors.onPrimary : theme.colors.error,
+            fontFamily: "Sora",
           }}
         >
           Delete Account
@@ -380,10 +381,10 @@ const styles = StyleSheet.create({
   },
   header: {
     fontSize: 20,
-    fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
     paddingTop: 10,
+    fontFamily: "SoraBold",
   },
   settingItem: {
     flexDirection: "row",
@@ -398,6 +399,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 16,
+    fontFamily: "Sora",
   },
   modalContainer: {
     padding: 20,
@@ -408,10 +410,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 10,
+    fontFamily: "Sora",
   },
   modalSubtitle: {
     fontSize: 15,
     marginBottom: 20,
+    fontFamily: "Sora",
   },
   modalButtonRow: {
     flexDirection: "row",

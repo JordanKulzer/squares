@@ -55,20 +55,25 @@ const DateSelectorModal = ({ visible, onDismiss, date, onConfirm }: Props) => {
             },
           ]}
         >
-          <Text style={{ color: theme.colors.onSurface }}>
+          <Text style={{ fontFamily: "Sora", color: theme.colors.onSurface }}>
             {tempDate.toDateString()}
           </Text>
         </Pressable>
 
         <View style={styles.buttonRow}>
-          <Button onPress={onDismiss} textColor={theme.colors.error}>
+          <Button
+            onPress={onDismiss}
+            labelStyle={{ fontFamily: "Sora" }}
+            textColor={theme.colors.error}
+          >
             Cancel
           </Button>
           <Button
             onPress={handleModalConfirm}
             textColor="#fff"
             mode="contained"
-            buttonColor={colors.primary} // force it here
+            buttonColor={colors.primary}
+            labelStyle={{ fontFamily: "Sora" }}
           >
             Confirm
           </Button>
@@ -126,8 +131,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: "bold",
     marginBottom: 16,
+    fontFamily: "SoraBold",
   },
   inputBox: {
     padding: 12,

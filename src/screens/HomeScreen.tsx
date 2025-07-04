@@ -9,7 +9,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   View,
   ScrollView,
 } from "react-native";
@@ -164,7 +163,6 @@ const HomeScreen = () => {
     : "Ready to play your next square?";
 
   return (
-    // <SafeAreaView style={{ flex: 1 }}>
     <LinearGradient
       colors={gradientColors}
       start={{ x: 0, y: 0 }}
@@ -177,6 +175,7 @@ const HomeScreen = () => {
             style={{
               fontSize: 22,
               fontWeight: "bold",
+              fontFamily: "SoraBold",
               color: theme.colors.onBackground,
             }}
           >
@@ -187,6 +186,7 @@ const HomeScreen = () => {
               fontSize: 14,
               color: theme.colors.onSurfaceVariant,
               marginTop: 4,
+              fontFamily: "Sora",
             }}
           >
             {welcomeSubtitle}
@@ -198,6 +198,8 @@ const HomeScreen = () => {
             fontWeight: "600",
             marginTop: 15,
             marginBottom: 10,
+            marginHorizontal: 10,
+            fontFamily: "Sora",
             color: theme.colors.onBackground,
           }}
         >
@@ -226,6 +228,8 @@ const HomeScreen = () => {
             fontWeight: "600",
             marginTop: 15,
             marginBottom: 10,
+            marginHorizontal: 10,
+            fontFamily: "Sora",
             color: theme.colors.onBackground,
           }}
         >
@@ -297,6 +301,7 @@ const HomeScreen = () => {
                             fontSize: 16,
                             fontWeight: "600",
                             color: theme.colors.onBackground,
+                            fontFamily: "SoraBold",
                           }}
                         >
                           {item.title}
@@ -305,6 +310,7 @@ const HomeScreen = () => {
                           style={{
                             fontSize: 14,
                             color: theme.colors.onSurface,
+                            fontFamily: "Sora",
                           }}
                         >
                           {item.player_ids?.length || 0} players •{" "}
@@ -338,7 +344,7 @@ const HomeScreen = () => {
           onDismiss={() => setProfileVisible(false)}
           userGames={userGames}
           onNameChange={() => {
-            fetchFirstName(); // 👈 this will re-fetch after name change
+            fetchFirstName();
           }}
         />
 
@@ -358,7 +364,6 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
     </LinearGradient>
-    // </SafeAreaView>
   );
 };
 
@@ -372,12 +377,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     marginVertical: 6,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
   buttonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
     paddingLeft: 5,
+    fontFamily: "Sora",
   },
   gameCard: {
     borderRadius: 16,
@@ -388,10 +398,10 @@ const styles = StyleSheet.create({
     borderLeftColor: colors.primary,
     borderColor: "rgba(94, 96, 206, 0.4)",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
   },
   howToButton: {
     marginTop: 15,
@@ -404,5 +414,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+    fontFamily: "Sora",
   },
 });

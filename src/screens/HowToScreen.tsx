@@ -98,19 +98,22 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 10,
     textAlign: "center",
+    fontFamily: "SoraBold",
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
     marginBottom: 6,
     marginTop: 16,
+    fontFamily: "SoraBold",
   },
   paragraph: {
     fontSize: 15,
     lineHeight: 22,
+    fontFamily: "Sora",
   },
   backButton: {
-    marginTop: 40,
+    marginTop: 20,
     alignSelf: "center",
     paddingVertical: 12,
     paddingHorizontal: 24,
@@ -120,6 +123,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+    fontFamily: "Sora",
   },
 });
 

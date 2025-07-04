@@ -92,7 +92,6 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
 
   return (
     <Portal>
-      {/* Backdrop */}
       <TouchableWithoutFeedback onPress={onDismiss}>
         <View
           style={[
@@ -105,7 +104,6 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
         />
       </TouchableWithoutFeedback>
 
-      {/* Animated Bottom Sheet */}
       <Animated.View
         style={[
           styles.sheet,
@@ -172,6 +170,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
                     ? "#FFF"
                     : theme.colors.onSurface,
                   fontWeight: "600",
+                  fontFamily: "Sora",
                 }}
               >
                 {localSettings[item.key] ? "On" : "Off"}
@@ -188,6 +187,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
                 onDismiss();
               }}
               textColor={theme.colors.error}
+              labelStyle={{ fontFamily: "Sora" }}
             >
               Cancel
             </Button>
@@ -198,6 +198,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
               loading={isSaving}
               disabled={isSaving}
               textColor={"#fff"}
+              labelStyle={{ fontFamily: "Sora" }}
             >
               Save
             </Button>
@@ -229,7 +230,6 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 75,
     elevation: 10,
-    // Explicitly define sides
     borderTopWidth: 1.5,
     borderLeftWidth: 5,
     borderRightWidth: 1.5,
@@ -246,10 +246,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "700",
     marginBottom: 8,
+    fontFamily: "SoraBold",
   },
   subtitle: {
     fontSize: 14,
     marginBottom: 20,
+    fontFamily: "Sora",
   },
   settingRow: {
     flexDirection: "row",
@@ -262,6 +264,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     flex: 1,
     marginRight: 10,
+    fontFamily: "Sora",
   },
   footerRow: {
     flexDirection: "row",

@@ -147,6 +147,7 @@ const LoginScreen = ({ navigation }) => {
                 color: colors.primary,
                 fontSize: 13,
                 fontWeight: "500",
+                fontFamily: "Sora",
               }}
             >
               Forgot password?
@@ -172,7 +173,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     marginBottom: 10,
-    fontFamily: "Poppins-SemiBold",
+    fontFamily: "SoraBold",
   },
   logo: {
     width: 200,
@@ -194,6 +195,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+    fontFamily: "Sora",
   },
   forgotPasswordContainer: {
     alignSelf: "center",
@@ -210,6 +212,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 14,
     marginTop: 4,
+    fontFamily: "Sora",
   },
 });
 

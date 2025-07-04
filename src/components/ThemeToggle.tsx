@@ -22,6 +22,7 @@ const ThemeToggle = ({ isDarkTheme, toggleTheme }) => {
       textStyle={{
         color: isDarkTheme ? "#fff" : theme.colors.onSurface,
         fontWeight: "600",
+        fontFamily: "Sora",
       }}
     >
       {isDarkTheme ? "On" : "Off"}

@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   SafeAreaView,
   ScrollView,
-  Platform,
   Animated,
 } from "react-native";
 import {
@@ -25,7 +24,6 @@ import {
   useTheme,
   Chip,
 } from "react-native-paper";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Icons from "react-native-vector-icons/Ionicons";
 
@@ -646,13 +644,12 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    // borderBottomWidth: 1,
   },
   weekLabel: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 20,
     marginBottom: 8,
     textAlign: "center",
+    fontFamily: "Sora",
   },
   navButtons: {
     flexDirection: "row",
@@ -669,6 +666,7 @@ const styles = StyleSheet.create({
   navButtonText: {
     color: "#fff",
     fontWeight: "600",
+    fontFamily: "Sora",
   },
   card: {
     marginHorizontal: 16,
@@ -681,20 +679,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 6,
+    fontFamily: "Sora",
   },
   dateText: {
     color: "#444",
     marginBottom: 2,
+    fontFamily: "Sora",
   },
   statusText: {
     fontSize: 12,
     color: "#888",
+    fontFamily: "Sora",
   },
   noGamesText: {
     marginTop: 40,
     textAlign: "center",
     fontSize: 16,
     color: "#888",
+    fontFamily: "Sora",
   },
   navButtonAlt: {
     backgroundColor: "#eee",
@@ -707,6 +709,7 @@ const styles = StyleSheet.create({
   navButtonAltText: {
     color: "#333",
     fontWeight: "600",
+    fontFamily: "Sora",
   },
   altButtonContent: {
     flexDirection: "row",
@@ -719,9 +722,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   dialogTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "bold",
     marginBottom: 12,
+    fontFamily: "SoraBold",
   },
   scrollArea: {
     maxHeight: 320,
@@ -733,7 +737,7 @@ const styles = StyleSheet.create({
   },
   weekText: {
     marginVertical: 20,
-    // paddingVertical: 12,
+    fontFamily: "Sora",
   },
 });
 

@@ -171,6 +171,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     marginBottom: 20,
+    fontFamily: "SoraBold",
   },
   logo: {
     width: 200,
@@ -196,6 +197,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
+    fontFamily: "Sora",
   },
   backButton: {
     flexDirection: "row",
@@ -207,6 +209,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     marginLeft: 6,
+    fontFamily: "Sora",
   },
 });
 

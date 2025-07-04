@@ -122,7 +122,12 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
               style={styles.spinner}
             />
           ) : (
-            <Button mode="contained" onPress={handleJoin} style={styles.button}>
+            <Button
+              mode="contained"
+              onPress={handleJoin}
+              labelStyle={{ fontFamily: "Sora" }}
+              style={styles.button}
+            >
               Join
             </Button>
           )}
@@ -131,6 +136,7 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
             onPress={onDismiss}
             textColor={theme.colors.error}
             style={styles.closeButton}
+            labelStyle={{ fontFamily: "Sora" }}
           >
             Cancel
           </Button>
@@ -149,13 +155,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     borderLeftWidth: 5,
-    borderColor: "rgba(94, 96, 206, 0.4)", // matches SessionOptionsModal
+    borderColor: "rgba(94, 96, 206, 0.4)",
     elevation: 8,
   },
   title: {
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 20,
+    fontFamily: "SoraBold",
   },
   input: {
     marginBottom: 16,
