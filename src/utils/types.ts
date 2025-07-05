@@ -17,6 +17,7 @@ export type RootStackParamList = {
     deadline: string;
     eventId: string;
     disableAnimation?: boolean;
+    pricePerSquare?: number;
   };
   HowToScreen: undefined;
 };

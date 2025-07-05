@@ -66,7 +66,7 @@ const JoinSquareScreen = () => {
 
   const [username, setUsername] = useState("");
   const [selectedColor, setSelectedColor] = useState(null);
-  // Local state for fetched or passed values
+  const [pricePerSquare, setPricePerSquare] = useState<number | null>(null);
   const [inputTitle, setInputTitle] = useState(paramTitle || "");
   const [deadline, setDeadline] = useState(paramDeadline || null);
   const [usedColors, setUsedColors] = useState<string[]>(paramUsedColors || []);
@@ -94,7 +94,7 @@ const JoinSquareScreen = () => {
     const fetchSession = async () => {
       const { data: square, error } = await supabase
         .from("squares")
-        .select("title, deadline")
+        .select("title, deadline, price_per_square, id")
         .eq("id", gridId)
         .single();
 
@@ -103,6 +103,9 @@ const JoinSquareScreen = () => {
         navigation.goBack();
         return;
       }
+      setInputTitle(square.title || "Untitled");
+      setDeadline(square.deadline || null);
+      setPricePerSquare(square.price_per_square || null);
 
       setInputTitle(square.title || "Untitled");
       setDeadline(square.deadline || null);
@@ -293,6 +296,30 @@ const JoinSquareScreen = () => {
                         color={theme.colors.onSurface}
                       />
                     </TouchableOpacity>
+                    {pricePerSquare != null && pricePerSquare > 0 && (
+                      <View style={{ marginTop: 12, marginBottom: 8 }}>
+                        <Text
+                          style={{
+                            fontSize: 14,
+                            color:
+                              theme.colors.onSurfaceVariant ||
+                              theme.colors.onSurface,
+                            marginBottom: 8,
+                          }}
+                        >
+                          The price per square for this game is:
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 15,
+                            fontFamily: "SoraBold",
+                            color: theme.colors.primary,
+                          }}
+                        >
+                          ${pricePerSquare.toFixed(2)} per square
+                        </Text>
+                      </View>
+                    )}
                   </Card.Content>
                 </Card>
               </ScrollView>

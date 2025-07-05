@@ -136,6 +136,8 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
 
           {[
             { key: "quarterResults", label: "Quarter Results" },
+            { key: "finalResults", label: "Final Results" },
+
             {
               key: "deadlineReminders",
               label:
@@ -220,10 +222,10 @@ const styles = StyleSheet.create({
   },
   sheet: {
     position: "absolute",
-    bottom: -35,
+    bottom: -40,
     left: 0,
     right: 0,
-    maxHeight: 480,
+    maxHeight: 525,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,

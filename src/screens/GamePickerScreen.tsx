@@ -172,6 +172,7 @@ const GamePickerScreen = () => {
   }, [weekOffset, gameType, calendarDate, selectedSport]);
 
   const handleSelectGame = (game) => {
+    console.log("Selected game:", game);
     navigation.dispatch(StackActions.pop(1));
     navigation.navigate("CreateSquareScreen", {
       team1: game.awayTeam,

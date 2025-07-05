@@ -44,6 +44,9 @@ const HomeScreen = () => {
   const [visible, setVisible] = useState(false);
   const [profileVisible, setProfileVisible] = useState(false);
   const [firstName, setFirstName] = useState("");
+  const [selectionCounts, setSelectionCounts] = useState<
+    Record<string, number>
+  >({});
 
   useFocusEffect(
     useCallback(() => {
@@ -73,6 +76,21 @@ const HomeScreen = () => {
         });
 
         setUserGames(squaresList);
+        const counts: Record<string, number> = {};
+        squaresList.forEach((square) => {
+          const squareId = square.id;
+          const squareSelections = square.selections || [];
+
+          const userCount = squareSelections.filter(
+            (sel) => sel.userId === user.id
+          ).length;
+
+          counts[squareId] = userCount;
+        });
+
+        console.log("Selection counts:", counts);
+        setSelectionCounts(counts);
+
         animations.length = 0;
         translateYAnims.length = 0;
         opacityAnims.length = 0;
@@ -285,6 +303,7 @@ const HomeScreen = () => {
                         deadline: item.deadline,
                         eventId: item.eventId,
                         disableAnimation: true,
+                        pricePerSquare: item.price_per_square || 0,
                       })
                     }
                   >
@@ -314,6 +333,7 @@ const HomeScreen = () => {
                           }}
                         >
                           {item.player_ids?.length || 0} players •{" "}
+                          {selectionCounts[item.id] || 0} selected •{" "}
                           {item.deadline && new Date(item.deadline) > new Date()
                             ? `Ends ${new Date(
                                 item.deadline
@@ -347,6 +367,11 @@ const HomeScreen = () => {
             fetchFirstName();
           }}
         />
+        {/* <TouchableOpacity
+          onPress={() => navigation.navigate("ResetPasswordScreen")}
+        >
+          <Text>Test Reset Password Screen</Text>
+        </TouchableOpacity> */}
 
         <TouchableOpacity
           style={[

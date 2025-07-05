@@ -19,7 +19,6 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
 
   const [firstName, setFirstName] = useState("");
   const [newName, setNewName] = useState("");
-  const [winCount, setWinCount] = useState(0);
   const [showEditName, setShowEditName] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
@@ -46,7 +45,6 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
     }).start(() => {
       if (visible) {
         fetchFirstName();
-        fetchWins();
       }
     });
   }, [visible]);
@@ -69,18 +67,6 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
       .eq("id", user.id)
       .maybeSingle();
     if (data) setFirstName(data.first_name || "");
-  };
-
-  const fetchWins = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const uid = user?.id;
-    const count = userGames.reduce((acc, game) => {
-      const winners = game.winners || [];
-      return winners.includes(uid) ? acc + 1 : acc;
-    }, 0);
-    setWinCount(count);
   };
 
   const updateUserName = async () => {
@@ -274,16 +260,13 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               <Text style={{ color: onSurfaceColor, fontFamily: "Sora" }}>
                 Games Joined: {userGames.length}
               </Text>
-              <Text style={{ color: onSurfaceColor, fontFamily: "Sora" }}>
-                Squares Won: {winCount}
-              </Text>
 
               <Button
                 icon="logout"
                 mode="contained"
                 onPress={() => {
-                  onDismiss(); // close profile modal
-                  setTimeout(() => setShowLogout(true), 300); // delay to avoid overlap
+                  onDismiss();
+                  setTimeout(() => setShowLogout(true), 300);
                 }}
                 style={{ marginTop: 24 }}
                 labelStyle={{ fontWeight: "600", fontFamily: "Sora" }}

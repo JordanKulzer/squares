@@ -26,6 +26,7 @@ import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifica
 import NotificationsModal from "../components/NotificationsModal";
 import { supabase } from "../lib/supabase";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import PerSquareSettingsModal from "../components/PerSquareSettingsModal";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -35,6 +36,7 @@ type CreateSquareRouteParams = {
     inputTitle?: string;
     username?: string;
     maxSelections?: string;
+    pricePerSquare?: number;
     selectedColor?: string;
     eventId?: string;
   };
@@ -49,11 +51,13 @@ const CreateSquareScreen = ({ navigation }) => {
   const [selectedColor, setSelectedColor] = useState(null);
   const [randomizeAxis, setRandomizeAxis] = useState(true);
   const [maxSelections, setMaxSelections] = useState("");
+  const [pricePerSquare, setPricePerSquare] = useState(0);
   const [eventId, setEventId] = useState("");
   const [step, setStep] = useState(0);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
     quarterResults: false,
@@ -75,6 +79,7 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.maxSelections) setMaxSelections(String(params.maxSelections));
     if (params.selectedColor) setSelectedColor(params.selectedColor);
     if (params.eventId) setEventId(params.eventId);
+    if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
   }, [route.params]);
 
   const generateShuffledArray = () => {
@@ -116,6 +121,7 @@ const CreateSquareScreen = ({ navigation }) => {
                 username,
                 color: selectedColor || "#000000",
                 notifySettings,
+                amount_owed: 0,
               },
             ],
             player_ids: [user.id],
@@ -126,6 +132,7 @@ const CreateSquareScreen = ({ navigation }) => {
             event_id: eventId || "",
             axis_hidden: hideAxisUntilDeadline,
             randomize_axis: randomizeAxis,
+            price_per_square: pricePerSquare,
           },
         ])
         .select("id")
@@ -149,6 +156,7 @@ const CreateSquareScreen = ({ navigation }) => {
         yAxis,
         eventId,
         hideAxisUntilDeadline,
+        pricePerSquare,
       });
     } catch (error) {
       console.error("Error creating grid:", error);
@@ -173,7 +181,14 @@ const CreateSquareScreen = ({ navigation }) => {
       <Card
         style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
       >
-        <Text style={[styles.sectionHeader, { color: theme.colors.onSurface }]}>
+        <Text
+          style={{
+            color: theme.colors.onSurface,
+            fontWeight: "600",
+            marginBottom: 10,
+            fontFamily: "SoraBold",
+          }}
+        >
           Game Settings
         </Text>
         <PaperInput
@@ -206,7 +221,7 @@ const CreateSquareScreen = ({ navigation }) => {
           </Text>
           <View style={styles.gameCardRow}>
             <Text style={{ color: theme.colors.onSurface }}>
-              Click here to choose your game
+              Click here to select your game
             </Text>
             <Icon
               name="chevron-forward"
@@ -215,17 +230,45 @@ const CreateSquareScreen = ({ navigation }) => {
             />
           </View>
         </TouchableOpacity>
+        <Text
+          style={{
+            color: theme.colors.onSurface,
+            fontWeight: "600",
+            marginBottom: 10,
+            fontFamily: "SoraBold",
+          }}
+        >
+          Settings Per Square
+        </Text>
 
-        <PaperInput
-          label="Enter Max Squares Per Player"
-          keyboardType="numeric"
-          value={maxSelections}
-          onChangeText={setMaxSelections}
-          mode="outlined"
-          style={styles.input}
-          returnKeyType="done"
-          onSubmitEditing={Keyboard.dismiss}
-        />
+        <TouchableOpacity
+          onPress={() => setPerSquareModalVisible(true)}
+          style={[
+            styles.gameCard,
+            { backgroundColor: theme.colors.elevation.level1 },
+          ]}
+        >
+          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+            {maxSelections
+              ? `Max Amount of Squares Per Player: ${maxSelections}`
+              : "No Maximum"}
+          </Text>
+          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+            {pricePerSquare
+              ? `Price Per Square: $${pricePerSquare.toFixed(2)}`
+              : "No Price Per Square Selected"}
+          </Text>
+          <View style={styles.gameCardRow}>
+            <Text style={{ color: theme.colors.onSurface }}>
+              Click here to edit
+            </Text>
+            <Icon
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.onSurface}
+            />
+          </View>
+        </TouchableOpacity>
 
         <Text
           style={{
@@ -249,7 +292,7 @@ const CreateSquareScreen = ({ navigation }) => {
           </Text>
           <View style={styles.gameCardRow}>
             <Text style={{ color: theme.colors.onSurface }}>
-              Click here to change the deadline
+              Click here to change
             </Text>
             <Icon
               name="chevron-forward"
@@ -270,7 +313,7 @@ const CreateSquareScreen = ({ navigation }) => {
           style={{
             color: theme.colors.onSurface,
             fontWeight: "600",
-            marginTop: 20,
+            marginTop: 0,
             fontFamily: "SoraBold",
           }}
         >
@@ -278,7 +321,7 @@ const CreateSquareScreen = ({ navigation }) => {
         </Text>
         <View style={styles.toggleRow}>
           <Text style={{ color: theme.colors.onSurface, fontFamily: "Sora" }}>
-            Toggle On To Randomize Axis Numbers
+            Randomize Axis Numbers
           </Text>
           <Chip
             mode="outlined"
@@ -306,7 +349,7 @@ const CreateSquareScreen = ({ navigation }) => {
 
         <View style={styles.toggleRow}>
           <Text style={{ color: theme.colors.onSurface, fontFamily: "Sora" }}>
-            Toggle On To Mask X & Y Axis Until Deadline
+            Mask X & Y Axis Until Deadline
           </Text>
           <Chip
             mode="outlined"
@@ -406,56 +449,71 @@ const CreateSquareScreen = ({ navigation }) => {
             { backgroundColor: theme.colors.elevation.level1 },
           ]}
         >
+          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+            Notification Preferences
+          </Text>
+
+          {/* Main row: list on left, chevron on right */}
           <View
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: "flex-end", // anchor chevron to bottom
             }}
           >
-            <Text
-              style={{
-                color: theme.colors.onSurface,
-                fontWeight: "500",
-                fontSize: 16,
-              }}
-            >
-              Notification Preferences
-            </Text>
+            {/* Notification text block */}
+            <View style={{ flex: 1 }}>
+              {[
+                notifySettings.deadlineReminders,
+                notifySettings.quarterResults,
+                notifySettings.playerJoined,
+              ].some(Boolean) ? (
+                <>
+                  <Text
+                    style={{
+                      color: theme.colors.onSurfaceVariant,
+                      fontSize: 13,
+                      marginBottom: 2,
+                    }}
+                  >
+                    You currently get notifications for:
+                  </Text>
+                  {[
+                    notifySettings.deadlineReminders && "• Deadline Reminders",
+                    notifySettings.quarterResults && "• Quarter Results",
+                    notifySettings.playerJoined && "• New Player Joining",
+                  ]
+                    .filter(Boolean)
+                    .map((item, index) => (
+                      <Text
+                        key={index}
+                        style={{
+                          color: theme.colors.primary,
+                          fontWeight: "600",
+                          fontSize: 13,
+                        }}
+                      >
+                        {item}
+                      </Text>
+                    ))}
+                </>
+              ) : (
+                <Text
+                  style={{ color: theme.colors.onSurface, marginBottom: 4 }}
+                >
+                  Click here to add notifications
+                </Text>
+              )}
+            </View>
+
+            {/* Chevron icon aligned to bottom of text block */}
             <Icon
               name="chevron-forward"
               size={20}
               color={theme.colors.onSurface}
+              style={{ marginLeft: 12 }}
             />
           </View>
-
-          <Text
-            style={{
-              color: theme.colors.onSurfaceVariant,
-              fontSize: 13,
-              marginTop: 6,
-            }}
-          >
-            You currently get notifications for:
-          </Text>
-          {[
-            notifySettings.deadlineReminders && "• Deadline Reminders",
-            notifySettings.quarterResults && "• Quarter Results",
-            notifySettings.playerJoined && "• New Player Joining",
-          ]
-            .filter(Boolean)
-            .map((item, index) => (
-              <Text
-                key={index}
-                style={{
-                  color: theme.colors.primary,
-                  fontWeight: "600",
-                  fontSize: 13,
-                }}
-              >
-                {item}
-              </Text>
-            ))}
         </TouchableOpacity>
       </Card>
     </ScrollView>
@@ -530,7 +588,7 @@ const CreateSquareScreen = ({ navigation }) => {
                       { backgroundColor: theme.colors.primary },
                     ]}
                   >
-                    <Text style={styles.buttonText}>Next</Text>
+                    <Text style={styles.buttonText}>More</Text>
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
@@ -556,6 +614,14 @@ const CreateSquareScreen = ({ navigation }) => {
         settings={notifySettings}
         onSave={(settings) => setNotifySettings(settings)}
       />
+      <PerSquareSettingsModal
+        visible={perSquareModalVisible}
+        onDismiss={() => setPerSquareModalVisible(false)}
+        maxSelections={maxSelections}
+        pricePerSquare={pricePerSquare}
+        setMaxSelections={setMaxSelections}
+        setPricePerSquare={setPricePerSquare}
+      />
     </LinearGradient>
   );
 };
@@ -567,7 +633,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     textAlign: "center",
-    marginVertical: 20,
+    marginVertical: 10,
     fontFamily: "SoraBold",
   },
   sectionHeader: {
@@ -595,8 +661,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginVertical: 8,
-    maxWidth: 250,
+    marginVertical: 5,
+    maxWidth: 350,
   },
   buttonContainer: {
     flexDirection: "row",
@@ -654,7 +720,8 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   gameCard: {
-    padding: 12,
+    paddingVertical: 12,
+    paddingLeft: 5,
     borderRadius: 10,
     borderWidth: 1,
     borderColor: "#e0e0e0",

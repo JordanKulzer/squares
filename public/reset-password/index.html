@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Reset Your Password</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>Reset Your Password</h2>
+  <div id="status"></div>
+
+  <form id="reset-form" class="hidden">
+    <label>
+      New Password:<br />
+      <input type="password" id="new-password" required />
+    </label>
+    <br /><br />
+    <button type="submit">Update Password</button>
+  </form>
+
+  <script>
+    const supabase = supabase.createClient(
+      "https://YOUR_PROJECT.supabase.co",  // replace with your project URL
+      "YOUR_PUBLIC_ANON_KEY"               // replace with your anon/public key
+    );
+
+    async function handlePasswordReset() {
+      const hash = window.location.hash.substr(1);
+      const params = new URLSearchParams(hash);
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+      const type = params.get("type");
+
+      const status = document.getElementById("status");
+      const form = document.getElementById("reset-form");
+
+      if (type === "recovery" && access_token && refresh_token) {
+        // Set the session to enable password update
+        const { error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+
+        if (error) {
+          status.textContent = "Invalid or expired token.";
+        } else {
+          status.textContent = "You're authenticated. Enter a new password:";
+          form.classList.remove("hidden");
+
+          form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const newPassword = document.getElementById("new-password").value;
+
+            const { error: updateError } = await supabase.auth.updateUser({
+              password: newPassword,
+            });
+
+            if (updateError) {
+              status.textContent = "Error: " + updateError.message;
+            } else {
+              status.textContent = "Password updated successfully! You can now close this tab.";
+              form.classList.add("hidden");
+            }
+          });
+        }
+      } else {
+        status.textContent = "Invalid reset link.";
+      }
+    }
+
+    handlePasswordReset();
+  </script>
+</body>
+</html>

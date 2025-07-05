@@ -20,7 +20,7 @@ import {
 import { Button, Card, Modal, Portal, useTheme } from "react-native-paper";
 import { useFonts } from "expo-font";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { useNavigation } from "@react-navigation/native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
@@ -41,8 +41,9 @@ const splitTeamName = (teamName) => {
 };
 
 const SquareScreen = ({ route }) => {
-  const { gridId, inputTitle, eventId } = route.params;
+  const { gridId, inputTitle, eventId, pricePerSquare } = route.params;
   const [now, setNow] = useState(new Date());
+  const isFocused = useIsFocused();
 
   const theme = useTheme();
   const isDark = theme.dark;
@@ -131,6 +132,8 @@ const SquareScreen = ({ route }) => {
   const navigation = useNavigation();
 
   useLayoutEffect(() => {
+    if (!isFocused) return;
+
     navigation.setOptions({ headerTitle: inputTitle });
   }, [navigation, inputTitle]);
 
@@ -152,6 +155,8 @@ const SquareScreen = ({ route }) => {
   };
 
   useEffect(() => {
+    if (!isFocused) return;
+
     if (quarterScores.length > 0 && xAxis.length && yAxis.length) {
       const fetchSelections = async () => {
         const { data, error } = await supabase
@@ -176,6 +181,8 @@ const SquareScreen = ({ route }) => {
   }, [quarterScores, xAxis, yAxis, gridId]);
 
   useEffect(() => {
+    if (!isFocused) return;
+
     const getUser = async () => {
       const {
         data: { user },
@@ -198,6 +205,8 @@ const SquareScreen = ({ route }) => {
   }, []);
 
   useEffect(() => {
+    if (!isFocused) return;
+
     const fetchSquareData = async () => {
       const { data, error } = await supabase
         .from("squares")
@@ -265,6 +274,7 @@ const SquareScreen = ({ route }) => {
   }, [gridId, userId]);
 
   useEffect(() => {
+    if (!isFocused) return;
     if (!deadlineValue) return;
 
     const updateDeadlineState = () => {
@@ -281,6 +291,8 @@ const SquareScreen = ({ route }) => {
   }, [deadlineValue]);
 
   useEffect(() => {
+    if (!isFocused) return;
+
     const interval = setInterval(() => {
       setNow(new Date());
     }, 1000);
@@ -288,6 +300,7 @@ const SquareScreen = ({ route }) => {
   }, []);
 
   useEffect(() => {
+    if (!isFocused) return;
     if (!eventId || !deadlineValue) return;
 
     const storageKey = `notifiedQuarters-${eventId}`;
@@ -436,6 +449,7 @@ const SquareScreen = ({ route }) => {
   };
 
   useLayoutEffect(() => {
+    if (!isFocused) return;
     navigation.setOptions({
       headerTitle: () => (
         <Image
@@ -537,6 +551,8 @@ const SquareScreen = ({ route }) => {
   );
 
   useEffect(() => {
+    if (!isFocused) return;
+
     if (!userId || !gridId) return;
 
     const interval = setInterval(async () => {
@@ -650,92 +666,138 @@ const SquareScreen = ({ route }) => {
   };
 
   const renderScene = SceneMap({
-    squares: () => (
-      <ScrollView contentContainerStyle={{ padding: 14 }}>
-        <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-          <Card.Content>
-            <Card
-              style={[
-                styles.sessionTitleCard,
-                {
-                  backgroundColor: theme.colors.elevation.level2,
-                },
-              ]}
-            >
-              <Card.Content style={{ alignItems: "center" }}>
-                <View style={styles.titleContent}>
+    squares: () => {
+      if (!isFocused) return null; // <- this will prevent logging and rendering
+
+      const selectedCount = selectedSquares.size;
+      const numericPrice = parseFloat(pricePerSquare || 0);
+      const totalOwed = numericPrice * selectedCount;
+      console.log("pricePerSquare: ", pricePerSquare);
+      console.log("selectedCount: ", selectedCount);
+      console.log("numericPrice: ", numericPrice);
+      console.log("totalOwed: ", totalOwed);
+
+      return (
+        <ScrollView contentContainerStyle={{ padding: 14 }}>
+          <Card
+            style={[styles.card, { backgroundColor: theme.colors.surface }]}
+          >
+            <Card.Content>
+              <Card
+                style={[
+                  styles.sessionTitleCard,
+                  {
+                    backgroundColor: theme.colors.elevation.level2,
+                  },
+                ]}
+              >
+                <Card.Content style={{ alignItems: "center" }}>
+                  <View style={styles.titleContent}>
+                    <Text
+                      style={[
+                        styles.sessionTitle,
+                        { color: theme.colors.onSurface },
+                      ]}
+                    >
+                      {inputTitle}
+                    </Text>
+                  </View>
+                  <Text style={styles.sessionSubtitle}>
+                    {team1} vs {team2}
+                  </Text>
+                </Card.Content>
+              </Card>
+              <View style={{ alignItems: "center", marginBottom: 8 }}>
+                <Text
+                  style={[styles.teamLabel, { color: theme.colors.onSurface }]}
+                >
+                  {team2Mascot}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", marginBottom: 15 }}>
+                <View style={styles.teamColumn}>
+                  {splitTeamName(team1Mascot).map((letter, i) => (
+                    <Text
+                      key={i}
+                      style={[
+                        styles.teamLetter,
+                        { color: theme.colors.onSurface },
+                      ]}
+                    >
+                      {letter}
+                    </Text>
+                  ))}
+                </View>
+                <ScrollView horizontal>
+                  <ScrollView>
+                    {renderSquareGrid({
+                      editable: !isAfterDeadline,
+                      onSquarePress: isAfterDeadline
+                        ? handleSquarePress
+                        : handlePress,
+                    })}
+                  </ScrollView>
+                </ScrollView>
+              </View>
+              {!isAfterDeadline && (
+                <View style={styles.deadlineContainerCentered}>
                   <Text
                     style={[
-                      styles.sessionTitle,
+                      styles.deadlineLabel,
                       { color: theme.colors.onSurface },
                     ]}
                   >
-                    {inputTitle}
+                    Time Remaining:
+                  </Text>
+                  <Text
+                    style={[
+                      styles.deadlineValue,
+                      { color: theme.colors.onSurface },
+                    ]}
+                  >
+                    {deadlineValue
+                      ? formatTimeLeft(deadlineValue, now)
+                      : "No deadline set"}
                   </Text>
                 </View>
-                <Text style={styles.sessionSubtitle}>
-                  {team1} vs {team2}
-                </Text>
-              </Card.Content>
-            </Card>
-            <View style={{ alignItems: "center", marginBottom: 8 }}>
-              <Text
-                style={[styles.teamLabel, { color: theme.colors.onSurface }]}
-              >
-                {team2Mascot}
-              </Text>
-            </View>
-            <View style={{ flexDirection: "row", marginBottom: 15 }}>
-              <View style={styles.teamColumn}>
-                {splitTeamName(team1Mascot).map((letter, i) => (
+              )}
+              {pricePerSquare > 0 && (
+                <View
+                  style={{
+                    marginTop: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    paddingVertical: 10,
+                    borderTopWidth: 1,
+                    borderTopColor: theme.colors.outlineVariant || "#ccc",
+                  }}
+                >
                   <Text
-                    key={i}
-                    style={[
-                      styles.teamLetter,
-                      { color: theme.colors.onSurface },
-                    ]}
+                    style={{
+                      color: theme.colors.onSurface,
+                      fontSize: 16,
+                      fontFamily: "SoraBold",
+                    }}
                   >
-                    {letter}
+                    Price per square: ${pricePerSquare.toFixed(2)}
                   </Text>
-                ))}
-              </View>
-              <ScrollView horizontal>
-                <ScrollView>
-                  {renderSquareGrid({
-                    editable: !isAfterDeadline,
-                    onSquarePress: isAfterDeadline
-                      ? handleSquarePress
-                      : handlePress,
-                  })}
-                </ScrollView>
-              </ScrollView>
-            </View>
-            {!isAfterDeadline && (
-              <View style={styles.deadlineContainerCentered}>
-                <Text
-                  style={[
-                    styles.deadlineLabel,
-                    { color: theme.colors.onSurface },
-                  ]}
-                >
-                  Time Remaining:
-                </Text>
-                <Text
-                  style={[
-                    styles.deadlineValue,
-                    { color: theme.colors.onSurface },
-                  ]}
-                >
-                  {deadlineValue
-                    ? formatTimeLeft(deadlineValue, now)
-                    : "No deadline set"}
-                </Text>
-              </View>
-            )}
-          </Card.Content>
-        </Card>
-      </ScrollView>
-    ),
+                  <Text
+                    style={{
+                      color: theme.colors.primary,
+                      fontSize: 16,
+                      fontWeight: "bold",
+                      fontFamily: "SoraBold",
+                    }}
+                  >
+                    Total Owed: ${totalOwed.toFixed(2)}
+                  </Text>
+                </View>
+              )}
+            </Card.Content>
+          </Card>
+        </ScrollView>
+      );
+    },
 
     players: () => {
       const userSquareCount: Record<string, number> = {};
@@ -745,6 +807,28 @@ const SquareScreen = ({ route }) => {
         )?.[0];
         if (uid) {
           userSquareCount[uid] = (userSquareCount[uid] || 0) + 1;
+        }
+      });
+
+      const userSelections: Record<string, string[]> = {};
+
+      Object.entries(squareColors).forEach(([key, color]) => {
+        const uid = Object.entries(playerColors).find(
+          ([, userColor]) => userColor === color
+        )?.[0];
+
+        const [xStr, yStr] = key.split(",");
+        const x = parseInt(xStr, 10);
+        const y = parseInt(yStr, 10);
+
+        if (uid && !isNaN(x) && !isNaN(y)) {
+          const coord = `(${x},${y})`;
+          if (!userSelections[uid]) {
+            userSelections[uid] = [];
+          }
+          userSelections[uid].push(coord);
+        } else {
+          console.warn("Invalid key or uid:", key, uid);
         }
       });
 
@@ -774,34 +858,81 @@ const SquareScreen = ({ route }) => {
               renderItem={({ item: [uid, color] }) => {
                 const username = playerUsernames[uid] || uid;
                 const count = userSquareCount[uid] || 0;
+                const totalOwed =
+                  typeof pricePerSquare === "number" && pricePerSquare > 0
+                    ? count * pricePerSquare
+                    : null;
 
                 return (
-                  <View style={styles.playerRow}>
+                  <View
+                    style={[
+                      styles.playerRow,
+                      {
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                      },
+                    ]}
+                  >
                     <View
-                      style={[
-                        styles.colorCircle,
-                        { backgroundColor: color as string },
-                      ]}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        flex: 1,
+                      }}
+                    >
+                      <View
                         style={[
-                          styles.playerName,
-                          { color: theme.colors.onSurface },
+                          styles.colorCircle,
+                          { backgroundColor: color as string },
                         ]}
-                      >
-                        {username}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.playerSubtext,
-                          ,
-                          { color: theme.colors.onSurface },
-                        ]}
-                      >
-                        {count} / {maxSelections} squares selected
-                      </Text>
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={[
+                            styles.playerName,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
+                          {username}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.playerSubtext,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
+                          {count} / {maxSelections} squares selected
+                        </Text>
+                        {userSelections[uid] &&
+                          userSelections[uid].length > 0 && (
+                            <Text
+                              style={[
+                                styles.playerSubtext,
+                                {
+                                  color: theme.colors.onSurfaceVariant,
+                                  fontSize: 12,
+                                },
+                              ]}
+                            >
+                              {userSelections[uid].join(", ")}
+                            </Text>
+                          )}
+                      </View>
                     </View>
+
+                    {totalOwed !== null && (
+                      <Text
+                        style={{
+                          color: theme.colors.primary,
+                          fontWeight: "bold",
+                          fontFamily: "SoraBold",
+                          fontSize: 14,
+                          paddingLeft: 6,
+                        }}
+                      >
+                        ${totalOwed.toFixed(2)}
+                      </Text>
+                    )}
                   </View>
                 );
               }}

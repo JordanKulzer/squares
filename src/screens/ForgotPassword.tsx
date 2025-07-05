@@ -32,27 +32,24 @@ const ForgotPasswordScreen = ({ navigation }) => {
   }, [theme.dark]);
 
   const handleResetPassword = async () => {
-    if (!email) {
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedEmail) {
       setMessage({ text: "Please enter your email.", type: "error" });
       return;
     }
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://your-app-url.com/reset", // SWITCH TO DEEPLINKING
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        trimmedEmail,
+        {
+          redirectTo: "squaresgame://reset-password",
+        }
+      );
 
       if (error) {
-        const isInvalid = error.message.toLowerCase().includes("invalid");
-        const isNotFound = error.message
-          .toLowerCase()
-          .includes("user not found");
-
-        let errorMsg = "Something went wrong.";
-        if (isInvalid) errorMsg = "Invalid email address.";
-        else if (isNotFound) errorMsg = "No user found with this email.";
-
-        setMessage({ text: errorMsg, type: "error" });
+        console.error("Supabase error:", error.message);
+        setMessage({ text: error.message, type: "error" });
       } else {
         setMessage({
           text: "Password reset email sent. Check your inbox.",
@@ -60,8 +57,8 @@ const ForgotPasswordScreen = ({ navigation }) => {
         });
       }
     } catch (e) {
-      setMessage({ text: "Unexpected error occurred.", type: "error" });
       console.error("Reset error:", e);
+      setMessage({ text: "Unexpected error occurred.", type: "error" });
     }
   };
 

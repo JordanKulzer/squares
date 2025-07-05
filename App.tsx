@@ -9,6 +9,7 @@ import {
   NavigationContainer,
   DefaultTheme,
   DarkTheme as NavigationDarkTheme,
+  createNavigationContainerRef,
 } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -31,6 +32,10 @@ import HowToScreen from "./src/screens/HowToScreen";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
 import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 import { registerPushToken } from "./src/utils/registerPushToken";
+import * as Linking from "expo-linking";
+import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
+
+export const navigationRef = createNavigationContainerRef();
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -126,19 +131,48 @@ const App: React.FC = () => {
     }
   };
 
-  // const linking = {
-  //   prefixes: [
-  //     "squaresgame://", // your custom URI scheme
-  //     "https://squares-41599.web.app", // your Firebase Hosting link
-  //   ],
-  //   config: {
-  //     screens: {
-  //       JoinSquareScreen: {
-  //         path: "session/:sessionId",
-  //       },
-  //     },
-  //   },
-  // };
+  const linking = {
+    prefixes: [
+      "squaresgame://", // for deep links
+      "https://squares-41599.web.app", // fallback
+    ],
+    config: {
+      screens: {
+        ResetPasswordScreen: "reset-password", // add this line
+        JoinSquareScreen: {
+          path: "session/:sessionId",
+        },
+      },
+    },
+  };
+
+  useEffect(() => {
+    const handleDeepLink = async ({ url }: { url: string }) => {
+      if (!url) return;
+
+      const parsed = new URL(url);
+      const hash = parsed.hash.startsWith("#")
+        ? parsed.hash.substring(1)
+        : parsed.hash;
+      const params = new URLSearchParams(hash);
+
+      const type = params.get("type");
+      const access_token = params.get("access_token");
+      const refresh_token = params.get("refresh_token");
+
+      if (type === "recovery" && access_token && refresh_token) {
+        await supabase.auth.setSession({ access_token, refresh_token });
+        navigationRef.current?.navigate("ResetPasswordScreen");
+      }
+    };
+
+    const sub = Linking.addEventListener("url", handleDeepLink);
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    return () => sub.remove();
+  }, []);
 
   const [fontsLoaded] = useFonts({
     Sora: require("./assets/fonts/Sora-Regular.ttf"),
@@ -162,7 +196,7 @@ const App: React.FC = () => {
         }
       />
       <PaperProvider theme={paperTheme}>
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer theme={navigationTheme} linking={linking}>
           <Stack.Navigator>
             {user ? (
               <>
@@ -257,6 +291,11 @@ const App: React.FC = () => {
                 />
               </>
             )}
+            <Stack.Screen
+              name="ResetPasswordScreen"
+              component={ResetPasswordScreen}
+              options={{ headerShown: false }}
+            />
           </Stack.Navigator>
         </NavigationContainer>
         <Toast config={toastConfig} position="bottom" bottomOffset={60} />
