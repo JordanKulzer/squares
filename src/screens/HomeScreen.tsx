@@ -71,6 +71,7 @@ const HomeScreen = () => {
           return {
             id: item.id,
             ...item,
+            eventId: item.event_id,
             username: userPlayer?.username || "Unknown",
           };
         });
@@ -295,7 +296,9 @@ const HomeScreen = () => {
                         borderLeftColor: theme.colors.primary,
                       },
                     ]}
-                    onPress={() =>
+                    onPress={() => {
+                      console.log("id: ", item.id);
+
                       navigation.navigate("SquareScreen", {
                         gridId: item.id,
                         inputTitle: item.title,
@@ -304,8 +307,8 @@ const HomeScreen = () => {
                         eventId: item.eventId,
                         disableAnimation: true,
                         pricePerSquare: item.price_per_square || 0,
-                      })
-                    }
+                      });
+                    }}
                   >
                     <View
                       style={{

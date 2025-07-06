@@ -17,7 +17,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import NotificationsModal from "../components/NotificationsModal";
-import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
+import { scheduleNotifications } from "../utils/notifications";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
@@ -159,19 +159,17 @@ const JoinSquareScreen = () => {
         return;
       }
 
-      // 2. Schedule deadline notification if needed
       if (notifySettings.deadlineReminders && deadline) {
         const deadlineDate = new Date(deadline);
-        await scheduleDeadlineNotifications(deadlineDate);
+        await scheduleNotifications(deadlineDate, gridId, notifySettings);
       }
 
-      // 3. Navigate to the game
       navigation.navigate("SquareScreen", {
         gridId,
         inputTitle,
         username,
         deadline,
-        eventId: "", // ← optional, can add Supabase event_id later
+        eventId: "",
       });
     } catch (err) {
       console.error("Unexpected error:", err);

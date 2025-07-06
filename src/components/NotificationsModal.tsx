@@ -8,12 +8,7 @@ import {
   TouchableWithoutFeedback,
 } from "react-native";
 import { Portal, Chip, Button, useTheme } from "react-native-paper";
-
-interface NotificationSettings {
-  deadlineReminders: boolean;
-  quarterResults: boolean;
-  playerJoined: boolean;
-}
+import { NotificationSettings } from "../utils/notificationTypes";
 
 interface NotificationSettingsModalProps {
   visible: boolean;
@@ -136,7 +131,6 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
 
           {[
             { key: "quarterResults", label: "Quarter Results" },
-            { key: "finalResults", label: "Final Results" },
 
             {
               key: "deadlineReminders",

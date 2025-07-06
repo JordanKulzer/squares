@@ -22,7 +22,7 @@ import {
 } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
-import { scheduleDeadlineNotifications } from "../utils/scheduleDeadlineNotifications";
+import { scheduleNotifications } from "../utils/notifications";
 import NotificationsModal from "../components/NotificationsModal";
 import { supabase } from "../lib/supabase";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -143,8 +143,8 @@ const CreateSquareScreen = ({ navigation }) => {
         return;
       }
 
-      if (notifySettings.deadlineReminders) {
-        await scheduleDeadlineNotifications(deadline);
+      if (notifySettings.deadlineReminders || notifySettings.quarterResults) {
+        await scheduleNotifications(deadline, data.id, notifySettings);
       }
 
       navigation.navigate("SquareScreen", {

@@ -16,6 +16,8 @@ import { getToastConfig } from "../components/ToastConfig";
 import QRCode from "react-native-qrcode-svg";
 import { supabase } from "../lib/supabase";
 import NotificationSettingsModal from "./NotificationsModal";
+import RemovePlayerModal from "./RemovePlayerModal";
+import EditGameModal from "./EditGameModal";
 
 const SessionOptionsModal = ({
   visible,
@@ -27,6 +29,28 @@ const SessionOptionsModal = ({
   setTempDeadline,
   deadlineValue,
   setShowDeadlineModal,
+  triggerRefresh,
+  team1,
+  team2,
+  quarterScores,
+}: {
+  visible: boolean;
+  onDismiss: () => void;
+  gridId: string;
+  isOwner: boolean;
+  handleLeaveSquare: () => void;
+  handleDeleteSquare: () => void;
+  setTempDeadline: (d: Date | null) => void;
+  deadlineValue: Date | null;
+  setShowDeadlineModal: (v: boolean) => void;
+  triggerRefresh: () => void;
+  team1: string; // <--
+  team2: string; // <--
+  quarterScores: {
+    quarter: string;
+    home: number | null;
+    away: number | null;
+  }[]; // <--
 }) => {
   const theme = useTheme();
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -34,6 +58,9 @@ const SessionOptionsModal = ({
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(600)).current;
   const isDarkMode = useColorScheme() === "dark";
+  const [showKickModal, setShowKickModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [showEditGameModal, setShowEditGameModal] = useState(false);
 
   <Toast config={getToastConfig(isDarkMode)} />;
 
@@ -52,6 +79,14 @@ const SessionOptionsModal = ({
       }).start();
     }
   }, [visible]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setCurrentUserId(data?.user?.id ?? null);
+    };
+    fetchUser();
+  }, []);
 
   useEffect(() => {
     const loadNotifySettings = async () => {
@@ -205,29 +240,69 @@ const SessionOptionsModal = ({
             </Button>
 
             {isOwner && (
-              <Button
-                icon="calendar"
-                mode="outlined"
-                onPress={() => {
-                  onDismiss();
-                  setTempDeadline(deadlineValue);
-                  setShowDeadlineModal(true);
-                }}
-                style={{
-                  marginBottom: 12,
-                  borderColor: theme.colors.primary,
-                  borderRadius: 20,
-                  paddingHorizontal: 12,
-                }}
-                labelStyle={{
-                  fontWeight: "600",
-                  color: theme.colors.primary,
-                  textTransform: "none",
-                  fontFamily: "Sora",
-                }}
-              >
-                Change Deadline
-              </Button>
+              <>
+                {/* <Button
+                  icon="calendar"
+                  mode="outlined"
+                  onPress={() => {
+                    onDismiss();
+                    setTempDeadline(deadlineValue);
+                    setShowDeadlineModal(true);
+                  }}
+                  style={{
+                    marginBottom: 12,
+                    borderColor: theme.colors.primary,
+                    borderRadius: 20,
+                    paddingHorizontal: 12,
+                  }}
+                  labelStyle={{
+                    fontWeight: "600",
+                    color: theme.colors.primary,
+                    textTransform: "none",
+                    fontFamily: "Sora",
+                  }}
+                >
+                  Change Deadline
+                </Button> */}
+                <Button
+                  icon="pencil"
+                  mode="outlined"
+                  onPress={() => {
+                    onDismiss();
+                    setTimeout(() => setShowEditGameModal(true), 300);
+                  }}
+                  style={{
+                    marginBottom: 12,
+                    borderColor: theme.colors.primary,
+                    borderRadius: 20,
+                    paddingHorizontal: 12,
+                  }}
+                  labelStyle={{
+                    fontWeight: "600",
+                    color: theme.colors.primary,
+                    textTransform: "none",
+                    fontFamily: "Sora",
+                  }}
+                >
+                  Edit Game Info
+                </Button>
+                <Button
+                  icon="account-remove"
+                  mode="outlined"
+                  onPress={() => {
+                    onDismiss();
+                    setTimeout(() => setShowKickModal(true), 300);
+                  }}
+                  style={{ marginBottom: 12, borderColor: theme.colors.error }}
+                  labelStyle={{
+                    fontWeight: "600",
+                    color: theme.colors.error,
+                    fontFamily: "Sora",
+                  }}
+                >
+                  Remove Player
+                </Button>
+              </>
             )}
 
             <Button
@@ -272,6 +347,25 @@ const SessionOptionsModal = ({
           </ScrollView>
         </Animated.View>
       </Portal>
+
+      <RemovePlayerModal
+        visible={showKickModal}
+        onDismiss={() => setShowKickModal(false)}
+        gridId={gridId}
+        currentUserId={currentUserId}
+        triggerRefresh={triggerRefresh}
+      />
+
+      <EditGameModal
+        visible={showEditGameModal}
+        onDismiss={() => setShowEditGameModal(false)}
+        gridId={gridId}
+        currentTeam1={team1}
+        currentTeam2={team2}
+        currentScores={quarterScores}
+        triggerRefresh={triggerRefresh}
+        currentDeadline={deadlineValue ? deadlineValue.toISOString() : null}
+      />
 
       <NotificationSettingsModal
         visible={notifModalVisible}

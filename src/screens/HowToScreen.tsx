@@ -32,10 +32,10 @@ const HowToPlay = () => {
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          Squares is a fun game based on live sports games. Players select
-          squares on a 10x10 grid. Each axis represents the last digit of a
-          team's score. If your square matches the actual score at the end of a
-          quarter, you win!
+          Squares is a fun game based on live sports events. Players select
+          squares on a 10×10 grid, where each axis represents the last digit of
+          a team's score. If your square matches the actual score at the end of
+          a quarter, you win!
         </Text>
 
         <Text
@@ -46,11 +46,15 @@ const HowToPlay = () => {
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          1. Create or join a game session based on a sports event.{"\n"}2. Pick
-          a username and color.
-          {"\n"}3. Select available squares before the game starts.{"\n"}4. Once
-          the deadline passes, the grid numbers are revealed.{"\n"}5. Winners
-          are determined after each quarter based on live scores!
+          1. Create or join a game session tied to a live sports event.{"\n"}
+          2. Pick a username and a player color{"\n"}
+          3. Select available squares before the game starts. You may be limited
+          by either a max number of squares or a price-per-square system.{"\n"}
+          4. Once the deadline passes, grid numbers are revealed.{"\n"}
+          5. Winners are determined at the end of each quarter based on the live
+          score digits.{"\n"}
+          6. You'll receive optional notifications when new players join, the
+          deadline is near, or quarter winners are announced.
         </Text>
 
         <Text
@@ -62,7 +66,22 @@ const HowToPlay = () => {
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
           If the home team has 13 and the away team has 7, the winning square
-          would be the one where X-axis is 3 and Y-axis is 7.
+          would be where the X-axis is 3 and the Y-axis is 7.
+        </Text>
+
+        <Text
+          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
+        >
+          Optional Restraints
+        </Text>
+        <Text
+          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
+        >
+          Each session could be restricted by the following if desired:{"\n"}-
+          **Max Squares Per Player**: Players can pick up to a fixed number of
+          squares.{"\n"}- **Price Per Square**: Players pay a set amount for
+          each square they select. The app automatically tracks the total owed
+          per person.
         </Text>
 
         <Text
@@ -73,7 +92,9 @@ const HowToPlay = () => {
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          - Choose your squares strategically to spread out your chances.
+          - Spread your picks across the board to increase your chances.{"\n"}-
+          Enable notifications to stay updated with quarter results and game
+          progress.
         </Text>
 
         <TouchableOpacity

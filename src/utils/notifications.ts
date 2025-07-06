@@ -1,11 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { SchedulableTriggerInputTypes } from "expo-notifications";
+import { NotificationSettings } from "./notificationTypes";
 
 const DEADLINE_NOTIFICATION_KEY = "deadlineNotificationIds";
 const isDevClient = process.env.APP_ENV !== "production";
 
-export const scheduleDeadlineNotifications = async (deadline: Date) => {
+export const scheduleNotifications = async (
+  deadline: Date,
+  gridId: string,
+  notifySettings: NotificationSettings
+) => {
   const now = new Date();
   const deadlineTime = deadline.getTime();
 
@@ -87,4 +92,9 @@ export const scheduleDeadlineNotifications = async (deadline: Date) => {
     DEADLINE_NOTIFICATION_KEY,
     JSON.stringify(scheduledIds)
   );
+
+  // ✅ Setup quarter result tracking
+  if (notifySettings?.quarterResults) {
+    await AsyncStorage.removeItem(`quarterNotified:${gridId}`);
+  }
 };
