@@ -64,8 +64,6 @@ const RemovePlayerModal = ({
         .select("players, player_ids, selections")
         .eq("id", gridId)
         .single();
-      console.log("Kicking player:", uidToKick, "from grid:", gridId);
-      console.log("data:", data, "error:", error);
 
       if (error || !data) return;
 
@@ -86,9 +84,6 @@ const RemovePlayerModal = ({
         })
         .eq("id", gridId)
         .single();
-
-      console.log("updateResult:", updateResult);
-      console.log("updateError:", updateError);
 
       if (updateError) {
         console.error("Error updating players:", updateError);

@@ -218,8 +218,7 @@ const SquareScreen = ({ route }) => {
 
   useEffect(() => {
     if (!isFocused) return;
-    console.log("eventId:", eventId);
-    console.log("deadlineValue:", deadlineValue);
+
     const fetchSquareData = async () => {
       const { data, error } = await supabase
         .from("squares")
@@ -348,7 +347,6 @@ const SquareScreen = ({ route }) => {
           scoresDiffer && dbScores.length > 0 ? dbScores : apiScores;
 
         setQuarterScores(finalScores);
-        console.log("quarterSCORES: ", finalScores);
 
         // 4. Notification logic (optional)
         const storageKey = `notifiedQuarters-${eventId}`;
@@ -884,7 +882,6 @@ const SquareScreen = ({ route }) => {
               quarterScores.map((q, i) => {
                 const { home, away } = q;
                 const winner = quarterWinners[i];
-                console.log("Winner for quarter", q.quarter, ":", winner);
                 if (home == null || away == null || !winner) return null;
                 const username = winner?.username ?? "No Winner";
                 const square = winner?.square ?? ["-", "-"];
@@ -1300,17 +1297,29 @@ const SquareScreen = ({ route }) => {
               </Button>
               <Button
                 onPress={async () => {
+                  if (!userId) return;
+
                   closeAnimatedDialog(setShowLeaveConfirm, leaveAnim);
+
                   try {
                     const { data, error } = await supabase
                       .from("squares")
-                      .select("playerIds, players, selections")
+                      .select("player_ids, players, selections, title")
                       .eq("id", gridId)
                       .single();
 
-                    if (error || !data) return;
+                    if (error || !data) {
+                      console.warn("No square found for gridId:", gridId);
+                      Toast.show({
+                        type: "error",
+                        text1: "Session not found or access denied.",
+                        position: "bottom",
+                        bottomOffset: 60,
+                      });
+                      return;
+                    }
 
-                    const updatedPlayerIds = (data.playerIds || []).filter(
+                    const updatedPlayerIds = (data.player_ids || []).filter(
                       (id) => id !== userId
                     );
                     const updatedPlayers = (data.players || []).filter(
@@ -1320,21 +1329,41 @@ const SquareScreen = ({ route }) => {
                       (sel) => sel.userId !== userId
                     );
 
-                    await supabase
+                    const { error: updateError } = await supabase
                       .from("squares")
                       .update({
-                        playerIds: updatedPlayerIds,
                         players: updatedPlayers,
+                        player_ids: updatedPlayerIds,
                         selections: updatedSelections,
                       })
-                      .eq("id", gridId);
+                      .eq("id", gridId)
+                      .single();
+
+                    if (updateError) {
+                      Toast.show({
+                        type: "error",
+                        text1: "Failed to leave session. Try again.",
+                        position: "bottom",
+                        bottomOffset: 60,
+                      });
+                      return;
+                    }
 
                     if (updatedPlayers.length === 0) {
-                      await supabase.from("squares").delete().eq("id", gridId);
+                      const { error: deleteError } = await supabase
+                        .from("squares")
+                        .delete()
+                        .eq("id", gridId);
+                      if (deleteError) {
+                        console.error(
+                          "Error deleting empty square:",
+                          deleteError
+                        );
+                      }
                     }
 
                     Toast.show({
-                      type: "error",
+                      type: "info",
                       text1: `You’ve left ${inputTitle}`,
                       position: "bottom",
                       visibilityTime: 2500,
@@ -1350,6 +1379,12 @@ const SquareScreen = ({ route }) => {
                     navigation.navigate("Main");
                   } catch (err) {
                     console.error("Failed to leave square:", err);
+                    Toast.show({
+                      type: "error",
+                      text1: "Unexpected error leaving the square.",
+                      position: "bottom",
+                      bottomOffset: 60,
+                    });
                   }
                 }}
                 textColor={theme.colors.primary}

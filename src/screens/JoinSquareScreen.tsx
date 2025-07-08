@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -81,9 +81,9 @@ const JoinSquareScreen = () => {
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
     : (["#fdfcf9", "#e0e7ff"] as const);
 
-  const availableColors = colors.colorOptions.filter(
-    (color) => !usedColors.includes(color)
-  );
+  const availableColors = useMemo(() => {
+    return colors.colorOptions.filter((color) => !usedColors.includes(color));
+  }, [usedColors]);
 
   useEffect(() => {
     if (!gridId) {
@@ -110,12 +110,14 @@ const JoinSquareScreen = () => {
       setInputTitle(square.title || "Untitled");
       setDeadline(square.deadline || null);
 
-      const { data: players } = await supabase
-        .from("players")
-        .select("color")
-        .eq("square_id", gridId);
+      const { data: squareWithPlayers } = await supabase
+        .from("squares")
+        .select("players")
+        .eq("id", gridId)
+        .single();
 
-      const takenColors = players?.map((p) => p.color) || [];
+      const takenColors =
+        squareWithPlayers?.players?.map((p) => p.color).filter(Boolean) || [];
       setUsedColors(takenColors);
     };
 
@@ -141,21 +143,60 @@ const JoinSquareScreen = () => {
     }
 
     try {
-      // 1. Insert player record
-      const { error: insertError } = await supabase.from("players").insert({
-        square_id: gridId,
-        user_id: user?.id,
+      const { data: square, error: fetchError } = await supabase
+        .from("squares")
+        .select("players")
+        .eq("id", gridId)
+        .single();
+
+      if (fetchError || !square) {
+        console.error("Failed to fetch existing players:", fetchError);
+        alert("Failed to join. Could not fetch session.");
+        return;
+      }
+
+      const existingPlayers = square.players || [];
+
+      if (existingPlayers.some((p) => p.userId === user.id)) {
+        alert("You’ve already joined this session.");
+        return;
+      }
+
+      const newPlayer = {
+        userId: user.id,
         username,
         color: selectedColor,
-        notify_deadline: notifySettings.deadlineReminders,
-        notify_quarters: notifySettings.quarterResults,
-        notify_player_joined: notifySettings.playerJoined,
         joined_at: new Date().toISOString(),
+        notifySettings,
+      };
+
+      const updatedPlayers = [...existingPlayers, newPlayer];
+
+      const { data: updatedSquare, error: updateError } = await supabase
+        .from("squares")
+        .update({ players: updatedPlayers })
+        .eq("id", gridId)
+        .select();
+
+      if (updateError) {
+        console.error("Update failed:", updateError);
+        alert("Failed to join square.");
+        return;
+      }
+
+      const { error: rpcError } = await supabase.rpc("add_player_to_square", {
+        square_id: gridId,
+        new_user_id: user.id,
       });
 
-      if (insertError) {
-        console.error("Insert player error:", insertError);
-        alert("Failed to join square.");
+      if (rpcError) {
+        console.error("Failed to update player_ids array:", rpcError);
+        alert("Joined the session, but failed to update player_ids.");
+      }
+
+      if (!updatedSquare || updatedSquare.length === 0) {
+        console.warn("No rows updated — gridId may not match.");
+        alert("Failed to join — session may not exist.");
         return;
       }
 
@@ -169,6 +210,7 @@ const JoinSquareScreen = () => {
         inputTitle,
         username,
         deadline,
+        pricePerSquare,
         eventId: "",
       });
     } catch (err) {

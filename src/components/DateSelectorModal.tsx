@@ -29,7 +29,6 @@ const DateSelectorModal = ({ visible, onDismiss, date, onConfirm }: Props) => {
     onConfirm(tempDate);
     onDismiss();
   };
-  console.log("Theme primary color:", theme.colors.primary);
 
   return (
     <Portal>

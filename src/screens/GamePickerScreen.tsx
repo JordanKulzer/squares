@@ -133,7 +133,6 @@ const GamePickerScreen = () => {
       if (!path) {
         return []; // For now, skip unsupported sports
       }
-      console.log(path);
 
       const res = await fetch(
         `${API_BASE_URL}${path}?startDate=${formattedDate}`
@@ -172,7 +171,6 @@ const GamePickerScreen = () => {
   }, [weekOffset, gameType, calendarDate, selectedSport]);
 
   const handleSelectGame = (game) => {
-    console.log("Selected game:", game);
     navigation.dispatch(StackActions.pop(1));
     navigation.navigate("CreateSquareScreen", {
       team1: game.awayTeam,

@@ -89,7 +89,6 @@ const HomeScreen = () => {
           counts[squareId] = userCount;
         });
 
-        console.log("Selection counts:", counts);
         setSelectionCounts(counts);
 
         animations.length = 0;
@@ -297,8 +296,6 @@ const HomeScreen = () => {
                       },
                     ]}
                     onPress={() => {
-                      console.log("id: ", item.id);
-
                       navigation.navigate("SquareScreen", {
                         gridId: item.id,
                         inputTitle: item.title,

@@ -47,7 +47,7 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
         .single();
 
       if (fetchError || !data) {
-        setError("Session not found.");
+        setError("Session not found.: " + fetchError?.message);
         return;
       }
 
