@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { SchedulableTriggerInputTypes } from "expo-notifications";
 import { NotificationSettings } from "./notificationTypes";
+import { supabase } from "../lib/supabase";
+
 
 const DEADLINE_NOTIFICATION_KEY = "deadlineNotificationIds";
 const isDevClient = process.env.APP_ENV !== "production";
@@ -93,8 +95,38 @@ export const scheduleNotifications = async (
     JSON.stringify(scheduledIds)
   );
 
-  // ✅ Setup quarter result tracking
   if (notifySettings?.quarterResults) {
     await AsyncStorage.removeItem(`quarterNotified:${gridId}`);
   }
+};
+
+
+export const sendGameUpdateNotification = async (gridId: string) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  
+  const currentUserId = user?.id;
+  if (!currentUserId) return;
+
+  const { data: players, error } = await supabase
+    .from("players")
+    .select("notification_token, notification_settings, user_id")
+    .eq("grid_id", gridId);
+
+  if (error || !players) return;
+
+  const currentPlayer = players.find((p) => p.user_id === currentUserId);
+  const shouldNotify = currentPlayer?.notification_settings?.gameUpdated;
+
+  if (!shouldNotify) return;
+
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "📢 Game Info Updated",
+      body: "The session owner updated team names or scores.",
+      sound: true,
+    },
+    trigger: null,
+  });
 };

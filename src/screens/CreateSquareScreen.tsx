@@ -62,6 +62,7 @@ const CreateSquareScreen = ({ navigation }) => {
     deadlineReminders: false,
     quarterResults: false,
     playerJoined: false,
+    gameUpdated: false,
   });
   const insets = useSafeAreaInsets();
 
@@ -221,7 +222,9 @@ const CreateSquareScreen = ({ navigation }) => {
           </Text>
           <View style={styles.gameCardRow}>
             <Text style={{ color: theme.colors.onSurface }}>
-              Click here to select your game
+              {team1 && team2
+                ? `Click here to select a different game`
+                : `Click here to select your game`}
             </Text>
             <Icon
               name="chevron-forward"
@@ -260,7 +263,7 @@ const CreateSquareScreen = ({ navigation }) => {
           </Text>
           <View style={styles.gameCardRow}>
             <Text style={{ color: theme.colors.onSurface }}>
-              Click here to edit
+              Click here to edit these settings
             </Text>
             <Icon
               name="chevron-forward"
@@ -292,7 +295,7 @@ const CreateSquareScreen = ({ navigation }) => {
           </Text>
           <View style={styles.gameCardRow}>
             <Text style={{ color: theme.colors.onSurface }}>
-              Click here to change
+              Click here to change your deadline
             </Text>
             <Icon
               name="chevron-forward"
@@ -453,20 +456,19 @@ const CreateSquareScreen = ({ navigation }) => {
             Notification Preferences
           </Text>
 
-          {/* Main row: list on left, chevron on right */}
           <View
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
-              alignItems: "flex-end", // anchor chevron to bottom
+              alignItems: "flex-end",
             }}
           >
-            {/* Notification text block */}
             <View style={{ flex: 1 }}>
               {[
                 notifySettings.deadlineReminders,
                 notifySettings.quarterResults,
                 notifySettings.playerJoined,
+                notifySettings.gameUpdated,
               ].some(Boolean) ? (
                 <>
                   <Text
@@ -482,6 +484,7 @@ const CreateSquareScreen = ({ navigation }) => {
                     notifySettings.deadlineReminders && "• Deadline Reminders",
                     notifySettings.quarterResults && "• Quarter Results",
                     notifySettings.playerJoined && "• New Player Joining",
+                    notifySettings.gameUpdated && "• Game Updated By Manager",
                   ]
                     .filter(Boolean)
                     .map((item, index) => (
@@ -506,7 +509,6 @@ const CreateSquareScreen = ({ navigation }) => {
               )}
             </View>
 
-            {/* Chevron icon aligned to bottom of text block */}
             <Icon
               name="chevron-forward"
               size={20}

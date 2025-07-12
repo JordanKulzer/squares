@@ -15,7 +15,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import Icon from "react-native-vector-icons/Ionicons";
 import NotificationsModal from "../components/NotificationsModal";
 import { scheduleNotifications } from "../utils/notifications";
 import { RootStackParamList } from "../utils/types";
@@ -75,6 +75,7 @@ const JoinSquareScreen = () => {
     deadlineReminders: false,
     quarterResults: false,
     playerJoined: false,
+    gameUpdated: false,
   });
 
   const gradientColors = theme.dark
@@ -310,31 +311,87 @@ const JoinSquareScreen = () => {
                     </ScrollView>
                     <TouchableOpacity
                       onPress={() => setNotifModalVisible(true)}
-                      style={{
-                        marginTop: 10,
-                        padding: 12,
-                        backgroundColor: theme.colors.elevation.level1,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: theme.colors.outlineVariant,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
+                      style={[
+                        styles.gameCard,
+                        { backgroundColor: theme.colors.elevation.level1 },
+                      ]}
                     >
                       <Text
                         style={{
                           color: theme.colors.onSurface,
-                          fontWeight: "500",
+                          marginBottom: 4,
                         }}
                       >
                         Notification Preferences
                       </Text>
-                      <MaterialCommunityIcons
-                        name="chevron-right"
-                        size={20}
-                        color={theme.colors.onSurface}
-                      />
+
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "flex-end",
+                        }}
+                      >
+                        <View style={{ flex: 1 }}>
+                          {[
+                            notifySettings.deadlineReminders,
+                            notifySettings.quarterResults,
+                            notifySettings.playerJoined,
+                            notifySettings.gameUpdated,
+                          ].some(Boolean) ? (
+                            <>
+                              <Text
+                                style={{
+                                  color: theme.colors.onSurfaceVariant,
+                                  fontSize: 13,
+                                  marginBottom: 2,
+                                }}
+                              >
+                                You currently get notifications for:
+                              </Text>
+                              {[
+                                notifySettings.deadlineReminders &&
+                                  "• Deadline Reminders",
+                                notifySettings.quarterResults &&
+                                  "• Quarter Results",
+                                notifySettings.playerJoined &&
+                                  "• New Player Joining",
+                                notifySettings.gameUpdated &&
+                                  "• Game Updated By Manager",
+                              ]
+                                .filter(Boolean)
+                                .map((item, index) => (
+                                  <Text
+                                    key={index}
+                                    style={{
+                                      color: theme.colors.primary,
+                                      fontWeight: "600",
+                                      fontSize: 13,
+                                    }}
+                                  >
+                                    {item}
+                                  </Text>
+                                ))}
+                            </>
+                          ) : (
+                            <Text
+                              style={{
+                                color: theme.colors.onSurface,
+                                marginBottom: 4,
+                              }}
+                            >
+                              Click here to add notifications
+                            </Text>
+                          )}
+                        </View>
+
+                        <Icon
+                          name="chevron-forward"
+                          size={20}
+                          color={theme.colors.onSurface}
+                          style={{ marginLeft: 12 }}
+                        />
+                      </View>
                     </TouchableOpacity>
                     {pricePerSquare != null && pricePerSquare > 0 && (
                       <View style={{ marginTop: 12, marginBottom: 8 }}>
@@ -433,7 +490,14 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-
+  gameCard: {
+    paddingVertical: 12,
+    paddingLeft: 5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    marginBottom: 15,
+  },
   input: {
     marginBottom: 15,
   },

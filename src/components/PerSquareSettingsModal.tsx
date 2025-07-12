@@ -8,6 +8,7 @@ import {
   TextInput,
   useTheme,
 } from "react-native-paper";
+import Icon from "react-native-vector-icons/Ionicons";
 import { Picker } from "@react-native-picker/picker";
 import colors from "../../assets/constants/colorOptions";
 
@@ -83,15 +84,29 @@ const PerSquareSettingsModal = ({
             >
               2. Dollar Amount Per Square
             </Text>
-            <Text
+            <View
               style={{
-                fontFamily: "Sora",
-                marginTop: 4,
-                color: theme.colors.onSurfaceVariant,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "flex-end",
               }}
             >
-              ${parseFloat(price || "0").toFixed(2)}
-            </Text>
+              <Text
+                style={{
+                  fontFamily: "Sora",
+                  marginTop: 4,
+                  color: theme.colors.onSurfaceVariant,
+                }}
+              >
+                ${parseFloat(price || "0").toFixed(2)}
+              </Text>
+              <Icon
+                name="chevron-forward"
+                size={20}
+                color={theme.colors.onSurface}
+                style={{ marginLeft: 12 }}
+              />
+            </View>
           </TouchableOpacity>
 
           <View style={styles.buttonRow}>
@@ -173,7 +188,6 @@ const PerSquareSettingsModal = ({
             style={{
               borderRadius: 8,
               overflow: "hidden",
-              // backgroundColor: theme.colors.elevation.level1, // wrap Picker in themed bg
               backgroundColor: theme.colors.surface,
               marginBottom: 20,
             }}
@@ -187,7 +201,7 @@ const PerSquareSettingsModal = ({
               }}
               style={{
                 height: 150,
-                color: theme.colors.onSurface, // works on Android
+                color: theme.colors.onSurface,
               }}
               dropdownIconColor={theme.colors.onSurfaceVariant}
             >
@@ -195,14 +209,14 @@ const PerSquareSettingsModal = ({
                 const value = (i * 0.5).toFixed(2);
                 const pickerTextColor = theme.dark
                   ? theme.colors.onSurface
-                  : theme.colors.primary; // Darker for light mode
+                  : theme.colors.primary;
 
                 return (
                   <Picker.Item
                     key={value}
                     label={`$${value}`}
                     value={value}
-                    color={pickerTextColor} // <-- force color here too
+                    color={pickerTextColor}
                   />
                 );
               })}

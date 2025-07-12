@@ -16,6 +16,7 @@ import {
   Image,
   FlatList,
   Animated,
+  Platform,
 } from "react-native";
 import { Button, Card, Modal, Portal, useTheme } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -63,11 +64,11 @@ const SquareScreen = ({ route }) => {
   const [team2Mascot, setTeam2Mascot] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [players, setPlayers] = useState([]);
-
+  const [title, setTitle] = useState(route.params.inputTitle);
   const [maxSelections, setMaxSelections] = useState(0);
   const [quarterScores, setQuarterScores] = useState([]);
   const [quarterWinners, setQuarterWinners] = useState([]);
-
+  const [selections, setSelections] = useState([]);
   const [selectedSquares, setSelectedSquares] = useState(new Set());
   const [deadlineValue, setDeadlineValue] = useState<Date | null>(null);
   const [isAfterDeadline, setIsAfterDeadline] = useState(false);
@@ -139,8 +140,8 @@ const SquareScreen = ({ route }) => {
   useLayoutEffect(() => {
     if (!isFocused) return;
 
-    navigation.setOptions({ headerTitle: inputTitle });
-  }, [navigation, inputTitle]);
+    navigation.setOptions({ headerTitle: title });
+  }, [navigation, title]);
 
   const determineQuarterWinners = (scores, selections, xAxis, yAxis) => {
     return scores
@@ -160,37 +161,39 @@ const SquareScreen = ({ route }) => {
           username: matchingSelection
             ? playerUsernames[matchingSelection.userId]
             : "No Winner",
-          square: [away % 10, home % 10],
+          square: [home % 10, away % 10],
         };
       })
-      .filter(Boolean); // remove nulls
+      .filter(Boolean);
   };
 
   useEffect(() => {
     if (!isFocused) return;
 
-    if (quarterScores.length > 0 && xAxis.length && yAxis.length) {
-      const fetchSelections = async () => {
-        const { data, error } = await supabase
-          .from("squares")
-          .select("selections")
-          .eq("id", gridId)
-          .single();
+    const fetchSelectionsAndWinners = async () => {
+      const { data, error } = await supabase
+        .from("squares")
+        .select("quarter_scores, selections")
+        .eq("id", gridId)
+        .single();
 
-        if (error || !data?.selections) return;
+      if (error || !data) return;
 
+      setQuarterScores(data.quarter_scores || []);
+
+      if (data.selections && xAxis.length && yAxis.length) {
         const winners = determineQuarterWinners(
-          quarterScores,
+          data.quarter_scores || [],
           data.selections,
           xAxis,
           yAxis
         );
         setQuarterWinners(winners);
-      };
+      }
+    };
 
-      fetchSelections();
-    }
-  }, [quarterScores, xAxis, yAxis, gridId]);
+    fetchSelectionsAndWinners();
+  }, [refreshKey, gridId, isFocused, xAxis, yAxis]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -231,10 +234,12 @@ const SquareScreen = ({ route }) => {
       const colorMapping = {};
       const nameMapping = {};
 
+      setTitle(data.title || "");
       setTeam1(data.team1 || "");
       setTeam2(data.team2 || "");
       setTeam1Mascot(data.team1?.split(" ").slice(-1)[0]);
       setTeam2Mascot(data.team2?.split(" ").slice(-1)[0]);
+      setSelections(data.selections || []);
 
       if (data.players) {
         setPlayers(data.players);
@@ -422,7 +427,7 @@ const SquareScreen = ({ route }) => {
     try {
       await supabase
         .from("squares")
-        .update({ deadline: safeDeadline.toISOString() }) // convert Date to ISO string
+        .update({ deadline: safeDeadline.toISOString() })
         .eq("id", gridId);
 
       await scheduleNotifications(selectedDate, gridId, notifySettings);
@@ -434,7 +439,7 @@ const SquareScreen = ({ route }) => {
   const formatTimeLeft = (targetDate: Date, now: Date = new Date()) => {
     const diff = targetDate.getTime() - now.getTime();
 
-    if (diff <= 0) return "Finalized";
+    if (diff <= 0) return "Deadline has passed";
 
     const seconds = Math.floor(diff / 1000) % 60;
     const minutes = Math.floor(diff / (1000 * 60)) % 60;
@@ -492,12 +497,22 @@ const SquareScreen = ({ route }) => {
     if (!isFocused) return;
     navigation.setOptions({
       headerTitle: () => (
-        <Image
-          source={require("../../assets/icons/squares-logo.png")}
-          style={{ width: 100, height: 100 }}
-          resizeMode="contain"
-        />
+        <View
+          style={{
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            marginTop: Platform.OS === "ios" ? -30 : 0,
+          }}
+        >
+          <Image
+            source={require("../../assets/icons/squares-logo.png")}
+            style={{ height: 100, width: 100 }}
+            resizeMode="contain"
+          />
+        </View>
       ),
+
       gestureEnabled: false,
       headerLeft: () => (
         <TouchableOpacity
@@ -591,28 +606,35 @@ const SquareScreen = ({ route }) => {
   );
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused || !userId || !gridId) return;
 
-    if (!userId || !gridId) return;
+    let isCancelled = false;
 
-    const interval = setInterval(async () => {
+    const fetchSelections = async () => {
       const { data, error } = await supabase
         .from("squares")
         .select("selections")
         .eq("id", gridId)
         .single();
 
-      if (error || !data?.selections) return;
+      if (isCancelled || error || !data?.selections) return;
 
       const mySelections = data.selections.filter(
         (sel) => sel.userId === userId
       );
       const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
       setSelectedSquares(mySet);
-    }, 5000);
+    };
 
-    return () => clearInterval(interval);
-  }, [userId, gridId]);
+    fetchSelections();
+
+    const interval = setInterval(fetchSelections, 5000);
+
+    return () => {
+      clearInterval(interval);
+      isCancelled = true;
+    };
+  }, [userId, gridId, isFocused]);
 
   const dividerColor = theme.dark ? "#333" : "#eee";
 
@@ -627,6 +649,26 @@ const SquareScreen = ({ route }) => {
     const axisSquareColor = isDark ? "#1e1e1e" : "#f2f2f2";
     const selectedBorderColor = isDark ? "#9fa8ff" : "#5e60ce";
     const defaultSquareColor = isDark ? "#1e1e1e" : "#fff";
+    const winningSquares = new Set(
+      quarterWinners
+        .map((w) => {
+          if (!w || !w.square) return null;
+
+          const [scoreY, scoreX] = w.square;
+          const visualX = xAxis.findIndex((val) => val === scoreX);
+          const visualY = yAxis.findIndex((val) => val === scoreY);
+
+          if (visualX === -1 || visualY === -1) {
+            console.warn(
+              `⚠️ Invalid axis mapping for winner square: [${scoreX}, ${scoreY}]`
+            );
+            return null;
+          }
+
+          return `${visualX},${visualY}`;
+        })
+        .filter(Boolean)
+    );
 
     const rows = [];
 
@@ -666,6 +708,7 @@ const SquareScreen = ({ route }) => {
           const key = `${x - 1},${y - 1}`;
           const color = squareColors[key] || defaultSquareColor;
           const isSelected = selectedSquares.has(key);
+          const isWinner = winningSquares.has(key);
 
           row.push(
             <TouchableOpacity
@@ -691,7 +734,11 @@ const SquareScreen = ({ route }) => {
                   onSquarePress(x - 1, y - 1);
                 }
               }}
-            />
+            >
+              {isWinner && (
+                <Text style={{ fontSize: 16, color: "#FFD700" }}>🏆</Text>
+              )}
+            </TouchableOpacity>
           );
         }
       }
@@ -708,28 +755,22 @@ const SquareScreen = ({ route }) => {
   const renderPlayers = useCallback(() => {
     if (!isFocused) return null;
 
+    const userSelections: Record<string, string[]> = {};
     const userSquareCount: Record<string, number> = {};
-    Object.entries(squareColors).forEach(([_, color]) => {
-      const uid = Object.entries(playerColors).find(
-        ([, userColor]) => userColor === color
-      )?.[0];
-      if (uid) {
-        userSquareCount[uid] = (userSquareCount[uid] || 0) + 1;
-      }
+
+    players.forEach((p) => {
+      userSelections[p.userId] = [];
+      userSquareCount[p.userId] = 0;
     });
 
-    const userSelections: Record<string, string[]> = {};
-    Object.entries(squareColors).forEach(([key, color]) => {
-      const uid = Object.entries(playerColors).find(
-        ([, userColor]) => userColor === color
-      )?.[0];
-      const [xStr, yStr] = key.split(",");
-      const x = parseInt(xStr, 10);
-      const y = parseInt(yStr, 10);
-      if (uid && !isNaN(x) && !isNaN(y)) {
-        if (!userSelections[uid]) userSelections[uid] = [];
-        userSelections[uid].push(`(${x},${y})`);
+    (selections || []).forEach(({ x, y, userId }) => {
+      if (!userSelections[userId]) {
+        userSelections[userId] = [];
+        userSquareCount[userId] = 0;
       }
+
+      userSelections[userId].push(`(${xAxis[x]},${yAxis[y]})`);
+      userSquareCount[userId]++;
     });
 
     return (
@@ -771,6 +812,15 @@ const SquareScreen = ({ route }) => {
                     ? count * pricePerSquare
                     : null;
 
+                console.log({
+                  uid,
+                  selections: userSelections[uid],
+                  hasSelections: userSelections[uid]?.length > 0,
+                  hideAxisUntilDeadline,
+                  isAfterDeadline,
+                  condition: !hideAxisUntilDeadline || isAfterDeadline,
+                });
+
                 return (
                   <View
                     style={{
@@ -807,17 +857,19 @@ const SquareScreen = ({ route }) => {
                         <Text style={{ color: theme.colors.onSurface }}>
                           {count} / {maxSelections} squares selected
                         </Text>
-                        {userSelections[uid]?.length > 0 && (
-                          <Text
-                            style={{
-                              color: theme.colors.onSurfaceVariant,
-                              fontSize: 12,
-                              marginTop: 2,
-                            }}
-                          >
-                            {userSelections[uid].join(", ")}
-                          </Text>
-                        )}
+
+                        {userSelections[uid]?.length > 0 &&
+                          (!hideAxisUntilDeadline || isAfterDeadline) && (
+                            <Text
+                              style={{
+                                color: theme.colors.onSurfaceVariant,
+                                fontSize: 12,
+                                marginTop: 2,
+                              }}
+                            >
+                              {userSelections[uid].join(", ")}
+                            </Text>
+                          )}
                       </View>
                     </View>
 
@@ -850,6 +902,9 @@ const SquareScreen = ({ route }) => {
     maxSelections,
     pricePerSquare,
     theme,
+    selections,
+    hideAxisUntilDeadline,
+    isAfterDeadline,
   ]);
 
   const renderWinners = useCallback(() => {
@@ -926,8 +981,8 @@ const SquareScreen = ({ route }) => {
                           { color: theme.colors.onSurface },
                         ]}
                       >
-                        Quarter {quarterNumber}: {team2Mascot} {q.away} -{" "}
-                        {team1Mascot} {q.home}
+                        Quarter {quarterNumber}: {team1Mascot} {q.home} -{" "}
+                        {team2Mascot} {q.away}
                       </Text>
                       <Text
                         style={[
@@ -1042,7 +1097,7 @@ const SquareScreen = ({ route }) => {
                             { color: theme.colors.onSurface },
                           ]}
                         >
-                          {inputTitle}
+                          {title}
                         </Text>
                       </View>
                       <Text style={styles.sessionSubtitle}>
@@ -1085,7 +1140,7 @@ const SquareScreen = ({ route }) => {
                       </ScrollView>
                     </ScrollView>
                   </View>
-                  {!isAfterDeadline && (
+                  {
                     <View style={styles.deadlineContainerCentered}>
                       <Text
                         style={[
@@ -1106,7 +1161,7 @@ const SquareScreen = ({ route }) => {
                           : "No deadline set"}
                       </Text>
                     </View>
-                  )}
+                  }
                   {pricePerSquare > 0 && (
                     <View
                       style={{
@@ -1149,7 +1204,7 @@ const SquareScreen = ({ route }) => {
         winners: renderWinners,
       }),
     [
-      inputTitle,
+      title,
       team1,
       team2,
       team1Mascot,
@@ -1234,6 +1289,7 @@ const SquareScreen = ({ route }) => {
         deadlineValue={deadlineValue}
         setShowDeadlineModal={setShowDeadlineModal}
         triggerRefresh={() => setRefreshKey((k) => k + 1)}
+        currentTitle={title}
         team1={team1}
         team2={team2}
         quarterScores={quarterScores}
@@ -1364,7 +1420,7 @@ const SquareScreen = ({ route }) => {
 
                     Toast.show({
                       type: "info",
-                      text1: `You’ve left ${inputTitle}`,
+                      text1: `You’ve left ${title}`,
                       position: "bottom",
                       visibilityTime: 2500,
                       bottomOffset: 60,
@@ -1462,7 +1518,7 @@ const SquareScreen = ({ route }) => {
 
                     Toast.show({
                       type: "error",
-                      text1: `You’ve deleted ${inputTitle}!`,
+                      text1: `You’ve deleted ${title}!`,
                       position: "bottom",
                       visibilityTime: 2500,
                       bottomOffset: 60,

@@ -14,6 +14,7 @@ import DatePicker from "react-native-date-picker";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import { supabase } from "../lib/supabase";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
+import { sendGameUpdateNotification } from "../utils/notifications";
 
 const EditGameModal = ({
   visible,
@@ -24,6 +25,7 @@ const EditGameModal = ({
   currentScores,
   triggerRefresh,
   currentDeadline,
+  currentTitle,
 }: {
   visible: boolean;
   onDismiss: () => void;
@@ -37,6 +39,7 @@ const EditGameModal = ({
   }[];
   triggerRefresh: () => void;
   currentDeadline: string | null;
+  currentTitle: string;
 }) => {
   const theme = useTheme();
   const [team1, setTeam1] = useState(currentTeam1);
@@ -55,6 +58,7 @@ const EditGameModal = ({
   const [showDeadlinePicker, setShowDeadlinePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<"date" | "time">("date");
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [title, setTitle] = useState(currentTitle);
 
   useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", () =>
@@ -72,7 +76,8 @@ const EditGameModal = ({
   useEffect(() => {
     setTeam1(currentTeam1);
     setTeam2(currentTeam2);
-
+    setTitle(currentTitle);
+    setDeadline(new Date(currentDeadline));
     const isValidScores =
       Array.isArray(currentScores) && currentScores.length === 4;
 
@@ -86,7 +91,7 @@ const EditGameModal = ({
             { quarter: "4Q", home: null, away: null },
           ]
     );
-  }, [currentTeam1, currentTeam2, currentScores]);
+  }, [currentTeam1, currentTeam2, currentScores, currentDeadline]);
 
   const handleScoreChange = (
     index: number,
@@ -103,16 +108,28 @@ const EditGameModal = ({
       const homeValid = typeof q.home === "number" && !isNaN(q.home);
       const awayValid = typeof q.away === "number" && !isNaN(q.away);
 
-      if (homeValid && awayValid) {
-        return q; // keep as-is
-      } else {
-        return { quarter: q.quarter, home: null, away: null }; // treat as unplayed
-      }
+      return {
+        quarter: q.quarter,
+        home: homeValid ? q.home : null,
+        away: awayValid ? q.away : null,
+      };
     });
+
+    const hasChanges =
+      title !== currentTitle ||
+      team1 !== currentTeam1 ||
+      team2 !== currentTeam2 ||
+      JSON.stringify(sanitizedScores) !== JSON.stringify(currentScores) ||
+      deadline.toISOString() !== currentDeadline;
+    if (!hasChanges) {
+      onDismiss();
+      return;
+    }
 
     const { error } = await supabase
       .from("squares")
       .update({
+        title,
         team1,
         team2,
         quarter_scores: sanitizedScores,
@@ -120,12 +137,14 @@ const EditGameModal = ({
       })
       .eq("id", gridId);
 
-    if (!error) {
-      triggerRefresh();
-      onDismiss();
-    } else {
+    if (error) {
       console.warn("Error saving game info:", error);
+      return;
     }
+
+    await sendGameUpdateNotification(gridId);
+    triggerRefresh();
+    onDismiss();
   };
 
   const dividerColor = theme.dark ? "#333" : "#eee";
@@ -149,7 +168,7 @@ const EditGameModal = ({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
             <Text
               style={{
                 fontSize: 18,
@@ -168,6 +187,29 @@ const EditGameModal = ({
                 backgroundColor: dividerColor,
                 marginBottom: 20,
               }}
+            />
+            <Text
+              style={{
+                color: theme.colors.onSurface,
+                marginBottom: 4,
+                fontFamily: "Sora",
+              }}
+            >
+              Game Title
+            </Text>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Enter game title"
+              style={{
+                borderWidth: 1,
+                borderColor: theme.dark ? "rgba(94, 96, 206, 0.4)" : "#ccc",
+                borderRadius: 8,
+                padding: 10,
+                marginBottom: 12,
+                color: theme.colors.onSurface,
+              }}
+              placeholderTextColor={theme.colors.outlineVariant}
             />
 
             <Text
@@ -234,6 +276,7 @@ const EditGameModal = ({
                     <TextInput
                       keyboardType="numeric"
                       placeholder="Team 1"
+                      blurOnSubmit={false}
                       value={q.home?.toString() ?? ""}
                       inputAccessoryViewID={
                         Platform.OS === "ios"
@@ -256,6 +299,7 @@ const EditGameModal = ({
                     <TextInput
                       keyboardType="numeric"
                       placeholder="Team 2"
+                      blurOnSubmit={false}
                       value={q.away?.toString() ?? ""}
                       inputAccessoryViewID={
                         Platform.OS === "ios"
@@ -312,7 +356,7 @@ const EditGameModal = ({
                     year: "numeric",
                     month: "short",
                     day: "numeric",
-                  })}{" "}
+                  })}
                 </Text>
               </Pressable>
 
@@ -363,10 +407,12 @@ const EditGameModal = ({
         </KeyboardAvoidingView>
         {isKeyboardVisible && (
           <View
+            pointerEvents="box-none"
             style={{
               position: "absolute",
-              bottom: Platform.OS === "ios" ? 275 : 100, // Adjust as needed
+              bottom: Platform.OS === "ios" ? 275 : 100,
               right: 0,
+              top: 40,
               borderRadius: 24,
               paddingVertical: 6,
               paddingHorizontal: 16,
@@ -408,7 +454,6 @@ const EditGameModal = ({
             setShowDeadlinePicker(false);
             setDeadline((prev) => {
               if (pickerMode === "date") {
-                // Replace the date, keep the time
                 return new Date(
                   pickedDate.getFullYear(),
                   pickedDate.getMonth(),
@@ -417,7 +462,6 @@ const EditGameModal = ({
                   prev.getMinutes()
                 );
               } else {
-                // Replace the time, keep the date
                 return new Date(
                   prev.getFullYear(),
                   prev.getMonth(),
@@ -442,7 +486,6 @@ const EditGameModal = ({
             setShowDeadlinePicker(false);
             setDeadline((prev) => {
               if (pickerMode === "date") {
-                // Replace the date, keep the time
                 return new Date(
                   pickedDate.getFullYear(),
                   pickedDate.getMonth(),
@@ -451,7 +494,6 @@ const EditGameModal = ({
                   prev.getMinutes()
                 );
               } else {
-                // Replace the time, keep the date
                 return new Date(
                   prev.getFullYear(),
                   prev.getMonth(),

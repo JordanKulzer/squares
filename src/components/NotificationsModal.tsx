@@ -29,6 +29,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
     deadlineReminders: false,
     quarterResults: false,
     playerJoined: false,
+    gameUpdated: false,
   });
   const [isSaving, setIsSaving] = useState(false);
   const originalSettings = useRef<NotificationSettings | null>(null);
@@ -41,6 +42,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
           deadlineReminders: false,
           quarterResults: false,
           playerJoined: false,
+          gameUpdated: false,
         }
       );
     }
@@ -130,16 +132,20 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
           </Text>
 
           {[
-            { key: "quarterResults", label: "Quarter Results" },
+            { key: "quarterResults", label: "Quarter and final results" },
 
             {
               key: "deadlineReminders",
               label:
-                "Deadline Reminders (30 min, 5 min, and when deadline ends)",
+                "Deadline reminders (30 min, 5 min, and when deadline ends)",
             },
             {
               key: "playerJoined",
-              label: "Someone Joins My Session (Managers only)",
+              label: "Someone joins my session (Managers only)",
+            },
+            {
+              key: "gameUpdated",
+              label: "Game info updated by Manager",
             },
           ].map((item) => (
             <View

@@ -33,6 +33,7 @@ const SessionOptionsModal = ({
   team1,
   team2,
   quarterScores,
+  currentTitle,
 }: {
   visible: boolean;
   onDismiss: () => void;
@@ -51,6 +52,7 @@ const SessionOptionsModal = ({
     home: number | null;
     away: number | null;
   }[]; // <--
+  currentTitle: string;
 }) => {
   const theme = useTheme();
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -360,6 +362,7 @@ const SessionOptionsModal = ({
         visible={showEditGameModal}
         onDismiss={() => setShowEditGameModal(false)}
         gridId={gridId}
+        currentTitle={currentTitle}
         currentTeam1={team1}
         currentTeam2={team2}
         currentScores={quarterScores}
@@ -493,8 +496,9 @@ const SessionOptionsModal = ({
             mode="contained"
             onPress={async () => {
               try {
+                const joinUrl = `squaresgame://session/${gridId}`;
                 await Share.share({
-                  message: `Join my Squares game using this code: ${gridId}`,
+                  message: `Join my Squares game: ${joinUrl}`,
                 });
               } catch (error) {
                 console.warn("Error sharing:", error);
