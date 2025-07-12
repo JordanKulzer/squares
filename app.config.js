@@ -2,7 +2,7 @@ export default {
   expo: {
     name: "Squares",
     slug: "squares",
-    version: "1.0.12",
+    version: "1.0.14",
     orientation: "portrait",
     icon: "./assets/icons/squares-logo-white.png",
     userInterfaceStyle: "automatic",
@@ -17,7 +17,7 @@ export default {
     },
     ios: {
       bundleIdentifier: "com.jkulzer.squaresgame",
-      buildNumber: "13",
+      buildNumber: "14",
       supportsTablet: true,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
