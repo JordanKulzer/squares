@@ -14,13 +14,19 @@
         "simulator": true
       },
       "env": {
-        "APP_ENV": "development"
+        "APP_ENV": "development",
+        "SENTRY_AUTH_TOKEN": "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",
+        "SENTRY_ORG": "squares-cp",
+        "SENTRY_PROJECT": "react-native"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "APP_ENV": "preview"
+        "APP_ENV": "preview",
+        "SENTRY_AUTH_TOKEN": "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",
+        "SENTRY_ORG": "squares-cp",
+        "SENTRY_PROJECT": "react-native"
       }
     },
     "production": {
@@ -35,7 +41,10 @@
         }
       },
       "env": {
-        "APP_ENV": "production"
+        "APP_ENV": "production",
+        "SENTRY_AUTH_TOKEN": "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",
+        "SENTRY_ORG": "squares-cp",
+        "SENTRY_PROJECT": "react-native"
       }
     },
     "test": {
@@ -44,7 +53,10 @@
         "simulator": true
       },
       "env": {
-        "APP_ENV": "test"
+        "APP_ENV": "test",
+        "SENTRY_AUTH_TOKEN": "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",
+        "SENTRY_ORG": "squares-cp",
+        "SENTRY_PROJECT": "react-native"
       }
     }
   },
