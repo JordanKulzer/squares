@@ -824,15 +824,6 @@ const SquareScreen = ({ route }) => {
                     ? count * pricePerSquare
                     : null;
 
-                console.log({
-                  uid,
-                  selections: userSelections[uid],
-                  hasSelections: userSelections[uid]?.length > 0,
-                  hideAxisUntilDeadline,
-                  isAfterDeadline,
-                  condition: !hideAxisUntilDeadline || isAfterDeadline,
-                });
-
                 return (
                   <View
                     style={{

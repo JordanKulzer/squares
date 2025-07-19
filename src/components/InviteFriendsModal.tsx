@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { View, Text, TouchableOpacity, Share } from "react-native";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
 import Toast from "react-native-toast-message";
-import QRCode from "react-native-qrcode-svg";
+// import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
 import * as Sentry from "@sentry/react-native";
 
@@ -79,19 +79,19 @@ const InviteFriendsModal = ({
     }
   };
 
-  const RenderQRCode = ({ value }: { value: string }) => {
-    try {
-      if (!value) throw new Error("QR Code received empty value");
-      return <QRCode value={value} size={150} />;
-    } catch (err) {
-      Sentry.captureException(err);
-      return (
-        <Text style={{ color: "red", marginTop: 8 }}>
-          Error displaying QR code.
-        </Text>
-      );
-    }
-  };
+  // const RenderQRCode = ({ value }: { value: string }) => {
+  //   try {
+  //     if (!value) throw new Error("QR Code received empty value");
+  //     return <QRCode value={value} size={150} />;
+  //   } catch (err) {
+  //     Sentry.captureException(err);
+  //     return (
+  //       <Text style={{ color: "red", marginTop: 8 }}>
+  //         Error displaying QR code.
+  //       </Text>
+  //     );
+  //   }
+  // };
 
   return (
     <Portal>
@@ -130,7 +130,7 @@ const InviteFriendsModal = ({
           }}
         />
 
-        <View style={{ alignItems: "center", marginBottom: 12 }}>
+        {/* <View style={{ alignItems: "center", marginBottom: 12 }}>
           {typeof gridId === "string" && gridId.length > 0 ? (
             <RenderQRCode value={gridId} />
           ) : (
@@ -138,7 +138,7 @@ const InviteFriendsModal = ({
               Error Creating QR Code
             </Text>
           )}
-        </View>
+        </View> */}
 
         <Text
           style={{
