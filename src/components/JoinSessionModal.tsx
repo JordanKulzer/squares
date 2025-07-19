@@ -18,6 +18,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../utils/types";
 import { supabase } from "../lib/supabase";
+// import * as Sentry from "@sentry/react-native";
 
 const JoinSessionModal = ({ visible, onDismiss }) => {
   const navigation =
@@ -140,6 +141,18 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
           >
             Cancel
           </Button>
+          {/* <Button
+            mode="text"
+            onPress={() => {
+              Sentry.captureException(
+                new Error("Sentry test error from JoinSessionModal")
+              );
+            }}
+            style={{ marginTop: 8 }}
+            labelStyle={{ fontFamily: "Sora" }}
+          >
+            Send Test Error
+          </Button> */}
         </KeyboardAvoidingView>
       </Modal>
     </Portal>

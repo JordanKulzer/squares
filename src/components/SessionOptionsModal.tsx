@@ -6,18 +6,13 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   Animated,
-  Share,
-  useColorScheme,
 } from "react-native";
-import { Portal, Button, useTheme, Modal } from "react-native-paper";
-import * as Clipboard from "expo-clipboard";
-import Toast from "react-native-toast-message";
-import { getToastConfig } from "../components/ToastConfig";
-import QRCode from "react-native-qrcode-svg";
+import { Portal, Button, useTheme } from "react-native-paper";
 import { supabase } from "../lib/supabase";
 import NotificationSettingsModal from "./NotificationsModal";
 import RemovePlayerModal from "./RemovePlayerModal";
 import EditGameModal from "./EditGameModal";
+import InviteFriendsModal from "./InviteFriendsModal";
 
 const SessionOptionsModal = ({
   visible,
@@ -59,12 +54,9 @@ const SessionOptionsModal = ({
   const [notifySettings, setNotifySettings] = useState(null);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(600)).current;
-  const isDarkMode = useColorScheme() === "dark";
   const [showKickModal, setShowKickModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showEditGameModal, setShowEditGameModal] = useState(false);
-
-  <Toast config={getToastConfig(isDarkMode)} />;
 
   useEffect(() => {
     if (visible) {
@@ -406,120 +398,11 @@ const SessionOptionsModal = ({
           }
         }}
       />
-      <Portal>
-        <Modal
-          visible={showInviteModal}
-          onDismiss={() => setShowInviteModal(false)}
-          contentContainerStyle={{
-            backgroundColor: theme.colors.surface,
-            marginHorizontal: 24,
-            padding: 20,
-            borderRadius: 16,
-            borderWidth: 1.5,
-            borderColor: "rgba(94, 96, 206, 0.4)",
-            borderLeftWidth: 5,
-            borderLeftColor: theme.colors.primary,
-            elevation: 5,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              marginBottom: 12,
-              color: theme.colors.onSurface,
-              fontFamily: "SoraBold",
-            }}
-          >
-            Invite Friends
-          </Text>
-          <View
-            style={{
-              height: 1,
-              backgroundColor: dividerColor,
-              marginBottom: 20,
-            }}
-          />
-          <View style={{ alignItems: "center", marginBottom: 12 }}>
-            <QRCode value={gridId} size={150} />
-          </View>
-          <Text
-            style={{
-              marginBottom: 8,
-              color: theme.colors.onSurface,
-              fontFamily: "Sora",
-            }}
-          >
-            Copy and share this session ID:
-          </Text>
-          <TouchableOpacity
-            onPress={async () => {
-              await Clipboard.setStringAsync(gridId);
-              Toast.show({
-                type: "info",
-                text1: "Copied to clipboard!",
-                position: "bottom",
-                visibilityTime: 1500,
-                bottomOffset: 60,
-              });
-            }}
-            style={{
-              padding: 10,
-              backgroundColor: theme.dark ? "#333" : "#f4f4f4",
-              borderRadius: 8,
-              marginBottom: 16,
-            }}
-          >
-            <Text
-              style={{
-                textAlign: "center",
-                fontWeight: "600",
-                color: theme.colors.primary,
-                fontFamily: "Sora",
-              }}
-            >
-              {gridId}
-            </Text>
-          </TouchableOpacity>
-
-          <Text
-            style={{
-              marginBottom: 8,
-              color: theme.colors.onSurface,
-              fontFamily: "Sora",
-            }}
-          >
-            Or share via:
-          </Text>
-          <Button
-            icon="share-variant"
-            mode="contained"
-            onPress={async () => {
-              try {
-                const joinUrl = `squaresgame://session/${gridId}`;
-                await Share.share({
-                  message: `Join my Squares game: ${joinUrl}`,
-                });
-              } catch (error) {
-                console.warn("Error sharing:", error);
-              }
-            }}
-            style={{ marginBottom: 16 }}
-            labelStyle={{ fontFamily: "Sora" }}
-          >
-            Share
-          </Button>
-
-          <Button
-            mode="text"
-            textColor={theme.colors.error}
-            onPress={() => setShowInviteModal(false)}
-            labelStyle={{ fontFamily: "Sora" }}
-          >
-            Close
-          </Button>
-        </Modal>
-      </Portal>
+      <InviteFriendsModal
+        visible={showInviteModal}
+        onDismiss={() => setShowInviteModal(false)}
+        gridId={gridId}
+      />
     </>
   );
 };

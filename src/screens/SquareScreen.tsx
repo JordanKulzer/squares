@@ -33,6 +33,7 @@ import { scheduleNotifications } from "../utils/notifications";
 import { supabase } from "../lib/supabase";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../utils/apiConfig";
+import * as Sentry from "@sentry/react-native";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -82,7 +83,7 @@ const SquareScreen = ({ route }) => {
 
   const screenHeight = Dimensions.get("window").height;
   const insets = useSafeAreaInsets();
-  const usableHeight = screenHeight - insets.top - insets.bottom - 120; // subtract header, tab bar, etc.
+  const usableHeight = screenHeight - insets.top - insets.bottom - 120;
 
   const openAnimatedDialog = (setter, animRef) => {
     setSessionOptionsVisible(false);
@@ -150,8 +151,8 @@ const SquareScreen = ({ route }) => {
           return null; // skip this quarter entirely
         }
 
-        const x = xAxis.findIndex((val) => val === away % 10);
-        const y = yAxis.findIndex((val) => val === home % 10);
+        const x = xAxis.findIndex((val) => val === home % 10);
+        const y = yAxis.findIndex((val) => val === away % 10);
         const matchingSelection = selections.find(
           (sel) => sel.x === x && sel.y === y
         );
@@ -161,7 +162,7 @@ const SquareScreen = ({ route }) => {
           username: matchingSelection
             ? playerUsernames[matchingSelection.userId]
             : "No Winner",
-          square: [home % 10, away % 10],
+          square: [away % 10, home % 10],
         };
       })
       .filter(Boolean);
@@ -171,6 +172,11 @@ const SquareScreen = ({ route }) => {
     if (!isFocused) return;
 
     const fetchSelectionsAndWinners = async () => {
+      Sentry.addBreadcrumb({
+        category: "fetch information",
+        message: "fetchSelectionsAndWinners",
+        level: "info",
+      });
       const { data, error } = await supabase
         .from("squares")
         .select("quarter_scores, selections")
@@ -223,6 +229,11 @@ const SquareScreen = ({ route }) => {
     if (!isFocused) return;
 
     const fetchSquareData = async () => {
+      Sentry.addBreadcrumb({
+        category: "fetch information",
+        message: "fetchSquareData",
+        level: "info",
+      });
       const { data, error } = await supabase
         .from("squares")
         .select("*")
@@ -321,22 +332,23 @@ const SquareScreen = ({ route }) => {
     if (!isFocused) return;
     if (!eventId || !deadlineValue) return;
 
-    const storageKey = `notifiedQuarters-${eventId}`;
-
     const fetchQuarterScores = async () => {
       const startDate = deadlineValue.toISOString().split("T")[0];
       const now = new Date();
       if (now < new Date(deadlineValue)) return;
 
       try {
-        // 1. Fetch from API
+        Sentry.addBreadcrumb({
+          category: "fetch information",
+          message: "fetchQuarterScores",
+          level: "info",
+        });
         const res = await fetch(
           `${API_BASE_URL}/scores?eventId=${eventId}&startDate=${startDate}`
         );
         const game = await res.json();
         const apiScores = game?.quarterScores ?? [];
 
-        // 2. Fetch from Supabase (manual override)
         const { data: dbData, error: dbError } = await supabase
           .from("squares")
           .select("quarter_scores")
@@ -345,7 +357,6 @@ const SquareScreen = ({ route }) => {
 
         const dbScores = dbData?.quarter_scores ?? [];
 
-        // 3. Compare and decide which to use
         const scoresDiffer =
           JSON.stringify(apiScores) !== JSON.stringify(dbScores);
         const finalScores =
@@ -353,7 +364,6 @@ const SquareScreen = ({ route }) => {
 
         setQuarterScores(finalScores);
 
-        // 4. Notification logic (optional)
         const storageKey = `notifiedQuarters-${eventId}`;
         const stored = await AsyncStorage.getItem(storageKey);
         const alreadyNotified: number[] = stored ? JSON.parse(stored) : [];
@@ -378,6 +388,7 @@ const SquareScreen = ({ route }) => {
           await AsyncStorage.setItem(storageKey, JSON.stringify(newNotified));
         }
       } catch (e) {
+        Sentry.captureException(e);
         console.warn("Error fetching quarter scores", e);
       }
     };
@@ -432,6 +443,7 @@ const SquareScreen = ({ route }) => {
 
       await scheduleNotifications(selectedDate, gridId, notifySettings);
     } catch (err) {
+      Sentry.captureException(err);
       console.error("Error updating deadline:", err);
     }
   };
@@ -502,7 +514,7 @@ const SquareScreen = ({ route }) => {
             flex: 1,
             justifyContent: "center",
             alignItems: "center",
-            marginTop: Platform.OS === "ios" ? -30 : 0,
+            marginTop: Platform.OS === "ios" ? -20 : 0,
           }}
         >
           <Image
@@ -654,7 +666,7 @@ const SquareScreen = ({ route }) => {
         .map((w) => {
           if (!w || !w.square) return null;
 
-          const [scoreY, scoreX] = w.square;
+          const [scoreX, scoreY] = w.square;
           const visualX = xAxis.findIndex((val) => val === scoreX);
           const visualY = yAxis.findIndex((val) => val === scoreY);
 
@@ -981,8 +993,8 @@ const SquareScreen = ({ route }) => {
                           { color: theme.colors.onSurface },
                         ]}
                       >
-                        Quarter {quarterNumber}: {team1Mascot} {q.home} -{" "}
-                        {team2Mascot} {q.away}
+                        Quarter {quarterNumber}: {team2Mascot} {q.away} -{" "}
+                        {team1Mascot} {q.home}
                       </Text>
                       <Text
                         style={[
@@ -1435,6 +1447,7 @@ const SquareScreen = ({ route }) => {
                     navigation.navigate("Main");
                   } catch (err) {
                     console.error("Failed to leave square:", err);
+                    Sentry.captureException(err);
                     Toast.show({
                       type: "error",
                       text1: "Unexpected error leaving the square.",
@@ -1531,6 +1544,7 @@ const SquareScreen = ({ route }) => {
                     });
                     navigation.navigate("Main");
                   } catch (err) {
+                    Sentry.captureException(err);
                     console.error("Failed to delete square:", err);
                   }
                 }}

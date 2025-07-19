@@ -8,10 +8,15 @@ import {
   Platform,
   Keyboard,
   Pressable,
-  InputAccessoryView,
 } from "react-native";
 import DatePicker from "react-native-date-picker";
-import { Modal, Portal, Button, useTheme } from "react-native-paper";
+import {
+  Modal,
+  Portal,
+  Button,
+  useTheme,
+  TextInput as PaperInput,
+} from "react-native-paper";
 import { supabase } from "../lib/supabase";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import { sendGameUpdateNotification } from "../utils/notifications";
@@ -188,136 +193,64 @@ const EditGameModal = ({
                 marginBottom: 20,
               }}
             />
-            <Text
-              style={{
-                color: theme.colors.onSurface,
-                marginBottom: 4,
-                fontFamily: "Sora",
-              }}
-            >
-              Game Title
-            </Text>
-            <TextInput
+            <PaperInput
+              label="Game Title"
               value={title}
               onChangeText={setTitle}
-              placeholder="Enter game title"
-              style={{
-                borderWidth: 1,
-                borderColor: theme.dark ? "rgba(94, 96, 206, 0.4)" : "#ccc",
-                borderRadius: 8,
-                padding: 10,
-                marginBottom: 12,
-                color: theme.colors.onSurface,
-              }}
-              placeholderTextColor={theme.colors.outlineVariant}
+              mode="outlined"
+              style={{ marginBottom: 12 }}
+              theme={{ colors: { onSurface: theme.colors.onSurface } }}
             />
 
-            <Text
-              style={{
-                color: theme.colors.onSurface,
-                marginBottom: 4,
-                fontFamily: "Sora",
-              }}
-            >
-              Team 1 Name
-            </Text>
-            <TextInput
+            <PaperInput
+              label="Home Team"
               value={team1}
               onChangeText={setTeam1}
-              placeholder="Team 1"
-              style={{
-                borderWidth: 1,
-                borderColor: theme.dark ? "rgba(94, 96, 206, 0.4)" : "#ccc",
-                borderRadius: 8,
-                padding: 10,
-                marginBottom: 12,
-                color: theme.colors.onSurface,
-              }}
-              placeholderTextColor={theme.colors.outlineVariant}
+              mode="outlined"
+              style={{ marginBottom: 12 }}
+              theme={{ colors: { onSurface: theme.colors.onSurface } }}
             />
-
-            <Text
-              style={{
-                color: theme.colors.onSurface,
-                marginBottom: 4,
-                fontFamily: "Sora",
-              }}
-            >
-              Team 2 Name
-            </Text>
-            <TextInput
+            <PaperInput
+              label="Away Team"
               value={team2}
               onChangeText={setTeam2}
-              placeholder="Team 2"
-              style={{
-                borderWidth: 1,
-                borderColor: theme.dark ? "rgba(94, 96, 206, 0.4)" : "#ccc",
-                borderRadius: 8,
-                padding: 10,
-                marginBottom: 20,
-                color: theme.colors.onSurface,
-              }}
-              placeholderTextColor={theme.colors.outlineVariant}
+              mode="outlined"
+              style={{ marginBottom: 20 }}
+              theme={{ colors: { onSurface: theme.colors.onSurface } }}
             />
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "600",
+                marginBottom: 12,
+                color: theme.colors.onSurface,
+                fontFamily: "SoraBold",
+              }}
+            >
+              Edit Scores
+            </Text>
 
             {Array.isArray(quarterScores) &&
               quarterScores.map((q, i) => (
                 <View key={i} style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: "row", gap: 10 }}>
-                    <Text
-                      style={{
-                        marginBottom: 4,
-                        fontFamily: "Sora",
-                        color: theme.colors.onSurface,
-                      }}
-                    >
-                      {q.quarter}
-                    </Text>
-                    <TextInput
+                    <PaperInput
+                      label={`${team1 || "Home Team"} ${q.quarter}`}
                       keyboardType="numeric"
-                      placeholder="Team 1"
-                      blurOnSubmit={false}
                       value={q.home?.toString() ?? ""}
-                      inputAccessoryViewID={
-                        Platform.OS === "ios"
-                          ? "scoreInputAccessory"
-                          : undefined
-                      }
                       onChangeText={(v) => handleScoreChange(i, "home", v)}
-                      style={{
-                        flex: 1,
-                        borderWidth: 1,
-                        borderColor: theme.dark
-                          ? "rgba(94, 96, 206, 0.4)"
-                          : "#ccc",
-                        borderRadius: 8,
-                        padding: 10,
-                        color: theme.colors.onSurface,
-                      }}
-                      placeholderTextColor={theme.dark ? "#888" : "#666"}
+                      mode="outlined"
+                      style={{ flex: 1, marginRight: 8 }}
+                      theme={{ colors: { onSurface: theme.colors.onSurface } }}
                     />
-                    <TextInput
+                    <PaperInput
+                      label={`${team2 || "Away Team"} ${q.quarter}`}
                       keyboardType="numeric"
-                      placeholder="Team 2"
-                      blurOnSubmit={false}
                       value={q.away?.toString() ?? ""}
-                      inputAccessoryViewID={
-                        Platform.OS === "ios"
-                          ? "scoreInputAccessory"
-                          : undefined
-                      }
                       onChangeText={(v) => handleScoreChange(i, "away", v)}
-                      style={{
-                        flex: 1,
-                        borderWidth: 1,
-                        borderColor: theme.dark
-                          ? "rgba(94, 96, 206, 0.4)"
-                          : "#ccc",
-                        borderRadius: 8,
-                        padding: 10,
-                        color: theme.colors.onSurface,
-                      }}
-                      placeholderTextColor={theme.dark ? "#888" : "#666"}
+                      mode="outlined"
+                      style={{ flex: 1 }}
+                      theme={{ colors: { onSurface: theme.colors.onSurface } }}
                     />
                   </View>
                 </View>
@@ -331,7 +264,7 @@ const EditGameModal = ({
                 fontFamily: "SoraBold",
               }}
             >
-              Deadline
+              Change Deadline
             </Text>
 
             <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
@@ -387,7 +320,6 @@ const EditGameModal = ({
 
             <View
               style={{
-                marginTop: 20,
                 flexDirection: "row",
                 justifyContent: "space-between",
               }}

@@ -140,7 +140,7 @@ const RemovePlayerModal = ({
             fontFamily: "SoraBold",
           }}
         >
-          Remove a Player
+          Select Player To Remove
         </Text>
         <View
           style={{
