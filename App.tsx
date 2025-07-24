@@ -34,10 +34,10 @@ import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 import { registerPushToken } from "./src/utils/registerPushToken";
 import * as Linking from "expo-linking";
 import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
-import * as Sentry from '@sentry/react-native';
+import * as Sentry from "@sentry/react-native";
 
 Sentry.init({
-  dsn: 'https://ad2eab012c320c284637c80f6b9cb1cd@o4509662000054272.ingest.us.sentry.io/4509662000316416',
+  dsn: "https://ad2eab012c320c284637c80f6b9cb1cd@o4509662000054272.ingest.us.sentry.io/4509662000316416",
 
   // Adds more context data to events (IP address, cookies, user, etc.)
   // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
@@ -46,7 +46,10 @@ Sentry.init({
   // Configure Session Replay
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1,
-  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
+  integrations: [
+    Sentry.mobileReplayIntegration(),
+    Sentry.feedbackIntegration(),
+  ],
 
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
@@ -80,6 +83,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isDarkTheme, setIsDarkTheme] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   const paperTheme = isDarkTheme ? DarkTheme : LightTheme;
   const navigationTheme = isDarkTheme ? NavigationDarkTheme : DefaultTheme;
@@ -105,16 +109,29 @@ const App: React.FC = () => {
     const checkSession = async () => {
       const {
         data: { session },
-        error,
       } = await supabase.auth.getSession();
 
-      const currentUser = session?.user || null;
-      setUser(currentUser);
+      if (session?.user) {
+        const { data: userData, error } = await supabase.auth.getUser();
 
-      if (currentUser) {
-        setTimeout(() => {
-          registerPushToken(currentUser.id);
-        }, 500);
+        if (error || !userData?.user) {
+          await supabase.auth.signOut();
+          setUser(null);
+
+          Toast.show({
+            type: "error",
+            text1: "Account Deleted",
+            text2: "Your account no longer exists. Please sign up again.",
+            position: "bottom",
+          });
+        } else {
+          setUser(userData.user);
+          setTimeout(() => {
+            registerPushToken(userData.user.id);
+          }, 500);
+        }
+      } else {
+        setUser(null);
       }
 
       setLoading(false);
@@ -124,12 +141,27 @@ const App: React.FC = () => {
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        const u = session?.user || null;
-        setUser(u);
-        if (u) {
-          setTimeout(() => {
-            registerPushToken(u.id);
-          }, 500);
+        if (session?.user) {
+          const { data: userData, error } = await supabase.auth.getUser();
+          if (error || !userData?.user) {
+            await supabase.auth.signOut();
+            setUser(null);
+
+            Toast.show({
+              type: "error",
+              text1: "Account Deleted",
+              text2: "Your account no longer exists. Please sign up again.",
+              position: "bottom",
+            });
+          } else {
+            setUser(userData.user);
+            setTimeout(() => {
+              registerPushToken(userData.user.id);
+            }, 500);
+          }
+        } else {
+          setUser(null);
+          setRecoveryMode(false);
         }
       }
     );
@@ -179,7 +211,7 @@ const App: React.FC = () => {
 
       if (type === "recovery" && access_token && refresh_token) {
         await supabase.auth.setSession({ access_token, refresh_token });
-        navigationRef.current?.navigate("ResetPasswordScreen");
+        setRecoveryMode(true); // ✅ activate reset password screen
       }
     };
 
@@ -215,7 +247,13 @@ const App: React.FC = () => {
       <PaperProvider theme={paperTheme}>
         <NavigationContainer theme={navigationTheme} linking={linking}>
           <Stack.Navigator>
-            {user ? (
+            {recoveryMode ? (
+              <Stack.Screen
+                name="ResetPasswordScreen"
+                component={ResetPasswordScreen}
+                options={{ headerShown: false }}
+              />
+            ) : user ? (
               <>
                 {/* Screen that doesn't have the back button in the header */}
                 <Stack.Screen name="Main" options={{ headerShown: false }}>
@@ -308,11 +346,6 @@ const App: React.FC = () => {
                 />
               </>
             )}
-            <Stack.Screen
-              name="ResetPasswordScreen"
-              component={ResetPasswordScreen}
-              options={{ headerShown: false }}
-            />
           </Stack.Navigator>
         </NavigationContainer>
         <Toast config={toastConfig} position="bottom" bottomOffset={60} />

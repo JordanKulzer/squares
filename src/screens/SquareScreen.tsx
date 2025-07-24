@@ -770,19 +770,16 @@ const SquareScreen = ({ route }) => {
     const userSelections: Record<string, string[]> = {};
     const userSquareCount: Record<string, number> = {};
 
-    players.forEach((p) => {
-      userSelections[p.userId] = [];
-      userSquareCount[p.userId] = 0;
-    });
-
     (selections || []).forEach(({ x, y, userId }) => {
-      if (!userSelections[userId]) {
-        userSelections[userId] = [];
-        userSquareCount[userId] = 0;
-      }
+      if (!userId) return;
 
-      userSelections[userId].push(`(${xAxis[x]},${yAxis[y]})`);
-      userSquareCount[userId]++;
+      const key = String(userId);
+      userSelections[key] ??= [];
+      userSquareCount[key] ??= 0;
+
+      const label = `(${xAxis?.[x] ?? "?"},${yAxis?.[y] ?? "?"})`;
+      userSelections[key].push(label);
+      userSquareCount[key]++;
     });
 
     return (
@@ -817,8 +814,9 @@ const SquareScreen = ({ route }) => {
               style={{ maxHeight: usableHeight - 80 }}
               renderItem={({ item }) => {
                 const [uid, color] = item;
-                const username = playerUsernames[uid] || uid;
-                const count = userSquareCount[uid] || 0;
+                const userKey = String(uid);
+                const username = playerUsernames[userKey] || userKey;
+                const count = userSquareCount[userKey] || 0;
                 const totalOwed =
                   typeof pricePerSquare === "number" && pricePerSquare > 0
                     ? count * pricePerSquare
@@ -861,7 +859,7 @@ const SquareScreen = ({ route }) => {
                           {count} / {maxSelections} squares selected
                         </Text>
 
-                        {userSelections[uid]?.length > 0 &&
+                        {userSelections[userKey]?.length > 0 &&
                           (!hideAxisUntilDeadline || isAfterDeadline) && (
                             <Text
                               style={{
@@ -870,7 +868,7 @@ const SquareScreen = ({ route }) => {
                                 marginTop: 2,
                               }}
                             >
-                              {userSelections[uid].join(", ")}
+                              {userSelections[userKey].join(", ")}
                             </Text>
                           )}
                       </View>
@@ -1073,7 +1071,12 @@ const SquareScreen = ({ route }) => {
           const numericPrice = parseFloat(pricePerSquare || 0);
           const totalOwed = numericPrice * selectedCount;
           return (
-            <ScrollView contentContainerStyle={{ padding: 14 }}>
+            <ScrollView
+              contentContainerStyle={{
+                padding: 14,
+                paddingBottom: insets.bottom + 40,
+              }}
+            >
               <Card
                 style={[
                   styles.card,
