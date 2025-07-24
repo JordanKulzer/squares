@@ -169,7 +169,7 @@ const SquareScreen = ({ route }) => {
   };
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused || !userId) return;
 
     const fetchSelectionsAndWinners = async () => {
       Sentry.addBreadcrumb({
@@ -226,7 +226,7 @@ const SquareScreen = ({ route }) => {
   }, []);
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocused || !userId) return;
 
     const fetchSquareData = async () => {
       Sentry.addBreadcrumb({
@@ -765,7 +765,7 @@ const SquareScreen = ({ route }) => {
   };
 
   const renderPlayers = useCallback(() => {
-    if (!isFocused) return null;
+    if (!isFocused || !userId) return;
 
     const userSelections: Record<string, string[]> = {};
     const userSquareCount: Record<string, number> = {};
