@@ -13,10 +13,8 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  Image,
   FlatList,
   Animated,
-  Platform,
 } from "react-native";
 import { Button, Card, Modal, Portal, useTheme } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -55,6 +53,8 @@ const SquareScreen = ({ route }) => {
   const [playerUsernames, setPlayerUsernames] = useState({});
   const [team1, setTeam1] = useState("");
   const [team2, setTeam2] = useState("");
+  const [fullTeam1, setFullTeam1] = useState("");
+  const [fullTeam2, setFullTeam2] = useState("");
   const [xAxis, setXAxis] = useState<number[]>([]);
   const [yAxis, setYAxis] = useState<number[]>([]);
   const [isOwner, setIsOwner] = useState(false);
@@ -78,6 +78,7 @@ const SquareScreen = ({ route }) => {
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(false);
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
+  const [gameCompleted, setGameCompleted] = useState(false);
   const leaveAnim = useRef(new Animated.Value(0)).current;
   const deleteAnim = useRef(new Animated.Value(0)).current;
 
@@ -147,22 +148,40 @@ const SquareScreen = ({ route }) => {
   const determineQuarterWinners = (scores, selections, xAxis, yAxis) => {
     return scores
       .map(({ home, away }, i) => {
-        if (home === null || away === null) {
-          return null; // skip this quarter entirely
+        if (home === null || away === null) return null;
+
+        const x = xAxis.findIndex((val) => val === away % 10);
+        const y = yAxis.findIndex((val) => val === home % 10);
+
+        if (x === -1 || y === -1) {
+          console.warn(
+            `❌ Could not find index for home % 10 (${
+              home % 10
+            }) or away % 10 (${away % 10}) in axis arrays`
+          );
+          return {
+            quarter: `${i + 1}`,
+            username: "No Winner",
+            square: [home % 10, away % 10],
+          };
         }
 
-        const x = xAxis.findIndex((val) => val === home % 10);
-        const y = yAxis.findIndex((val) => val === away % 10);
         const matchingSelection = selections.find(
           (sel) => sel.x === x && sel.y === y
         );
+
+        if (!matchingSelection) {
+          console.log(
+            `❌ No selection matched for (x=${x}, y=${y}) aka (${xAxis[x]}, ${yAxis[y]})`
+          );
+        }
 
         return {
           quarter: `${i + 1}`,
           username: matchingSelection
             ? playerUsernames[matchingSelection.userId]
             : "No Winner",
-          square: [away % 10, home % 10],
+          square: [xAxis[x], yAxis[y]],
         };
       })
       .filter(Boolean);
@@ -184,6 +203,7 @@ const SquareScreen = ({ route }) => {
         .single();
 
       if (error || !data) return;
+      console.log(data.quarter_scores);
 
       setQuarterScores(data.quarter_scores || []);
 
@@ -248,6 +268,9 @@ const SquareScreen = ({ route }) => {
       setTitle(data.title || "");
       setTeam1(data.team1 || "");
       setTeam2(data.team2 || "");
+      setFullTeam1(data.team1_full_name || "");
+      setFullTeam2(data.team2_full_name || "");
+
       setTeam1Mascot(data.team1?.split(" ").slice(-1)[0]);
       setTeam2Mascot(data.team2?.split(" ").slice(-1)[0]);
       setSelections(data.selections || []);
@@ -334,6 +357,8 @@ const SquareScreen = ({ route }) => {
 
     const fetchQuarterScores = async () => {
       const startDate = deadlineValue.toISOString().split("T")[0];
+      console.log("🔗 API Base URL:", API_BASE_URL);
+
       const now = new Date();
       if (now < new Date(deadlineValue)) return;
 
@@ -346,8 +371,13 @@ const SquareScreen = ({ route }) => {
         const res = await fetch(
           `${API_BASE_URL}/scores?eventId=${eventId}&startDate=${startDate}`
         );
+
         const game = await res.json();
+
         const apiScores = game?.quarterScores ?? [];
+        const isCompleted = game?.completed ?? false;
+        console.log("🏁 Game completed from API:", isCompleted);
+        setGameCompleted(isCompleted);
 
         const { data: dbData, error: dbError } = await supabase
           .from("squares")
@@ -356,13 +386,33 @@ const SquareScreen = ({ route }) => {
           .single();
 
         const dbScores = dbData?.quarter_scores ?? [];
+        if (
+          isCompleted &&
+          apiScores.length > 0 &&
+          (!Array.isArray(dbData?.quarter_scores) ||
+            dbData.quarter_scores.length === 0)
+        ) {
+          const { error } = await supabase
+            .from("squares")
+            .update({ quarter_scores: apiScores })
+            .eq("id", gridId);
 
+          if (error) {
+            console.warn(
+              "❌ Failed to update quarter_scores in Supabase:",
+              error.message
+            );
+          } else {
+            console.log("✅ Saved quarter_scores to Supabase");
+          }
+        }
         const scoresDiffer =
           JSON.stringify(apiScores) !== JSON.stringify(dbScores);
         const finalScores =
           scoresDiffer && dbScores.length > 0 ? dbScores : apiScores;
 
         setQuarterScores(finalScores);
+        console.log("📊 Quarter scores fetched:", finalScores);
 
         const storageKey = `notifiedQuarters-${eventId}`;
         const stored = await AsyncStorage.getItem(storageKey);
@@ -512,16 +562,25 @@ const SquareScreen = ({ route }) => {
         <View
           style={{
             flex: 1,
-            justifyContent: "center",
             alignItems: "center",
-            marginTop: Platform.OS === "ios" ? -20 : 0,
+            justifyContent: "center",
+            paddingHorizontal: 40,
           }}
         >
-          <Image
-            source={require("../../assets/icons/squares-logo.png")}
-            style={{ height: 100, width: 100 }}
-            resizeMode="contain"
-          />
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{
+              fontSize: 18,
+              fontWeight: "600",
+              textAlign: "center",
+              color: theme.colors.onBackground,
+              maxWidth: "70%",
+              fontFamily: "Sora",
+            }}
+          >
+            {inputTitle}
+          </Text>
         </View>
       ),
 
@@ -921,11 +980,13 @@ const SquareScreen = ({ route }) => {
         >
           <Card.Title
             title={
-              quarterWinners.some(
-                (w) => w?.username && w.username !== "No Winner"
-              )
-                ? "Results!"
-                : "No Winners Yet."
+              gameCompleted
+                ? quarterWinners.some(
+                    (w) => w?.username && w.username !== "No Winner"
+                  )
+                  ? "Results!"
+                  : "No Winners"
+                : "Game In Progress"
             }
             titleStyle={[
               styles.tabSectionTitle,
@@ -933,8 +994,19 @@ const SquareScreen = ({ route }) => {
             ]}
             style={{ marginBottom: 8, paddingHorizontal: 12 }}
           />
+
           <Card.Content>
-            {quarterScores.length > 0 ? (
+            {!gameCompleted ? (
+              <Text
+                style={{
+                  color: theme.colors.onSurface,
+                  fontFamily: "Sora",
+                  marginBottom: 10,
+                }}
+              >
+                ⏳ Game still in progress
+              </Text>
+            ) : quarterScores.length > 0 ? (
               quarterScores.map((q, i) => {
                 const { home, away } = q;
                 const winner = quarterWinners[i];
@@ -1059,6 +1131,7 @@ const SquareScreen = ({ route }) => {
     team1Mascot,
     team2Mascot,
     theme,
+    gameCompleted,
   ]);
 
   const renderScene = useMemo(
@@ -1096,19 +1169,43 @@ const SquareScreen = ({ route }) => {
                     ]}
                   >
                     <Card.Content style={{ alignItems: "center" }}>
-                      <View style={styles.titleContent}>
+                      <View
+                        style={{
+                          alignItems: "center",
+                          shadowColor: "#000",
+                          shadowOpacity: 0.1,
+                          shadowRadius: 6,
+                          elevation: 2,
+                        }}
+                      >
                         <Text
-                          style={[
-                            styles.sessionTitle,
-                            { color: theme.colors.onSurface },
-                          ]}
+                          style={{
+                            fontSize: 18,
+                            fontWeight: "600",
+                            color: theme.colors.onSurface,
+                          }}
                         >
-                          {title}
+                          {fullTeam1}
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 16,
+                            fontWeight: "500",
+                            color: theme.colors.onSurfaceVariant,
+                          }}
+                        >
+                          vs
+                        </Text>
+                        <Text
+                          style={{
+                            fontSize: 18,
+                            fontWeight: "600",
+                            color: theme.colors.onSurface,
+                          }}
+                        >
+                          {fullTeam2}
                         </Text>
                       </View>
-                      <Text style={styles.sessionSubtitle}>
-                        {team1} vs {team2}
-                      </Text>
                     </Card.Content>
                   </Card>
                   <View style={{ alignItems: "center", marginBottom: 8 }}>

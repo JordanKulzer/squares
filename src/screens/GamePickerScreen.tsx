@@ -49,6 +49,11 @@ type RootStackParamList = {
   CreateSquareScreen: {
     team1?: string;
     team2?: string;
+    team1FullName?: string;
+    team2FullName?: string;
+    team1Abbr?: string;
+    team2Abbr?: string;
+    league?: string;
     deadline?: string;
     inputTitle?: string;
     username?: string;
@@ -131,13 +136,20 @@ const GamePickerScreen = () => {
           : null;
 
       if (!path) {
-        return []; // For now, skip unsupported sports
+        return [];
       }
 
-      const res = await fetch(
-        `${API_BASE_URL}${path}?startDate=${formattedDate}`
-      );
-      return await res.json();
+      const url = `${API_BASE_URL}${path}?startDate=${formattedDate}`;
+      const res = await fetch(url);
+
+      const text = await res.text();
+      try {
+        return JSON.parse(text);
+      } catch (parseErr) {
+        console.warn("Invalid JSON response from:", url);
+        console.warn("Raw response text:", text.slice(0, 300));
+        throw parseErr;
+      }
     } catch (err) {
       console.warn("Failed to fetch games:", err);
       return [];
@@ -170,11 +182,44 @@ const GamePickerScreen = () => {
     loadGames();
   }, [weekOffset, gameType, calendarDate, selectedSport]);
 
-  const handleSelectGame = (game) => {
+  useEffect(() => {
+    const base = gameTypeBehaviors[gameType]?.startDate;
+    if (!base) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const daysSinceStart = Math.floor(
+      (today.getTime() - base.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const calculatedOffset = Math.max(0, Math.floor(daysSinceStart / 7));
+    setWeekOffset(calculatedOffset);
+  }, [gameType]);
+
+  const handleSelectGame = async (game) => {
+    const res = await fetch(
+      `${API_BASE_URL}/scores?eventId=${game.id}&startDate=${game.date}`
+    );
+    const detailedGame = await res.json();
+
+    const awayAbbr = detailedGame.team1_abbr || game.awayTeam || "";
+    const homeAbbr = detailedGame.team2_abbr || game.homeTeam || "";
+
+    const awayFull = game.awayFullName || game.awayTeam || "";
+    const homeFull = game.homeFullName || game.homeTeam || "";
+
+    const awayAbbreviation = detailedGame.team1_abbr || "";
+    const homeAbbreviation = detailedGame.team2_abbr || "";
+
     navigation.dispatch(StackActions.pop(1));
     navigation.navigate("CreateSquareScreen", {
-      team1: game.awayTeam,
-      team2: game.homeTeam,
+      team1: awayAbbr,
+      team2: homeAbbr,
+      team1FullName: awayFull,
+      team2FullName: homeFull,
+      team1Abbr: awayAbbreviation,
+      team2Abbr: homeAbbreviation,
+      league: game.league,
       deadline: game.date,
       inputTitle,
       username,

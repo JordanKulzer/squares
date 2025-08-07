@@ -32,6 +32,8 @@ type CreateSquareRouteParams = {
   CreateSquareScreen: {
     team1?: string;
     team2?: string;
+    team1FullName?: string;
+    team2FullName?: string;
     deadline?: string;
     inputTitle?: string;
     username?: string;
@@ -39,6 +41,9 @@ type CreateSquareRouteParams = {
     pricePerSquare?: number;
     selectedColor?: string;
     eventId?: string;
+    team1Abbr?: string;
+    team2Abbr?: string;
+    league?: string;
   };
 };
 
@@ -47,6 +52,11 @@ const CreateSquareScreen = ({ navigation }) => {
   const [username, setUsername] = useState("");
   const [team1, setTeam1] = useState("");
   const [team2, setTeam2] = useState("");
+  const [team1FullName, setTeam1FullName] = useState("");
+  const [team2FullName, setTeam2FullName] = useState("");
+  const [team1Abbr, setTeam1Abbr] = useState("");
+  const [team2Abbr, setTeam2Abbr] = useState("");
+  const [league, setLeague] = useState("");
   const [deadline, setDeadline] = useState(new Date());
   const [selectedColor, setSelectedColor] = useState(null);
   const [randomizeAxis, setRandomizeAxis] = useState(true);
@@ -74,10 +84,18 @@ const CreateSquareScreen = ({ navigation }) => {
     const params = route.params || {};
     if (params.team1) setTeam1(params.team1);
     if (params.team2) setTeam2(params.team2);
+    if (params.team1FullName) setTeam1FullName(params.team1FullName);
+    if (params.team2FullName) setTeam2FullName(params.team2FullName);
+    if (params.team1Abbr) setTeam1Abbr(params.team1Abbr);
+    if (params.team2Abbr) setTeam2Abbr(params.team2Abbr);
+    if (params.league) setLeague(params.league);
+
     if (params.deadline) setDeadline(new Date(params.deadline));
     if (params.inputTitle) setInputTitle(params.inputTitle);
     if (params.username) setUsername(params.username);
-    if (params.maxSelections) setMaxSelections(String(params.maxSelections));
+    setMaxSelections(
+      params.maxSelections !== undefined ? String(params.maxSelections) : "100"
+    );
     if (params.selectedColor) setSelectedColor(params.selectedColor);
     if (params.eventId) setEventId(params.eventId);
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
@@ -91,6 +109,20 @@ const CreateSquareScreen = ({ navigation }) => {
     }
     return arr;
   };
+
+  // const fetchGameInfo = async (eventId: string) => {
+  //   if (!eventId) return null;
+  //   try {
+  //     const res = await fetch(
+  //       `https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${eventId}`
+  //     );
+  //     if (!res.ok) throw new Error("Failed to fetch game info");
+  //     return await res.json();
+  //   } catch (err) {
+  //     console.error("Failed to fetch ESPN game info:", err);
+  //     return null;
+  //   }
+  // };
 
   const createSquareSession = async () => {
     Keyboard.dismiss();
@@ -107,13 +139,36 @@ const CreateSquareScreen = ({ navigation }) => {
         ? generateShuffledArray()
         : [...Array(10).keys()];
 
+      // const eventData = await fetchGameInfo(eventId);
+
+      // const league = eventData?.header?.league?.abbreviation;
+      // const comp = eventData?.header?.competitions?.[0];
+      // const home = comp?.competitors?.find((c) => c.homeAway === "home");
+      // const away = comp?.competitors?.find((c) => c.homeAway === "away");
+
+      // const resolvedTeam1 =
+      //   league === "NCAAF" ? home?.team?.abbreviation ?? team1 : team1;
+      // const resolvedTeam2 =
+      //   league === "NCAAF" ? away?.team?.abbreviation ?? team2 : team2;
+
+      // const fullTeam1 = home?.team?.displayName ?? "";
+      // const fullTeam2 = away?.team?.displayName ?? "";
+
+      const resolvedTeam1 = team1;
+      const resolvedTeam2 = team2;
+      const fullTeam1 = route.params?.team1FullName ?? "";
+      const fullTeam2 = route.params?.team2FullName ?? "";
+
+      console.log("team1Abbr: ", team1Abbr);
+      console.log("team2Abbr: ", team2Abbr);
+
       const { data, error } = await supabase
         .from("squares")
         .insert([
           {
             title: inputTitle,
-            team1,
-            team2,
+            team1: resolvedTeam1,
+            team2: resolvedTeam2,
             deadline,
             created_by: user.id,
             players: [
@@ -134,6 +189,10 @@ const CreateSquareScreen = ({ navigation }) => {
             axis_hidden: hideAxisUntilDeadline,
             randomize_axis: randomizeAxis,
             price_per_square: pricePerSquare,
+            team1_full_name: fullTeam1,
+            team2_full_name: fullTeam2,
+            team1_abbr: team1Abbr,
+            team2_abbr: team2Abbr,
           },
         ])
         .select("id")
@@ -147,7 +206,12 @@ const CreateSquareScreen = ({ navigation }) => {
       if (notifySettings.deadlineReminders || notifySettings.quarterResults) {
         await scheduleNotifications(deadline, data.id, notifySettings);
       }
-
+      console.log(
+        "team1FullName: ",
+        team1FullName,
+        " / team2FullName ",
+        team2FullName
+      );
       navigation.navigate("SquareScreen", {
         gridId: data.id,
         inputTitle,
@@ -158,6 +222,8 @@ const CreateSquareScreen = ({ navigation }) => {
         eventId,
         hideAxisUntilDeadline,
         pricePerSquare,
+        team1_full_name: fullTeam1,
+        team2_full_name: fullTeam2,
       });
     } catch (error) {
       console.error("Error creating grid:", error);
