@@ -104,8 +104,6 @@ const JoinSquareScreen = () => {
         navigation.goBack();
         return;
       }
-      setInputTitle(square.title || "Untitled");
-      setDeadline(square.deadline || null);
       setPricePerSquare(square.price_per_square || null);
 
       setInputTitle(square.title || "Untitled");

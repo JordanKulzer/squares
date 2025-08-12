@@ -188,6 +188,20 @@ const SquareScreen = ({ route }) => {
   };
 
   useEffect(() => {
+    if (!isFocused) return;
+    if (!xAxis.length || !yAxis.length) return;
+    if (!Array.isArray(quarterScores) || quarterScores.length === 0) return;
+
+    const winners = determineQuarterWinners(
+      quarterScores,
+      selections,
+      xAxis,
+      yAxis
+    );
+    setQuarterWinners(winners);
+  }, [isFocused, quarterScores, selections, xAxis, yAxis]);
+
+  useEffect(() => {
     if (!isFocused || !userId) return;
 
     const fetchSelectionsAndWinners = async () => {
@@ -648,6 +662,10 @@ const SquareScreen = ({ route }) => {
         const newColors = { ...squareColors };
         delete newColors[squareId];
         setSquareColors(newColors);
+
+        setSelections((prev) =>
+          prev.filter((s) => !(s.x === x && s.y === y && s.userId === userId))
+        );
       } else {
         await selectSquareInSupabase(x, y);
 
@@ -662,6 +680,11 @@ const SquareScreen = ({ route }) => {
         newSet.add(squareId);
         return newSet;
       });
+
+      setSelections((prev) => [
+        ...prev,
+        { x, y, userId, username: currentUsername },
+      ]);
 
       setSelectedSquares(updatedSet);
     },
@@ -969,6 +992,16 @@ const SquareScreen = ({ route }) => {
 
   const renderWinners = useCallback(() => {
     if (!isFocused) return null;
+    const usernameToUid = useMemo(() => {
+      const map: Record<string, string> = {};
+      Object.entries(playerUsernames).forEach(([uid, name]) => {
+        map[String(name).trim()] = uid;
+      });
+      return map;
+    }, [playerUsernames]);
+
+    const getColorForUsername = (name: string) =>
+      playerColors?.[usernameToUid[name.trim()]] || "#999";
 
     return (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
@@ -986,7 +1019,7 @@ const SquareScreen = ({ route }) => {
                   )
                   ? "Results!"
                   : "No Winners"
-                : "Game In Progress"
+                : "Waiting for scores..."
             }
             titleStyle={[
               styles.tabSectionTitle,
@@ -996,17 +1029,7 @@ const SquareScreen = ({ route }) => {
           />
 
           <Card.Content>
-            {!gameCompleted ? (
-              <Text
-                style={{
-                  color: theme.colors.onSurface,
-                  fontFamily: "Sora",
-                  marginBottom: 10,
-                }}
-              >
-                ⏳ Game still in progress
-              </Text>
-            ) : quarterScores.length > 0 ? (
+            {quarterScores.length > 0 ? (
               quarterScores.map((q, i) => {
                 const { home, away } = q;
                 const winner = quarterWinners[i];
@@ -1020,21 +1043,16 @@ const SquareScreen = ({ route }) => {
                   ? `$${payoutPerQuarter.toFixed(2)}`
                   : "";
                 const quarterNumber = q.quarter.replace("Q", "");
-                const usernameToUid = useMemo(() => {
-                  return Object.entries(playerUsernames).reduce(
-                    (acc, [uid, username]) => {
-                      const nameStr = String(username).trim();
-                      acc[nameStr] = uid;
-                      return acc;
-                    },
-                    {} as Record<string, string>
-                  );
-                }, [playerUsernames]);
+                // const usernameToUid = useMemo(() => {
+                //   const map: Record<string, string> = {};
+                //   Object.entries(playerUsernames).forEach(([uid, name]) => {
+                //     map[String(name).trim()] = uid;
+                //   });
+                //   return map;
+                // }, [playerUsernames]);
 
-                const getColorForUsername = (username: string) => {
-                  const uid = usernameToUid[username.trim()];
-                  return playerColors?.[uid] || "#999";
-                };
+                // const getColorForUsername = (name: string) =>
+                //   playerColors?.[usernameToUid[name.trim()]] || "#999";
 
                 return (
                   <Card
