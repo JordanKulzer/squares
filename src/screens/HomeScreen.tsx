@@ -47,6 +47,12 @@ const HomeScreen = () => {
   const [selectionCounts, setSelectionCounts] = useState<
     Record<string, number>
   >({});
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -170,6 +176,33 @@ const HomeScreen = () => {
       ),
     });
   }, [navigation, theme]);
+
+  const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? "" : "s"}`;
+
+  const formatCountdown = (deadlineLike?: string | Date) => {
+    if (!deadlineLike) return "Ended";
+    const d = new Date(deadlineLike);
+    const diff = d.getTime() - now.getTime();
+
+    if (isNaN(d.getTime())) return "Ended";
+    if (diff <= 0) {
+      return `Ended on ${d.toLocaleDateString()}`;
+    }
+
+    let ms = diff;
+    const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+    ms -= days * 24 * 60 * 60 * 1000;
+    const hours = Math.floor(ms / (60 * 60 * 1000));
+    ms -= hours * 60 * 60 * 1000;
+    const mins = Math.floor(ms / (60 * 1000));
+
+    const parts: string[] = [];
+    if (days > 0) parts.push(plural(days, "day"));
+    if (hours > 0 || days > 0) parts.push(plural(hours, "hr"));
+    parts.push(plural(mins, "min"));
+
+    return `Ends in ${parts.join(" ")}`;
+  };
 
   const isNewUser = !loading && userGames.length === 0;
   const welcomeTitle = isNewUser
@@ -315,16 +348,30 @@ const HomeScreen = () => {
                       }}
                     >
                       <View>
-                        <Text
+                        <View
                           style={{
-                            fontSize: 16,
-                            fontWeight: "600",
-                            color: theme.colors.onBackground,
-                            fontFamily: "SoraBold",
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
                           }}
                         >
-                          {item.title}
-                        </Text>
+                          <Text
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                            style={{
+                              fontSize: 16,
+                              fontWeight: "600",
+                              color: theme.colors.onBackground,
+                              fontFamily: "SoraBold",
+                              flexShrink: 1,
+                              marginRight: 8,
+                            }}
+                          >
+                            {item.title}
+                          </Text>
+                          <Text> {formatCountdown(item.deadline)}</Text>
+                        </View>
+
                         <Text
                           style={{
                             fontSize: 14,
@@ -333,12 +380,7 @@ const HomeScreen = () => {
                           }}
                         >
                           {item.player_ids?.length || 0} players •{" "}
-                          {selectionCounts[item.id] || 0} selected •{" "}
-                          {item.deadline && new Date(item.deadline) > new Date()
-                            ? `Ends ${new Date(
-                                item.deadline
-                              ).toLocaleDateString()}`
-                            : "Finalized"}
+                          {selectionCounts[item.id] || 0} selected
                         </Text>
                       </View>
 

@@ -1131,7 +1131,7 @@ const SquareScreen = ({ route }) => {
                   fontFamily: "Sora",
                 }}
               >
-                Scores not yet available.
+                Your game has not yet started.
               </Text>
             )}
           </Card.Content>
