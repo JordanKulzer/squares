@@ -369,7 +369,16 @@ const HomeScreen = () => {
                           >
                             {item.title}
                           </Text>
-                          <Text> {formatCountdown(item.deadline)}</Text>
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: theme.colors.onSurface,
+                              fontFamily: "Sora",
+                            }}
+                          >
+                            {" "}
+                            {formatCountdown(item.deadline)}
+                          </Text>
                         </View>
 
                         <Text
