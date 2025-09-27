@@ -4,7 +4,6 @@ import { SchedulableTriggerInputTypes } from "expo-notifications";
 import { NotificationSettings } from "./notificationTypes";
 import { supabase } from "../lib/supabase";
 
-
 const DEADLINE_NOTIFICATION_KEY = "deadlineNotificationIds";
 const isDevClient = process.env.APP_ENV !== "production";
 
@@ -69,26 +68,32 @@ export const scheduleNotifications = async (
 
   const permissions = await Notifications.getPermissionsAsync();
   if (!permissions.granted) {
-    await Notifications.requestPermissionsAsync();
+    const ask = await Notifications.requestPermissionsAsync();
+    if (!ask.granted) {
+      console.warn("Notifications not granted by user.");
+      return;
+    }
   }
 
-  await scheduleIfInFuture(
-    thirtyMinBefore,
-    "⏰ 30 minutes left!",
-    "Only 30 minutes left to pick your Squares!"
-  );
+  if (notifySettings?.deadlineReminders) {
+    await scheduleIfInFuture(
+      thirtyMinBefore,
+      "⏰ 30 minutes left!",
+      "Only 30 minutes left to pick your Squares!"
+    );
 
-  await scheduleIfInFuture(
-    fiveMinBefore,
-    "⏰ 5 minutes left!",
-    "Time is running out to pick your Squares!"
-  );
+    await scheduleIfInFuture(
+      fiveMinBefore,
+      "⏰ 5 minutes left!",
+      "Time is running out to pick your Squares!"
+    );
 
-  await scheduleIfInFuture(
-    deadline,
-    "🚨 Deadline Reached!",
-    "No more selections allowed. Check the results soon!"
-  );
+    await scheduleIfInFuture(
+      deadline,
+      "🚨 Deadline Reached!",
+      "No more selections allowed. Check the results soon!"
+    );
+  }
 
   await AsyncStorage.setItem(
     DEADLINE_NOTIFICATION_KEY,
@@ -100,12 +105,11 @@ export const scheduleNotifications = async (
   }
 };
 
-
 export const sendGameUpdateNotification = async (gridId: string) => {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  
+
   const currentUserId = user?.id;
   if (!currentUserId) return;
 
@@ -121,12 +125,16 @@ export const sendGameUpdateNotification = async (gridId: string) => {
 
   if (!shouldNotify) return;
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "📢 Game Info Updated",
-      body: "The session owner updated team names or scores.",
-      sound: true,
-    },
-    trigger: null,
+  players.forEach(async (p) => {
+    if (p.user_id !== currentUserId && p.notification_settings?.gameUpdated) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "📢 Game Info Updated",
+          body: "The session owner updated team names or scores.",
+          sound: true,
+        },
+        trigger: null,
+      });
+    }
   });
 };

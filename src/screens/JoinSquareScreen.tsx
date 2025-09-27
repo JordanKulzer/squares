@@ -77,6 +77,7 @@ const JoinSquareScreen = () => {
     playerJoined: false,
     gameUpdated: false,
   });
+  const [league, setLeague] = useState<string | null>(null);
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
@@ -95,7 +96,7 @@ const JoinSquareScreen = () => {
     const fetchSession = async () => {
       const { data: square, error } = await supabase
         .from("squares")
-        .select("title, deadline, price_per_square, id")
+        .select("title, deadline, price_per_square, id, league")
         .eq("id", gridId)
         .single();
 
@@ -108,6 +109,7 @@ const JoinSquareScreen = () => {
 
       setInputTitle(square.title || "Untitled");
       setDeadline(square.deadline || null);
+      setLeague(square.league || "NFL");
 
       const { data: squareWithPlayers } = await supabase
         .from("squares")
@@ -211,6 +213,7 @@ const JoinSquareScreen = () => {
         deadline,
         pricePerSquare,
         eventId: "",
+        league,
       });
     } catch (err) {
       console.error("Unexpected error:", err);

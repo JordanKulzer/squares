@@ -41,7 +41,13 @@ const splitTeamName = (teamName) => {
 };
 
 const SquareScreen = ({ route }) => {
-  const { gridId, inputTitle, eventId, pricePerSquare } = route.params;
+  const {
+    gridId,
+    inputTitle,
+    eventId,
+    pricePerSquare,
+    league = "NFL",
+  } = route.params;
   const [now, setNow] = useState(new Date());
   const isFocused = useIsFocused();
 
@@ -383,7 +389,7 @@ const SquareScreen = ({ route }) => {
           level: "info",
         });
         const res = await fetch(
-          `${API_BASE_URL}/scores?eventId=${eventId}&startDate=${startDate}`
+          `${API_BASE_URL}/scores?eventId=${eventId}&startDate=${startDate}&league=${league}`
         );
 
         const game = await res.json();
@@ -433,20 +439,44 @@ const SquareScreen = ({ route }) => {
         const alreadyNotified: number[] = stored ? JSON.parse(stored) : [];
         const newNotified = [...alreadyNotified];
 
-        finalScores.forEach((q, index) => {
-          const quarterNumber = index + 1;
-          if (!alreadyNotified.includes(quarterNumber)) {
-            Notifications.scheduleNotificationAsync({
-              content: {
-                title: `🏈 End of Q${quarterNumber}`,
-                body: `Quarter ${quarterNumber} just ended. Check the standings!`,
-                sound: true,
-              },
-              trigger: null,
-            });
-            newNotified.push(quarterNumber);
-          }
-        });
+        if (
+          players.find((p) => p.userId === userId)?.notifySettings
+            ?.quarterResults
+        ) {
+          finalScores.forEach((q, index) => {
+            const quarterNumber = index + 1;
+            if (!alreadyNotified.includes(quarterNumber)) {
+              Notifications.scheduleNotificationAsync({
+                content: {
+                  title: `🏈 End of Q${quarterNumber}`,
+                  body: `Quarter ${quarterNumber} just ended. Check the standings!`,
+                  sound: true,
+                },
+                trigger: null,
+              });
+              newNotified.push(quarterNumber);
+            }
+          });
+        }
+
+        if (
+          isCompleted &&
+          players.find((p) => p.userId === userId)?.notifySettings
+            ?.quarterResults &&
+          !alreadyNotified.includes(99)
+        ) {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "🎉 Final Result",
+              body: `${team1Mascot} ${
+                finalScores.at(-1)?.home
+              } – ${team2Mascot} ${finalScores.at(-1)?.away}`,
+              sound: true,
+            },
+            trigger: null,
+          });
+          newNotified.push(99);
+        }
 
         if (newNotified.length !== alreadyNotified.length) {
           await AsyncStorage.setItem(storageKey, JSON.stringify(newNotified));
@@ -674,17 +704,16 @@ const SquareScreen = ({ route }) => {
           ...prev,
           [squareId]: playerColors[userId],
         }));
+        setSelections((prev) => [
+          ...prev,
+          { x, y, userId, username: currentUsername },
+        ]);
       }
       setPendingSquares((prev) => {
         const newSet = new Set(prev);
         newSet.add(squareId);
         return newSet;
       });
-
-      setSelections((prev) => [
-        ...prev,
-        { x, y, userId, username: currentUsername },
-      ]);
 
       setSelectedSquares(updatedSet);
     },

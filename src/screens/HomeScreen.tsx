@@ -64,7 +64,9 @@ const HomeScreen = () => {
 
         const { data, error } = await supabase
           .from("squares")
-          .select("*")
+          .select(
+            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids"
+          )
           .contains("player_ids", [user.id]);
 
         if (error) {
@@ -72,15 +74,21 @@ const HomeScreen = () => {
           return;
         }
 
-        const squaresList = data.map((item) => {
-          const userPlayer = item.players?.find((p) => p.uid === user.id);
-          return {
-            id: item.id,
-            ...item,
-            eventId: item.event_id,
-            username: userPlayer?.username || "Unknown",
-          };
-        });
+        const squaresList = data
+          .map((item) => {
+            const userPlayer = item.players?.find((p) => p.uid === user.id);
+            return {
+              id: item.id,
+              ...item,
+              eventId: item.event_id,
+              username: userPlayer?.username || "Unknown",
+            };
+          })
+          .sort((a, b) => {
+            const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+            const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+            return db - da;
+          });
 
         setUserGames(squaresList);
         const counts: Record<string, number> = {};
@@ -186,7 +194,7 @@ const HomeScreen = () => {
 
     if (isNaN(d.getTime())) return "Ended";
     if (diff <= 0) {
-      return `Ended on ${d.toLocaleDateString()}`;
+      return `Deadline ended on ${d.toLocaleDateString()}`;
     }
 
     let ms = diff;
@@ -201,7 +209,7 @@ const HomeScreen = () => {
     if (hours > 0 || days > 0) parts.push(plural(hours, "hr"));
     parts.push(plural(mins, "min"));
 
-    return `Ends in ${parts.join(" ")}`;
+    return `Deadline ends in ${parts.join(" ")}`;
   };
 
   const isNewUser = !loading && userGames.length === 0;
@@ -307,6 +315,19 @@ const HomeScreen = () => {
             contentContainerStyle={{ paddingBottom: 100 }}
           >
             {userGames.map((item, index) => {
+              const deadline = item.deadline
+                ? new Date(item.deadline).getTime()
+                : null;
+              const now = Date.now();
+
+              let borderColor = theme.colors.primary; // default: future
+              if (deadline) {
+                if (deadline < now) {
+                  borderColor = theme.colors.error; // past
+                } else if (deadline - now < 24 * 60 * 60 * 1000) {
+                  borderColor = "#f5c542"; // about to end (yellow)
+                }
+              }
               return (
                 <Animated.View
                   key={item.id}
@@ -325,7 +346,7 @@ const HomeScreen = () => {
                       styles.gameCard,
                       {
                         backgroundColor: theme.colors.surface,
-                        borderLeftColor: theme.colors.primary,
+                        borderLeftColor: borderColor,
                       },
                     ]}
                     onPress={() => {
@@ -337,6 +358,7 @@ const HomeScreen = () => {
                         eventId: item.eventId,
                         disableAnimation: true,
                         pricePerSquare: item.price_per_square || 0,
+                        league: item.league || "NFL",
                       });
                     }}
                   >
@@ -351,7 +373,6 @@ const HomeScreen = () => {
                         <View
                           style={{
                             flexDirection: "row",
-                            justifyContent: "space-between",
                             alignItems: "center",
                           }}
                         >
@@ -376,11 +397,10 @@ const HomeScreen = () => {
                               fontFamily: "Sora",
                             }}
                           >
-                            {" "}
-                            {formatCountdown(item.deadline)}
+                            {item.player_ids?.length || 0} players •{" "}
+                            {selectionCounts[item.id] || 0} selected
                           </Text>
                         </View>
-
                         <Text
                           style={{
                             fontSize: 14,
@@ -388,8 +408,8 @@ const HomeScreen = () => {
                             fontFamily: "Sora",
                           }}
                         >
-                          {item.player_ids?.length || 0} players •{" "}
-                          {selectionCounts[item.id] || 0} selected
+                          {" "}
+                          {formatCountdown(item.deadline)}
                         </Text>
                       </View>
 
@@ -429,14 +449,16 @@ const HomeScreen = () => {
             styles.howToButton,
             {
               backgroundColor: theme.colors.primary,
-              position: "absolute",
-              bottom: insets.bottom + 12,
+              // position: "absolute",
+              // bottom: insets.bottom + 12,
+              marginBottom: 35,
+              marginTop: 20,
               alignSelf: "center",
             },
           ]}
           onPress={() => navigation.navigate("HowToScreen")}
         >
-          <Text style={styles.howToText}>How to Play</Text>
+          <Text style={styles.howToText}>How To Play</Text>
         </TouchableOpacity>
       </View>
     </LinearGradient>

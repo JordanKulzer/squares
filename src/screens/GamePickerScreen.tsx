@@ -33,6 +33,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import DateSelectorModal from "../components/DateSelectorModal";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
+import { leagueMap } from "../utils/types";
 
 const gameTypeBehaviors = {
   NFL: { usesWeeks: true, startDate: new Date("2025-07-28T12:00:00") },
@@ -198,7 +199,7 @@ const GamePickerScreen = () => {
 
   const handleSelectGame = async (game) => {
     const res = await fetch(
-      `${API_BASE_URL}/scores?eventId=${game.id}&startDate=${game.date}`
+      `${API_BASE_URL}/scores?eventId=${game.id}&startDate=${game.date}&league=${gameType}`
     );
     const detailedGame = await res.json();
 
@@ -219,7 +220,7 @@ const GamePickerScreen = () => {
       team2FullName: homeFull,
       team1Abbr: awayAbbreviation,
       team2Abbr: homeAbbreviation,
-      league: game.league,
+      league: leagueMap[gameType],
       deadline: game.date,
       inputTitle,
       username,

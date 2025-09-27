@@ -18,6 +18,13 @@ export type RootStackParamList = {
     eventId: string;
     disableAnimation?: boolean;
     pricePerSquare?: number;
+    league?: string;
   };
   HowToScreen: undefined;
+};
+
+// utils/leagueMap.ts
+export const leagueMap: Record<string, string> = {
+  NFL: "nfl",
+  NCAAF: "ncaaf",
 };

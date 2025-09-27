@@ -99,6 +99,7 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.selectedColor) setSelectedColor(params.selectedColor);
     if (params.eventId) setEventId(params.eventId);
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
+    if (params.league) setLeague(params.league);
   }, [route.params]);
 
   const generateShuffledArray = () => {
@@ -159,9 +160,6 @@ const CreateSquareScreen = ({ navigation }) => {
       const fullTeam1 = route.params?.team1FullName ?? "";
       const fullTeam2 = route.params?.team2FullName ?? "";
 
-      console.log("team1Abbr: ", team1Abbr);
-      console.log("team2Abbr: ", team2Abbr);
-
       const { data, error } = await supabase
         .from("squares")
         .insert([
@@ -193,6 +191,7 @@ const CreateSquareScreen = ({ navigation }) => {
             team2_full_name: fullTeam2,
             team1_abbr: team1Abbr,
             team2_abbr: team2Abbr,
+            league: league,
           },
         ])
         .select("id")
