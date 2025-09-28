@@ -6,6 +6,94 @@ import { supabase } from "../lib/supabase";
 
 const DEADLINE_NOTIFICATION_KEY = "deadlineNotificationIds";
 const isDevClient = process.env.APP_ENV !== "production";
+const QUARTER_FLAG_KEY = (gridId: string) => `quarterFlags:${gridId}`;
+
+// Map a period number to a friendly key
+const periodToKey = (p: number) =>
+  p === 1
+    ? "Q1"
+    : p === 2
+    ? "Q2"
+    : p === 3
+    ? "Q3"
+    : p === 4
+    ? "Q4"
+    : p >= 5
+    ? `OT${p - 4}`
+    : `P${p}`;
+
+type QuarterFlags = Record<string, boolean>;
+export async function checkQuarterEndNotification(
+  game: any,
+  gridId: string,
+  notifySettings: NotificationSettings
+) {
+  try {
+    if (!notifySettings?.quarterResults) return;
+
+    const completed = game?.completedQuarters ?? 0;
+    if (completed === 0) return;
+
+    // Load existing flags (which quarters have already notified)
+    const raw = (await AsyncStorage.getItem(QUARTER_FLAG_KEY(gridId))) || "{}";
+    const flags: QuarterFlags = JSON.parse(raw);
+
+    // Loop through all completed quarters
+    for (let q = 1; q <= completed; q++) {
+      const key = periodToKey(q);
+      if (!flags[key]) {
+        const qScore = game?.quarterScores?.[q - 1];
+
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `🏈 End of ${key}`,
+            body: `${game.fullTeam2} ${qScore?.home ?? "-"} – ${
+              game.fullTeam1
+            } ${qScore?.away ?? "-"}`,
+            sound: true,
+          },
+          trigger: null,
+        });
+
+        flags[key] = true;
+        // save immediately
+        await AsyncStorage.setItem(
+          QUARTER_FLAG_KEY(gridId),
+          JSON.stringify(flags)
+        );
+      }
+    }
+
+    // 👇 Add this AFTER the quarter loop
+    if (game?.completed && !flags["FINAL"]) {
+      const lastScore = game.quarterScores?.at(-1);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "🎉 Final Result",
+          body: `${game.fullTeam2} ${lastScore?.home ?? "-"} – ${
+            game.fullTeam1
+          } ${lastScore?.away ?? "-"}`,
+          sound: true,
+        },
+        trigger: null,
+      });
+
+      flags["FINAL"] = true;
+      await AsyncStorage.setItem(
+        QUARTER_FLAG_KEY(gridId),
+        JSON.stringify(flags)
+      );
+    }
+  } catch (e) {
+    console.warn("checkQuarterEndNotification error", e);
+  }
+}
+
+/** Optional: call this when leaving the session or when a game is fully POST to reset */
+export async function resetQuarterNotifications(gridId: string) {
+  await AsyncStorage.removeItem(QUARTER_FLAG_KEY(gridId));
+}
 
 export const scheduleNotifications = async (
   deadline: Date,
@@ -100,9 +188,9 @@ export const scheduleNotifications = async (
     JSON.stringify(scheduledIds)
   );
 
-  if (notifySettings?.quarterResults) {
-    await AsyncStorage.removeItem(`quarterNotified:${gridId}`);
-  }
+  // if (notifySettings?.quarterResults) {
+  //   await AsyncStorage.removeItem(`quarterNotified:${gridId}`);
+  // }
 };
 
 export const sendGameUpdateNotification = async (gridId: string) => {

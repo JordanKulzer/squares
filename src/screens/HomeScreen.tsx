@@ -347,6 +347,7 @@ const HomeScreen = () => {
                       {
                         backgroundColor: theme.colors.surface,
                         borderLeftColor: borderColor,
+                        borderColor: borderColor,
                       },
                     ]}
                     onPress={() => {

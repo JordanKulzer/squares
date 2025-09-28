@@ -26,18 +26,26 @@ import { LinearGradient } from "expo-linear-gradient";
 import SessionOptionsModal from "../components/SessionOptionsModal";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as Notifications from "expo-notifications";
-import { scheduleNotifications } from "../utils/notifications";
+import {
+  checkQuarterEndNotification,
+  scheduleNotifications,
+} from "../utils/notifications";
 import { supabase } from "../lib/supabase";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_BASE_URL } from "../utils/apiConfig";
 import * as Sentry from "@sentry/react-native";
+import { getCompletedQuarters } from "../utils/gameHelpers";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
 
 const splitTeamName = (teamName) => {
   return teamName ? teamName.split("") : [];
+};
+
+const formatPeriodLabel = (quarter: string, index: number) => {
+  const num = parseInt(quarter.replace("Q", ""), 10);
+  if (num <= 4) return `Quarter ${num}`;
+  return `Overtime ${num - 4}`;
 };
 
 const SquareScreen = ({ route }) => {
@@ -85,6 +93,8 @@ const SquareScreen = ({ route }) => {
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
   const [gameCompleted, setGameCompleted] = useState(false);
+  const [isTeam1Home, setIsTeam1Home] = useState<boolean | null>(null);
+
   const leaveAnim = useRef(new Animated.Value(0)).current;
   const deleteAnim = useRef(new Animated.Value(0)).current;
 
@@ -151,13 +161,22 @@ const SquareScreen = ({ route }) => {
     navigation.setOptions({ headerTitle: title });
   }, [navigation, title]);
 
-  const determineQuarterWinners = (scores, selections, xAxis, yAxis) => {
+  const determineQuarterWinners = (
+    scores,
+    selections,
+    xAxis,
+    yAxis,
+    isTeam1Home
+  ) => {
     return scores
       .map(({ home, away }, i) => {
         if (home === null || away === null) return null;
 
-        const x = xAxis.findIndex((val) => val === away % 10);
-        const y = yAxis.findIndex((val) => val === home % 10);
+        const team1Score = isTeam1Home ? home : away;
+        const team2Score = isTeam1Home ? away : home;
+
+        const x = xAxis.findIndex((val) => val === team2Score % 10);
+        const y = yAxis.findIndex((val) => val === team1Score % 10);
 
         if (x === -1 || y === -1) {
           console.warn(
@@ -198,13 +217,16 @@ const SquareScreen = ({ route }) => {
     if (!xAxis.length || !yAxis.length) return;
     if (!Array.isArray(quarterScores) || quarterScores.length === 0) return;
 
-    const winners = determineQuarterWinners(
-      quarterScores,
-      selections,
-      xAxis,
-      yAxis
-    );
-    setQuarterWinners(winners);
+    if (isTeam1Home !== null) {
+      const winners = determineQuarterWinners(
+        quarterScores,
+        selections,
+        xAxis,
+        yAxis,
+        isTeam1Home
+      );
+      setQuarterWinners(winners);
+    }
   }, [isFocused, quarterScores, selections, xAxis, yAxis]);
 
   useEffect(() => {
@@ -228,13 +250,16 @@ const SquareScreen = ({ route }) => {
       setQuarterScores(data.quarter_scores || []);
 
       if (data.selections && xAxis.length && yAxis.length) {
-        const winners = determineQuarterWinners(
-          data.quarter_scores || [],
-          data.selections,
-          xAxis,
-          yAxis
-        );
-        setQuarterWinners(winners);
+        if (isTeam1Home !== null) {
+          const winners = determineQuarterWinners(
+            quarterScores,
+            selections,
+            xAxis,
+            yAxis,
+            isTeam1Home
+          );
+          setQuarterWinners(winners);
+        }
       }
     };
 
@@ -394,10 +419,21 @@ const SquareScreen = ({ route }) => {
 
         const game = await res.json();
 
+        const myNotifySettings = players.find(
+          (p) => p.userId === userId
+        )?.notifySettings;
+
+        if (myNotifySettings) {
+          await checkQuarterEndNotification(game, gridId, myNotifySettings);
+        }
+
         const apiScores = game?.quarterScores ?? [];
         const isCompleted = game?.completed ?? false;
         console.log("🏁 Game completed from API:", isCompleted);
         setGameCompleted(isCompleted);
+
+        const homeAbbrev = game?.homeTeamAbbrev?.toLowerCase();
+        setIsTeam1Home(homeAbbrev === team1.toLowerCase());
 
         const { data: dbData, error: dbError } = await supabase
           .from("squares")
@@ -431,56 +467,18 @@ const SquareScreen = ({ route }) => {
         const finalScores =
           scoresDiffer && dbScores.length > 0 ? dbScores : apiScores;
 
-        setQuarterScores(finalScores);
-        console.log("📊 Quarter scores fetched:", finalScores);
-
-        const storageKey = `notifiedQuarters-${eventId}`;
-        const stored = await AsyncStorage.getItem(storageKey);
-        const alreadyNotified: number[] = stored ? JSON.parse(stored) : [];
-        const newNotified = [...alreadyNotified];
-
-        if (
-          players.find((p) => p.userId === userId)?.notifySettings
-            ?.quarterResults
-        ) {
-          finalScores.forEach((q, index) => {
-            const quarterNumber = index + 1;
-            if (!alreadyNotified.includes(quarterNumber)) {
-              Notifications.scheduleNotificationAsync({
-                content: {
-                  title: `🏈 End of Q${quarterNumber}`,
-                  body: `Quarter ${quarterNumber} just ended. Check the standings!`,
-                  sound: true,
-                },
-                trigger: null,
-              });
-              newNotified.push(quarterNumber);
-            }
-          });
+        const completedCount = getCompletedQuarters(game);
+        const completed = game?.completedQuarters ?? 0;
+        let visibleScores;
+        if (game?.completed) {
+          // if the game is marked final, show all quarters
+          visibleScores = game?.quarterScores ?? [];
+        } else {
+          // otherwise only show what the API marks as completed
+          const completed = game?.completedQuarters ?? 0;
+          visibleScores = game?.quarterScores?.slice(0, completed) ?? [];
         }
-
-        if (
-          isCompleted &&
-          players.find((p) => p.userId === userId)?.notifySettings
-            ?.quarterResults &&
-          !alreadyNotified.includes(99)
-        ) {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: "🎉 Final Result",
-              body: `${team1Mascot} ${
-                finalScores.at(-1)?.home
-              } – ${team2Mascot} ${finalScores.at(-1)?.away}`,
-              sound: true,
-            },
-            trigger: null,
-          });
-          newNotified.push(99);
-        }
-
-        if (newNotified.length !== alreadyNotified.length) {
-          await AsyncStorage.setItem(storageKey, JSON.stringify(newNotified));
-        }
+        setQuarterScores(visibleScores);
       } catch (e) {
         Sentry.captureException(e);
         console.warn("Error fetching quarter scores", e);
@@ -1067,21 +1065,14 @@ const SquareScreen = ({ route }) => {
                 const square = winner?.square ?? ["-", "-"];
                 const totalSelected = Object.keys(squareColors).length;
                 const totalPayout = pricePerSquare * totalSelected;
-                const payoutPerQuarter = totalPayout / 4;
+                const periodsCount = quarterScores.length; // includes OT if present
+                const payoutPerPeriod = totalPayout / periodsCount;
                 const payout = pricePerSquare
-                  ? `$${payoutPerQuarter.toFixed(2)}`
+                  ? `$${payoutPerPeriod.toFixed(2)}`
                   : "";
                 const quarterNumber = q.quarter.replace("Q", "");
-                // const usernameToUid = useMemo(() => {
-                //   const map: Record<string, string> = {};
-                //   Object.entries(playerUsernames).forEach(([uid, name]) => {
-                //     map[String(name).trim()] = uid;
-                //   });
-                //   return map;
-                // }, [playerUsernames]);
 
-                // const getColorForUsername = (name: string) =>
-                //   playerColors?.[usernameToUid[name.trim()]] || "#999";
+                const periodLabel = formatPeriodLabel(q.quarter, i);
 
                 return (
                   <Card
@@ -1101,8 +1092,9 @@ const SquareScreen = ({ route }) => {
                           { color: theme.colors.onSurface },
                         ]}
                       >
-                        Quarter {quarterNumber}: {team2Mascot} {q.away} -{" "}
-                        {team1Mascot} {q.home}
+                        {periodLabel}: {team1Mascot}{" "}
+                        {isTeam1Home ? q.home : q.away} - {team2Mascot}{" "}
+                        {isTeam1Home ? q.away : q.home}
                       </Text>
                       <Text
                         style={[
@@ -1134,7 +1126,7 @@ const SquareScreen = ({ route }) => {
                                 { color: theme.colors.onSurface },
                               ]}
                             >
-                              {username} wins {payout}
+                              {username} wins ${payoutPerPeriod.toFixed(2)}
                             </Text>
                           </View>
                         </>
@@ -1145,7 +1137,7 @@ const SquareScreen = ({ route }) => {
                             { color: theme.colors.onSurface },
                           ]}
                         >
-                          ❌ No winner for this quarter
+                          ❌ No winner for this {periodLabel.toLowerCase()}
                         </Text>
                       )}
                     </Card.Content>
