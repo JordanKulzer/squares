@@ -1044,7 +1044,7 @@ const SquareScreen = ({ route }) => {
                 ? quarterWinners.some(
                     (w) => w?.username && w.username !== "No Winner"
                   )
-                  ? "Results!"
+                  ? "Check Your Results!"
                   : "No Winners"
                 : "Waiting for scores..."
             }

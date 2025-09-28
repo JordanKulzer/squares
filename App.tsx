@@ -129,12 +129,12 @@ const App: React.FC = () => {
           setTimeout(() => {
             registerPushToken(userData.user.id);
           }, 500);
+          setLoading(false);
         }
       } else {
         setUser(null);
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     checkSession();
@@ -158,10 +158,12 @@ const App: React.FC = () => {
             setTimeout(() => {
               registerPushToken(userData.user.id);
             }, 500);
+            setLoading(false);
           }
         } else {
           setUser(null);
           setRecoveryMode(false);
+          setLoading(false);
         }
       }
     );
