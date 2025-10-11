@@ -128,27 +128,24 @@ const GamePickerScreen = () => {
 
   const fetchGamesForDate = async (date) => {
     const formattedDate = date.toISOString().split("T")[0];
+
     try {
-      const path =
-        gameType === "NFL"
-          ? "/schedule"
-          : gameType === "NCAAF"
-          ? "/ncaaf/schedule"
-          : null;
+      // Use the new API-Sports route
+      const url = `${API_BASE_URL}/apisports/schedule?startDate=${formattedDate}&league=${gameType}`;
 
-      if (!path) {
-        return [];
-      }
-
-      const url = `${API_BASE_URL}${path}?startDate=${formattedDate}`;
       const res = await fetch(url);
-
       const text = await res.text();
+
       try {
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) {
+          console.warn("Unexpected response format from:", url, parsed);
+          return [];
+        }
+        return parsed;
       } catch (parseErr) {
-        console.warn("Invalid JSON response from:", url);
-        console.warn("Raw response text:", text.slice(0, 300));
+        console.warn("Invalid JSON from:", url);
+        console.warn("Raw:", text.slice(0, 300));
         throw parseErr;
       }
     } catch (err) {
@@ -178,6 +175,15 @@ const GamePickerScreen = () => {
 
       setGames(extractedGames);
       setLoading(false);
+      console.log(
+        "📋 API returned games:",
+        extractedGames.map((g, i) => ({
+          i,
+          id: g.id,
+          home: g.homeTeam,
+          away: g.awayTeam,
+        }))
+      );
     };
 
     loadGames();
@@ -199,7 +205,7 @@ const GamePickerScreen = () => {
 
   const handleSelectGame = async (game) => {
     const res = await fetch(
-      `${API_BASE_URL}/scores?eventId=${game.id}&startDate=${game.date}&league=${gameType}`
+      `${API_BASE_URL}/apisports/scores?eventId=${game.id}&league=${gameType}`
     );
     const detailedGame = await res.json();
 
@@ -528,7 +534,9 @@ const GamePickerScreen = () => {
               <View style={{ flex: 1 }}>
                 <FlatList
                   data={games}
-                  keyExtractor={(item) => item.id}
+                  keyExtractor={(item, index) =>
+                    item?.id?.toString() || `${index}`
+                  }
                   contentContainerStyle={{ paddingBottom: 20 }}
                   renderItem={({ item }) => (
                     <TouchableOpacity
@@ -556,31 +564,18 @@ const GamePickerScreen = () => {
                             <Text
                               style={[
                                 styles.gameText,
-                                { color: theme.colors.onSurface },
-                              ]}
-                            >
-                              {item.awayTeam}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.gameText,
                                 {
                                   color: theme.colors.onSurface,
-                                  marginHorizontal: 6,
+                                  flexShrink: 1,
                                 },
                               ]}
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
                             >
-                              @
-                            </Text>
-                            <Text
-                              style={[
-                                styles.gameText,
-                                { color: theme.colors.onSurface },
-                              ]}
-                            >
-                              {item.homeTeam}
+                              {`${item.awayTeam} @ ${item.homeTeam}`}
                             </Text>
                           </View>
+
                           <Text
                             style={[
                               styles.dateText,

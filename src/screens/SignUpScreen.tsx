@@ -71,9 +71,11 @@ const SignupScreen = ({ navigation }) => {
         if (insertError) throw insertError;
       }
     } catch (err: any) {
-      console.error("Signup error:", err);
+      console.log("Signup error:", err?.message || err);
 
-      if (err.message?.includes("email")) {
+      if (err.message?.includes("User already registered")) {
+        setError("Email already in use or invalid.");
+      } else if (err.message?.includes("email")) {
         setError("Email already in use or invalid.");
       } else if (err.message?.includes("password")) {
         setError("Password must be at least 6 characters.");

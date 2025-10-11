@@ -397,8 +397,9 @@ const SquareScreen = ({ route }) => {
   }, []);
 
   useEffect(() => {
-    if (!isFocused) return;
     if (!eventId || !deadlineValue) return;
+
+    let interval: NodeJS.Timeout | null = null;
 
     const fetchQuarterScores = async () => {
       const startDate = deadlineValue.toISOString().split("T")[0];
@@ -413,11 +414,24 @@ const SquareScreen = ({ route }) => {
           message: "fetchQuarterScores",
           level: "info",
         });
-        const res = await fetch(
-          `${API_BASE_URL}/scores?eventId=${eventId}&startDate=${startDate}&league=${league}`
+        console.log(
+          "🔍 Fetching scores for eventId:",
+          eventId,
+          "league:",
+          league
         );
 
-        const game = await res.json();
+        const res = await fetch(
+          `${API_BASE_URL}/apisports/scores?eventId=${eventId}&league=${league}&startDate=${startDate}&team1=${team1}&team2=${team2}`
+        );
+
+        const text = await res.text();
+        console.log("🧠 Raw backend response:", text.slice(0, 400));
+        if (text.startsWith("<"))
+          throw new Error("Received HTML instead of JSON");
+        const game = JSON.parse(text);
+        if (!game || !game.id)
+          throw new Error("Invalid game data from backend");
 
         const myNotifySettings = players.find(
           (p) => p.userId === userId
@@ -432,10 +446,10 @@ const SquareScreen = ({ route }) => {
         console.log("🏁 Game completed from API:", isCompleted);
         setGameCompleted(isCompleted);
 
-        const homeAbbrev = game?.homeTeamAbbrev?.toLowerCase();
+        const homeAbbrev = game?.team2_abbr?.toLowerCase();
         setIsTeam1Home(homeAbbrev === team1.toLowerCase());
 
-        const { data: dbData, error: dbError } = await supabase
+        const { data: dbData } = await supabase
           .from("squares")
           .select("quarter_scores")
           .eq("id", gridId)
@@ -462,22 +476,12 @@ const SquareScreen = ({ route }) => {
             console.log("✅ Saved quarter_scores to Supabase");
           }
         }
-        const scoresDiffer =
-          JSON.stringify(apiScores) !== JSON.stringify(dbScores);
-        const finalScores =
-          scoresDiffer && dbScores.length > 0 ? dbScores : apiScores;
 
-        const completedCount = getCompletedQuarters(game);
-        const completed = game?.completedQuarters ?? 0;
-        let visibleScores;
-        if (game?.completed) {
-          // if the game is marked final, show all quarters
-          visibleScores = game?.quarterScores ?? [];
-        } else {
-          // otherwise only show what the API marks as completed
-          const completed = game?.completedQuarters ?? 0;
-          visibleScores = game?.quarterScores?.slice(0, completed) ?? [];
-        }
+        const completedCount = game?.completedQuarters ?? 0;
+        const visibleScores = isCompleted
+          ? game?.quarterScores ?? []
+          : game?.quarterScores?.slice(0, completedCount) ?? [];
+
         setQuarterScores(visibleScores);
       } catch (e) {
         Sentry.captureException(e);
@@ -485,11 +489,17 @@ const SquareScreen = ({ route }) => {
       }
     };
 
-    fetchQuarterScores();
+    // ✅ Start polling only while screen is focused
+    if (isFocused) {
+      fetchQuarterScores();
+      interval = setInterval(fetchQuarterScores, 30000);
+    }
 
-    const interval = setInterval(fetchQuarterScores, 30000);
-    return () => clearInterval(interval);
-  }, [eventId, deadlineValue, refreshKey]);
+    // ✅ Clear interval when leaving screen or unmounting
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isFocused, eventId, deadlineValue, refreshKey]);
 
   const playerList = useMemo(
     () => Object.entries(playerColors),

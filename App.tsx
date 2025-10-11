@@ -106,98 +106,6 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const checkSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        const { data: userData, error } = await supabase.auth.getUser();
-
-        if (error || !userData?.user) {
-          await supabase.auth.signOut();
-          setUser(null);
-
-          Toast.show({
-            type: "error",
-            text1: "Account Deleted",
-            text2: "Your account no longer exists. Please sign up again.",
-            position: "bottom",
-          });
-        } else {
-          setUser(userData.user);
-          setTimeout(() => {
-            registerPushToken(userData.user.id);
-          }, 500);
-          setLoading(false);
-        }
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
-    };
-
-    checkSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session?.user) {
-          const { data: userData, error } = await supabase.auth.getUser();
-          if (error || !userData?.user) {
-            await supabase.auth.signOut();
-            setUser(null);
-
-            Toast.show({
-              type: "error",
-              text1: "Account Deleted",
-              text2: "Your account no longer exists. Please sign up again.",
-              position: "bottom",
-            });
-          } else {
-            setUser(userData.user);
-            setTimeout(() => {
-              registerPushToken(userData.user.id);
-            }, 500);
-            setLoading(false);
-          }
-        } else {
-          setUser(null);
-          setRecoveryMode(false);
-          setLoading(false);
-        }
-      }
-    );
-
-    return () => {
-      listener?.subscription.unsubscribe();
-    };
-  }, []);
-
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-    } catch (error) {
-      console.error("Error logging out: ", error);
-    }
-  };
-
-  const linking = {
-    prefixes: [
-      "squaresgame://", // for deep links
-      "https://squares-41599.web.app", // fallback
-    ],
-    config: {
-      screens: {
-        ResetPasswordScreen: "reset-password", // add this line
-        JoinSquareScreen: {
-          path: "session/:sessionId",
-        },
-      },
-    },
-  };
-
-  useEffect(() => {
     const handleDeepLink = async ({ url }: { url: string }) => {
       if (!url) return;
 
@@ -225,6 +133,149 @@ const App: React.FC = () => {
     return () => sub.remove();
   }, []);
 
+  useEffect(() => {
+    let isCancelled = false;
+
+    const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+    const ensureSupabaseReady = async () => {
+      for (let i = 0; i < 10; i++) {
+        const { data } = await supabase.auth.getSession();
+        if (data?.session || i === 9) return;
+        await wait(200);
+      }
+    };
+
+    const safeGetSession = async (attempt = 1): Promise<any | null> => {
+      console.log(`🟦 [Auth] Checking session (attempt ${attempt})`);
+      try {
+        const result = (await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 5000)
+          ),
+        ])) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
+
+        const data = result?.data;
+        if (data?.session) {
+          console.log("✅ [Auth] Session found in local storage");
+          return data.session;
+        }
+
+        console.log("⚪ [Auth] No session returned yet");
+        return null;
+      } catch (err: any) {
+        if (err.message === "timeout" && attempt < 3) {
+          console.log(
+            `⏳ [Auth] Supabase still initializing... retrying (${attempt})`
+          );
+          await wait(2000);
+          return safeGetSession(attempt + 1);
+        }
+        console.warn("⚠️ [Auth] getSession failed:", err.message);
+        return null;
+      }
+    };
+
+    const checkSession = async () => {
+      const session = await safeGetSession();
+      if (isCancelled) return;
+
+      if (session?.user) {
+        console.log("👤 [Auth] Valid session detected — fetching user");
+        try {
+          const { data: userData, error } = await supabase.auth.getUser();
+          if (error || !userData?.user) {
+            console.warn("❌ [Auth] User invalid or deleted");
+            await supabase.auth.signOut();
+            setUser(null);
+            Toast.show({
+              type: "error",
+              text1: "Account Deleted",
+              text2: "Your account no longer exists. Please sign up again.",
+              position: "bottom",
+            });
+          } else {
+            console.log("🎯 [Auth] User verified:", userData.user.email);
+            setUser(userData.user);
+            setTimeout(() => registerPushToken(userData.user.id), 500);
+          }
+        } catch (err) {
+          console.error("🔥 [Auth] getUser error:", err);
+          setUser(null);
+        }
+      } else {
+        console.log("🚪 [Auth] No active session — showing login");
+        setUser(null);
+      }
+      setLoading(false);
+    };
+
+    // ✅ wrap awaits inside an IIFE
+    (async () => {
+      await ensureSupabaseReady();
+      await checkSession();
+
+      const { data: listener } = supabase.auth.onAuthStateChange(
+        async (_event, session) => {
+          if (isCancelled) return;
+          console.log("🔄 [Auth] Auth state change event:", _event);
+
+          if (session?.user) {
+            const { data: userData, error } = await supabase.auth.getUser();
+            if (error || !userData?.user) {
+              await supabase.auth.signOut();
+              setUser(null);
+              Toast.show({
+                type: "error",
+                text1: "Account Deleted",
+                text2: "Your account no longer exists. Please sign up again.",
+                position: "bottom",
+              });
+            } else {
+              setUser(userData.user);
+              setTimeout(() => registerPushToken(userData.user.id), 500);
+            }
+          } else {
+            setUser(null);
+            setRecoveryMode(false);
+          }
+          setLoading(false);
+        }
+      );
+
+      return () => listener?.subscription.unsubscribe();
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error("Error logging out: ", error);
+    }
+  };
+
+  const linking = {
+    prefixes: [
+      "squaresgame://", // for deep links
+      "https://squares-41599.web.app", // fallback
+    ],
+    config: {
+      screens: {
+        ResetPasswordScreen: "reset-password", // add this line
+        JoinSquareScreen: {
+          path: "session/:sessionId",
+        },
+      },
+    },
+  };
+
   const [fontsLoaded] = useFonts({
     Sora: require("./assets/fonts/Sora-Regular.ttf"),
     SoraBold: require("./assets/fonts/Sora-Bold.ttf"),
@@ -248,7 +299,7 @@ const App: React.FC = () => {
       />
       <PaperProvider theme={paperTheme}>
         <NavigationContainer theme={navigationTheme} linking={linking}>
-          <Stack.Navigator>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
             {recoveryMode ? (
               <Stack.Screen
                 name="ResetPasswordScreen"
@@ -257,7 +308,6 @@ const App: React.FC = () => {
               />
             ) : user ? (
               <>
-                {/* Screen that doesn't have the back button in the header */}
                 <Stack.Screen name="Main" options={{ headerShown: false }}>
                   {() => (
                     <HomeScreen
@@ -269,7 +319,7 @@ const App: React.FC = () => {
                   )}
                 </Stack.Screen>
 
-                {/* Other screens with back + animation */}
+                {/* Other screens with back buttons */}
                 {[
                   {
                     name: "JoinSquareScreen",
@@ -331,20 +381,11 @@ const App: React.FC = () => {
               </>
             ) : (
               <>
-                <Stack.Screen
-                  name="Login"
-                  component={LoginScreen}
-                  options={{ headerShown: false }}
-                />
-                <Stack.Screen
-                  name="Signup"
-                  component={SignupScreen}
-                  options={{ headerShown: false }}
-                />
+                <Stack.Screen name="Login" component={LoginScreen} />
+                <Stack.Screen name="Signup" component={SignupScreen} />
                 <Stack.Screen
                   name="ForgotPassword"
                   component={ForgotPasswordScreen}
-                  options={{ headerShown: false }}
                 />
               </>
             )}
