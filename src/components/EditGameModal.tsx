@@ -31,6 +31,7 @@ const EditGameModal = ({
   triggerRefresh,
   currentDeadline,
   currentTitle,
+  isOwner,
 }: {
   visible: boolean;
   onDismiss: () => void;
@@ -45,16 +46,17 @@ const EditGameModal = ({
   triggerRefresh: () => void;
   currentDeadline: string | null;
   currentTitle: string;
+  isOwner: boolean;
 }) => {
   const theme = useTheme();
   const [team1, setTeam1] = useState(currentTeam1);
   const [team2, setTeam2] = useState(currentTeam2);
   const [quarterScores, setQuarterScores] = useState(
     currentScores ?? [
-      { quarter: "1Q", home: null, away: null },
-      { quarter: "2Q", home: null, away: null },
-      { quarter: "3Q", home: null, away: null },
-      { quarter: "4Q", home: null, away: null },
+      { quarter: "1Q", home: null, away: null, manual: false },
+      { quarter: "2Q", home: null, away: null, manual: false },
+      { quarter: "3Q", home: null, away: null, manual: false },
+      { quarter: "4Q", home: null, away: null, manual: false },
     ]
   );
   const [deadline, setDeadline] = useState<Date>(
@@ -64,6 +66,7 @@ const EditGameModal = ({
   const [pickerMode, setPickerMode] = useState<"date" | "time">("date");
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [title, setTitle] = useState(currentTitle);
+  const [manualOverride, setManualOverride] = useState(false);
 
   useEffect(() => {
     const showSub = Keyboard.addListener("keyboardDidShow", () =>
@@ -98,6 +101,18 @@ const EditGameModal = ({
     );
   }, [currentTeam1, currentTeam2, currentScores, currentDeadline]);
 
+  useEffect(() => {
+    const fetchManualOverride = async () => {
+      const { data } = await supabase
+        .from("squares")
+        .select("manual_override")
+        .eq("id", gridId)
+        .single();
+      setManualOverride(!!data?.manual_override);
+    };
+    fetchManualOverride();
+  }, [gridId]);
+
   const handleScoreChange = (
     index: number,
     field: "home" | "away",
@@ -113,10 +128,13 @@ const EditGameModal = ({
       const homeValid = typeof q.home === "number" && !isNaN(q.home);
       const awayValid = typeof q.away === "number" && !isNaN(q.away);
 
+      const wasEdited = homeValid || awayValid;
+
       return {
         quarter: q.quarter,
         home: homeValid ? q.home : null,
         away: awayValid ? q.away : null,
+        manual: wasEdited ? true : q.manual ?? false,
       };
     });
 
@@ -139,6 +157,7 @@ const EditGameModal = ({
         team2,
         quarter_scores: sanitizedScores,
         deadline: deadline.toISOString(),
+        manual_override: true,
       })
       .eq("id", gridId);
 
@@ -334,6 +353,29 @@ const EditGameModal = ({
               <Button mode="contained" onPress={handleSave}>
                 Save
               </Button>
+              {isOwner && manualOverride && (
+                <Button
+                  icon="refresh"
+                  mode="outlined"
+                  onPress={async () => {
+                    const { error } = await supabase
+                      .from("squares")
+                      .update({ manual_override: false })
+                      .eq("id", gridId);
+                    if (error)
+                      console.warn("Error resuming live updates:", error);
+                    else {
+                      setManualOverride(false);
+                    }
+                    onDismiss();
+                    triggerRefresh();
+                  }}
+                  textColor={theme.colors.primary}
+                  style={{ marginTop: 8 }}
+                >
+                  Resume Live Updates
+                </Button>
+              )}
             </View>
           </ScrollView>
         </KeyboardAvoidingView>

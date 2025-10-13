@@ -299,7 +299,15 @@ const App: React.FC = () => {
       />
       <PaperProvider theme={paperTheme}>
         <NavigationContainer theme={navigationTheme} linking={linking}>
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Navigator
+            screenOptions={{
+              headerShown: true,
+              headerTitleAlign: "center",
+              headerTitle: () => <HeaderLogo />,
+              headerStyle: { backgroundColor: paperTheme.colors.surface },
+              headerTintColor: paperTheme.colors.onBackground,
+            }}
+          >
             {recoveryMode ? (
               <Stack.Screen
                 name="ResetPasswordScreen"

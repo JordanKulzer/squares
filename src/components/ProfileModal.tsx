@@ -22,6 +22,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
   const [showEditName, setShowEditName] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
+  const [totalWinnings, setTotalWinnings] = useState(0);
 
   const editAnim = useRef(new Animated.Value(0)).current;
   const logoutAnim = useRef(new Animated.Value(0)).current;
@@ -38,15 +39,22 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
   };
 
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: visible ? 0 : 600,
-      duration: 300,
-      useNativeDriver: false,
-    }).start(() => {
-      if (visible) {
+    if (visible) {
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start(() => {
+        // ✅ Fetch data after animation completes
         fetchFirstName();
-      }
-    });
+      });
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: 600,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    }
   }, [visible]);
 
   useEffect(() => animateModal(editAnim, showEditName), [showEditName]);
@@ -61,12 +69,17 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
+
     const { data } = await supabase
       .from("users")
-      .select("first_name")
+      .select("first_name, total_winnings")
       .eq("id", user.id)
       .maybeSingle();
-    if (data) setFirstName(data.first_name || "");
+
+    if (data) {
+      setFirstName(data.first_name || "");
+      setTotalWinnings(data.total_winnings || 0);
+    }
   };
 
   const updateUserName = async () => {
@@ -260,6 +273,15 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               <Text style={{ color: onSurfaceColor, fontFamily: "Sora" }}>
                 Games Joined: {userGames.length}
               </Text>
+              <Text
+                style={{
+                  color: theme.colors.primary,
+                  fontFamily: "SoraBold",
+                  marginTop: 4,
+                }}
+              >
+                Total Winnings: ${totalWinnings.toFixed(2)}
+              </Text>
 
               <Button
                 icon="logout"
@@ -302,17 +324,16 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
         </Modal>
       </Portal>
 
-      {/* Edit Name Modal */}
       <Portal>
         <Modal
           visible={showEditName}
           onDismiss={() => {
             Animated.timing(editAnim, {
               toValue: 0,
-              duration: 400, // slow fade out
+              duration: 400,
               useNativeDriver: true,
             }).start(() => {
-              setShowEditName(false); // hide after animation completes
+              setShowEditName(false);
             });
           }}
         >

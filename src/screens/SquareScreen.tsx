@@ -47,6 +47,63 @@ const formatPeriodLabel = (quarter: string, index: number) => {
   if (num <= 4) return `Quarter ${num}`;
   return `Overtime ${num - 4}`;
 };
+const calculatePlayerWinnings = (
+  quarterWinners: any[],
+  playerUsernames: Record<string, string>,
+  pricePerSquare: number,
+  totalSquares: number
+) => {
+  const winningsMap: Record<string, number> = {};
+
+  if (!Array.isArray(quarterWinners) || !pricePerSquare || totalSquares === 0) {
+    console.log("⚠️ Skipping winnings calculation — invalid inputs");
+    console.log({ quarterWinners, pricePerSquare, totalSquares });
+    return winningsMap;
+  }
+
+  const totalPayout = pricePerSquare * totalSquares;
+  const payoutPerQuarter = totalPayout / quarterWinners.length;
+
+  const usernameToUserId: Record<string, string> = {};
+  Object.entries(playerUsernames).forEach(([uid, name]) => {
+    if (typeof name === "string") {
+      usernameToUserId[name.trim()] = uid;
+    }
+  });
+
+  console.log("👥 Player usernames map:", playerUsernames);
+  console.log("🔁 Reverse lookup (username → userId):", usernameToUserId);
+  console.log("🏈 Quarter winners array:", quarterWinners);
+  console.log(
+    "💵 pricePerSquare:",
+    pricePerSquare,
+    "totalSquares:",
+    totalSquares
+  );
+
+  quarterWinners.forEach((w, index) => {
+    const username = w?.username;
+    if (typeof username === "string" && username !== "No Winner") {
+      const trimmed = username.trim();
+      const userId = usernameToUserId[trimmed];
+      console.log(
+        `➡️ Quarter ${index + 1}: username=${trimmed}, userId=${userId}`
+      );
+
+      if (userId) {
+        winningsMap[userId] = (winningsMap[userId] || 0) + payoutPerQuarter;
+      } else {
+        console.warn(`⚠️ Could not map username "${trimmed}" to any userId`);
+      }
+    } else {
+      console.log(`❌ No valid winner for quarter ${index + 1}`, w);
+    }
+  });
+
+  console.log("✅ Final winningsMap:", winningsMap);
+
+  return winningsMap;
+};
 
 const SquareScreen = ({ route }) => {
   const {
@@ -94,6 +151,10 @@ const SquareScreen = ({ route }) => {
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
   const [gameCompleted, setGameCompleted] = useState(false);
   const [isTeam1Home, setIsTeam1Home] = useState<boolean | null>(null);
+  const [manualOverride, setManualOverride] = useState(false);
+  const [winningsByUser, setWinningsByUser] = useState<Record<string, number>>(
+    {}
+  );
 
   const leaveAnim = useRef(new Animated.Value(0)).current;
   const deleteAnim = useRef(new Animated.Value(0)).current;
@@ -227,7 +288,117 @@ const SquareScreen = ({ route }) => {
       );
       setQuarterWinners(winners);
     }
-  }, [isFocused, quarterScores, selections, xAxis, yAxis]);
+  }, [
+    isFocused,
+    quarterScores,
+    selections,
+    xAxis,
+    yAxis,
+    isTeam1Home,
+    playerUsernames,
+  ]);
+
+  useEffect(() => {
+    if (!quarterWinners?.length || !Object.keys(playerUsernames).length) return;
+
+    // Only include quarters that have actual numeric scores
+    const completedQuarters = quarterScores.filter(
+      (q) => q.home != null && q.away != null
+    );
+
+    if (completedQuarters.length === 0) return;
+
+    const liveWinnings = calculatePlayerWinnings(
+      quarterWinners.slice(0, completedQuarters.length),
+      playerUsernames,
+      pricePerSquare,
+      Object.keys(squareColors).length
+    );
+
+    setWinningsByUser(liveWinnings);
+  }, [
+    quarterWinners,
+    quarterScores,
+    playerUsernames,
+    pricePerSquare,
+    squareColors,
+    gameCompleted, // ✅ ensures final winnings still show
+  ]);
+
+  useEffect(() => {
+    if (!gameCompleted || !Object.keys(playerUsernames).length) return;
+
+    const finalizeTotalWinnings = async () => {
+      const { data: squareData, error: fetchErr } = await supabase
+        .from("squares")
+        .select("payout_done, winnings_snapshot")
+        .eq("id", gridId)
+        .single();
+
+      if (fetchErr) {
+        console.warn("⚠️ Could not check payout_done:", fetchErr.message);
+        return;
+      }
+
+      const newMap = calculatePlayerWinnings(
+        quarterWinners,
+        playerUsernames,
+        pricePerSquare,
+        Object.keys(squareColors).length
+      );
+
+      const previousMap = squareData?.winnings_snapshot || {};
+      const deltaMap: Record<string, number> = {};
+
+      // Compute difference between old and new
+      for (const [uid, newAmount] of Object.entries(newMap)) {
+        const prev = previousMap?.[uid] ?? 0;
+        const diff = parseFloat((newAmount - prev).toFixed(2));
+        if (diff !== 0) deltaMap[uid] = diff;
+      }
+
+      const anyChanges = Object.keys(deltaMap).length > 0;
+
+      if (!anyChanges) {
+        console.log("🟢 No winnings changes detected — skipping update.");
+        return;
+      }
+
+      console.log("🔁 Winnings changed — updating deltas:", deltaMap);
+
+      // Apply the differences
+      for (const [uid, diff] of Object.entries(deltaMap)) {
+        const { error } = await supabase.rpc("increment_user_winnings", {
+          user_id: uid,
+          amount_to_add: diff,
+        });
+        if (error)
+          console.warn(`❌ Failed to update winnings for ${uid}:`, error);
+        else
+          console.log(
+            `✅ Adjusted winnings by ${diff > 0 ? "+" : ""}${diff} for ${uid}`
+          );
+      }
+
+      // Store snapshot + re-mark payout_done true
+      const { error: updateErr } = await supabase
+        .from("squares")
+        .update({
+          payout_done: true,
+          winnings_snapshot: newMap,
+        })
+        .eq("id", gridId);
+
+      if (updateErr)
+        console.warn(
+          "⚠️ Failed to update winnings_snapshot:",
+          updateErr.message
+        );
+      else console.log("🏆 Winnings snapshot updated successfully!");
+    };
+
+    finalizeTotalWinnings();
+  }, [gameCompleted, quarterWinners]);
 
   useEffect(() => {
     if (!isFocused || !userId) return;
@@ -247,8 +418,14 @@ const SquareScreen = ({ route }) => {
       if (error || !data) return;
       console.log(data.quarter_scores);
 
-      setQuarterScores(data.quarter_scores || []);
-
+      if (data.quarter_scores && data.quarter_scores.length > 0) {
+        setQuarterScores((prev) => {
+          return data.quarter_scores.map((q, i) => ({
+            ...q,
+            manual: prev?.[i]?.manual ?? q.manual ?? false,
+          }));
+        });
+      }
       if (data.selections && xAxis.length && yAxis.length) {
         if (isTeam1Home !== null) {
           const winners = determineQuarterWinners(
@@ -306,6 +483,8 @@ const SquareScreen = ({ route }) => {
         .single();
 
       if (error || !data) return;
+
+      setManualOverride(!!data.manual_override);
 
       const colorMapping = {};
       const nameMapping = {};
@@ -399,6 +578,18 @@ const SquareScreen = ({ route }) => {
   useEffect(() => {
     if (!eventId || !deadlineValue) return;
 
+    let manualOverride = false;
+
+    const checkOverride = async () => {
+      const { data } = await supabase
+        .from("squares")
+        .select("manual_override")
+        .eq("id", gridId)
+        .single();
+
+      manualOverride = data?.manual_override || false;
+    };
+
     let interval: NodeJS.Timeout | null = null;
 
     const fetchQuarterScores = async () => {
@@ -407,6 +598,12 @@ const SquareScreen = ({ route }) => {
 
       const now = new Date();
       if (now < new Date(deadlineValue)) return;
+
+      await checkOverride();
+      if (manualOverride) {
+        console.log("⚙️ Manual override active — skipping API overwrite");
+        return;
+      }
 
       try {
         Sentry.addBreadcrumb({
@@ -482,20 +679,45 @@ const SquareScreen = ({ route }) => {
           ? game?.quarterScores ?? []
           : game?.quarterScores?.slice(0, completedCount) ?? [];
 
-        setQuarterScores(visibleScores);
+        // ✅ Merge API updates only into non-manual quarters
+        setQuarterScores((prevScores) => {
+          if (!Array.isArray(prevScores) || prevScores.length === 0)
+            return visibleScores;
+
+          const merged = prevScores.map((prev, i) => {
+            const apiQ = visibleScores[i];
+            if (!apiQ) return prev;
+
+            // Skip if this quarter was manually edited
+            if (prev.manual) return prev;
+
+            const homeChanged =
+              typeof apiQ.home === "number" &&
+              (prev.home == null || apiQ.home > prev.home);
+            const awayChanged =
+              typeof apiQ.away === "number" &&
+              (prev.away == null || apiQ.away > prev.away);
+
+            return {
+              ...prev,
+              home: homeChanged ? apiQ.home : prev.home,
+              away: awayChanged ? apiQ.away : prev.away,
+            };
+          });
+
+          return merged;
+        });
       } catch (e) {
         Sentry.captureException(e);
         console.warn("Error fetching quarter scores", e);
       }
     };
 
-    // ✅ Start polling only while screen is focused
     if (isFocused) {
       fetchQuarterScores();
       interval = setInterval(fetchQuarterScores, 30000);
     }
 
-    // ✅ Clear interval when leaving screen or unmounting
     return () => {
       if (interval) clearInterval(interval);
     };
@@ -901,6 +1123,10 @@ const SquareScreen = ({ route }) => {
       userSquareCount[key]++;
     });
 
+    const winningsMap = winningsByUser || {};
+
+    console.log("🎯 Calculated winningsByUser:", winningsMap);
+
     return (
       <View style={{ flex: 1 }}>
         <Card
@@ -993,19 +1219,33 @@ const SquareScreen = ({ route }) => {
                       </View>
                     </View>
 
-                    {totalOwed !== null && (
-                      <Text
-                        style={{
-                          color: theme.colors.primary,
-                          fontWeight: "bold",
-                          fontSize: 14,
-                          fontFamily: "SoraBold",
-                          paddingLeft: 6,
-                        }}
-                      >
-                        ${totalOwed.toFixed(2)}
-                      </Text>
-                    )}
+                    <View style={{ alignItems: "flex-end" }}>
+                      {totalOwed !== null && (
+                        <Text
+                          style={{
+                            color: theme.colors.primary,
+                            fontWeight: "bold",
+                            fontSize: 14,
+                            fontFamily: "SoraBold",
+                          }}
+                        >
+                          Bet ${totalOwed.toFixed(2)}
+                        </Text>
+                      )}
+                      {winningsMap[userKey] > 0 && (
+                        <Text
+                          style={{
+                            color: "#4CAF50",
+                            fontWeight: "bold",
+                            fontSize: 14,
+                            fontFamily: "SoraBold",
+                            marginTop: 2,
+                          }}
+                        >
+                          Won ${winningsMap[userKey].toFixed(2)}
+                        </Text>
+                      )}
+                    </View>
                   </View>
                 );
               }}
@@ -1025,6 +1265,7 @@ const SquareScreen = ({ route }) => {
     selections,
     hideAxisUntilDeadline,
     isAfterDeadline,
+    winningsByUser,
   ]);
 
   const renderWinners = useCallback(() => {
@@ -1042,6 +1283,29 @@ const SquareScreen = ({ route }) => {
 
     return (
       <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {manualOverride && (
+          <View
+            style={{
+              backgroundColor: "#FFF3CD",
+              borderColor: "#FFEEBA",
+              borderWidth: 1,
+              padding: 8,
+              borderRadius: 8,
+              marginBottom: 12,
+            }}
+          >
+            <Text
+              style={{
+                color: "#856404",
+                fontWeight: "600",
+                textAlign: "center",
+                fontFamily: "Sora",
+              }}
+            >
+              ⚙️ Manual Override Active
+            </Text>
+          </View>
+        )}
         <Card
           style={[
             styles.card,
@@ -1102,6 +1366,7 @@ const SquareScreen = ({ route }) => {
                           { color: theme.colors.onSurface },
                         ]}
                       >
+                        {q.manual ? "✏️ " : ""}
                         {periodLabel}: {team1Mascot}{" "}
                         {isTeam1Home ? q.home : q.away} - {team2Mascot}{" "}
                         {isTeam1Home ? q.away : q.home}
@@ -1342,7 +1607,7 @@ const SquareScreen = ({ route }) => {
                           fontFamily: "SoraBold",
                         }}
                       >
-                        Total Owed: ${totalOwed.toFixed(2)}
+                        Total Bet: ${totalOwed.toFixed(2)}
                       </Text>
                     </View>
                   )}

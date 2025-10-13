@@ -360,6 +360,7 @@ const SessionOptionsModal = ({
         currentScores={quarterScores}
         triggerRefresh={triggerRefresh}
         currentDeadline={deadlineValue ? deadlineValue.toISOString() : null}
+        isOwner={isOwner}
       />
 
       <NotificationSettingsModal
