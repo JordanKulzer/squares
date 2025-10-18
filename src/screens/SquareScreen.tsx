@@ -858,30 +858,20 @@ const SquareScreen = ({ route }) => {
     if (!isFocused) return;
     navigation.setOptions({
       headerTitle: () => (
-        <View
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
           style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingHorizontal: 40,
+            fontSize: 20,
+            fontWeight: "600",
+            textAlign: "center",
+            color: theme.colors.onBackground,
+            fontFamily: "Rubik_600SemiBold",
+            maxWidth: Dimensions.get("window").width * 0.8,
           }}
         >
-          <Text
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={{
-              fontSize: 24,
-              fontWeight: "600",
-              textAlign: "center",
-              color: theme.colors.onBackground,
-              maxWidth: "80%",
-              fontFamily: "Rubik_600SemiBold",
-              marginRight: 40,
-            }}
-          >
-            {inputTitle}
-          </Text>
-        </View>
+          {inputTitle}
+        </Text>
       ),
 
       gestureEnabled: false,
@@ -1492,7 +1482,6 @@ const SquareScreen = ({ route }) => {
                   fontSize: 16,
                   color: theme.colors.onSurfaceVariant,
                   marginTop: 10,
-                  textAlign: "center",
                 }}
               >
                 Your game has not yet started.
@@ -1596,7 +1585,6 @@ const SquareScreen = ({ route }) => {
                       </Text>
                     </View>
                   </View>
-                  {/* </Card> */}
                   <View style={{ alignItems: "center", marginBottom: 8 }}>
                     <Text
                       style={[

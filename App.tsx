@@ -35,6 +35,15 @@ import { registerPushToken } from "./src/utils/registerPushToken";
 import * as Linking from "expo-linking";
 import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import * as Sentry from "@sentry/react-native";
+import {
+  useFonts as useAntonFonts,
+  Anton_400Regular,
+} from "@expo-google-fonts/anton";
+import {
+  Rubik_400Regular,
+  Rubik_500Medium,
+  Rubik_600SemiBold,
+} from "@expo-google-fonts/rubik";
 
 Sentry.init({
   dsn: "https://ad2eab012c320c284637c80f6b9cb1cd@o4509662000054272.ingest.us.sentry.io/4509662000316416",
@@ -276,9 +285,11 @@ const App: React.FC = () => {
     },
   };
 
-  const [fontsLoaded] = useFonts({
-    Sora: require("./assets/fonts/Sora-Regular.ttf"),
-    SoraBold: require("./assets/fonts/Sora-Bold.ttf"),
+  const [fontsLoaded] = useAntonFonts({
+    Anton_400Regular,
+    Rubik_400Regular,
+    Rubik_500Medium,
+    Rubik_600SemiBold,
   });
 
   if (!fontsLoaded || loading) {

@@ -229,7 +229,13 @@ const HomeScreen = () => {
       style={{ flex: 1 }}
     >
       <View style={{ flex: 1 }}>
-        <View style={{ alignItems: "center", marginVertical: 10 }}>
+        <View
+          style={{
+            alignItems: "center",
+            justifyContent: "center",
+            marginVertical: 10,
+          }}
+        >
           <Text
             style={{
               fontSize: 22,
@@ -237,6 +243,7 @@ const HomeScreen = () => {
               fontFamily: "Anton_400Regular",
               color: theme.colors.primary,
               textTransform: "uppercase",
+              textAlign: "center",
             }}
           >
             {welcomeTitle}
@@ -247,11 +254,13 @@ const HomeScreen = () => {
               color: theme.colors.onSurfaceVariant,
               marginTop: 4,
               fontFamily: "Rubik_600SemiBold",
+              textAlign: "center",
             }}
           >
             {welcomeSubtitle}
           </Text>
         </View>
+
         <Text
           style={{
             fontSize: 16,

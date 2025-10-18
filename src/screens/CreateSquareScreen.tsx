@@ -603,7 +603,7 @@ const CreateSquareScreen = ({ navigation }) => {
             style={{
               flexDirection: "row",
               justifyContent: "space-between",
-              alignItems: "flex-end",
+              alignItems: "center",
             }}
           >
             <View style={{ flex: 1 }}>
