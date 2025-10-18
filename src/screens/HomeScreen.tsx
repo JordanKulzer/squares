@@ -233,19 +233,20 @@ const HomeScreen = () => {
           <Text
             style={{
               fontSize: 22,
-              fontWeight: "bold",
-              fontFamily: "SoraBold",
-              color: theme.colors.onBackground,
+              letterSpacing: 1,
+              fontFamily: "Anton_400Regular",
+              color: theme.colors.primary,
+              textTransform: "uppercase",
             }}
           >
             {welcomeTitle}
           </Text>
           <Text
             style={{
-              fontSize: 14,
+              fontSize: 16,
               color: theme.colors.onSurfaceVariant,
               marginTop: 4,
-              fontFamily: "Sora",
+              fontFamily: "Rubik_600SemiBold",
             }}
           >
             {welcomeSubtitle}
@@ -258,7 +259,7 @@ const HomeScreen = () => {
             marginTop: 15,
             marginBottom: 10,
             marginHorizontal: 10,
-            fontFamily: "Sora",
+            fontFamily: "Rubik_600SemiBold",
             color: theme.colors.onBackground,
           }}
         >
@@ -288,7 +289,7 @@ const HomeScreen = () => {
             marginTop: 15,
             marginBottom: 10,
             marginHorizontal: 10,
-            fontFamily: "Sora",
+            fontFamily: "Rubik_600SemiBold",
             color: theme.colors.onBackground,
           }}
         >
@@ -395,7 +396,7 @@ const HomeScreen = () => {
                             style={{
                               fontSize: 14,
                               color: theme.colors.onSurface,
-                              fontFamily: "Sora",
+                              fontFamily: "Rubik_500Medium",
                             }}
                           >
                             {item.player_ids?.length || 0} players •{" "}
@@ -406,7 +407,7 @@ const HomeScreen = () => {
                           style={{
                             fontSize: 14,
                             color: theme.colors.onSurface,
-                            fontFamily: "Sora",
+                            fontFamily: "Rubik_500Medium",
                           }}
                         >
                           {" "}
@@ -439,20 +440,12 @@ const HomeScreen = () => {
             fetchFirstName();
           }}
         />
-        {/* <TouchableOpacity
-          onPress={() => navigation.navigate("ResetPasswordScreen")}
-        >
-          <Text>Test Reset Password Screen</Text>
-        </TouchableOpacity> */}
-
         <TouchableOpacity
           style={[
             styles.howToButton,
             {
               backgroundColor: theme.colors.primary,
-              // position: "absolute",
-              // bottom: insets.bottom + 12,
-              marginBottom: 35,
+              marginBottom: 20,
               marginTop: 20,
               alignSelf: "center",
             },
@@ -483,10 +476,10 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
     paddingLeft: 5,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
   gameCard: {
     borderRadius: 16,
@@ -511,8 +504,8 @@ const styles = StyleSheet.create({
   },
   howToText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
 });

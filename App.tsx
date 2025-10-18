@@ -311,9 +311,15 @@ const App: React.FC = () => {
             {recoveryMode ? (
               <Stack.Screen
                 name="ResetPasswordScreen"
-                component={ResetPasswordScreen}
                 options={{ headerShown: false }}
-              />
+              >
+                {({ navigation }) => (
+                  <ResetPasswordScreen
+                    navigation={navigation}
+                    onResetComplete={() => setRecoveryMode(false)}
+                  />
+                )}
+              </Stack.Screen>
             ) : user ? (
               <>
                 <Stack.Screen name="Main" options={{ headerShown: false }}>
@@ -373,7 +379,13 @@ const App: React.FC = () => {
                       title: title || undefined,
                       headerLeft: () => (
                         <TouchableOpacity
-                          style={{ marginLeft: 10 }}
+                          style={{
+                            height: 30,
+                            width: 30,
+                            borderRadius: 20,
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
                           onPress={() => navigation.goBack()}
                         >
                           <Icon

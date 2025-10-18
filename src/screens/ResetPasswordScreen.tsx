@@ -16,7 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
 import * as Linking from "expo-linking";
 
-const ResetPasswordScreen = ({ navigation }) => {
+const ResetPasswordScreen = ({ navigation, onResetComplete }) => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [status, setStatus] = useState({ text: "", type: "" });
@@ -25,12 +25,15 @@ const ResetPasswordScreen = ({ navigation }) => {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
 
-  const gradientColors = useMemo(() => {
-    return theme.dark
-      ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
-      : (["#fdfcf9", "#e0e7ff"] as const);
-  }, [theme.dark]);
+  const gradientColors = useMemo(
+    () =>
+      theme.dark
+        ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
+        : (["#fdfcf9", "#e0e7ff"] as const),
+    [theme.dark]
+  );
 
+  // When user opens from Supabase email link
   useEffect(() => {
     const checkForSession = async () => {
       const initialUrl = await Linking.getInitialURL();
@@ -43,14 +46,13 @@ const ResetPasswordScreen = ({ navigation }) => {
             access_token: access_token as string,
             refresh_token: refresh_token as string,
           });
-
           if (error) {
             console.error(
               "Failed to set session from recovery link:",
               error.message
             );
           } else {
-            console.log("Session restored from password reset link");
+            console.log("✅ Session restored from password reset link");
           }
         }
       }
@@ -58,21 +60,6 @@ const ResetPasswordScreen = ({ navigation }) => {
 
     checkForSession();
   }, []);
-
-  const handleCancelUpdate = async () => {
-    try {
-      await supabase.auth.signOut();
-
-      // Optional: Go to login after a delay
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Login" }],
-      });
-    } catch (e) {
-      console.error("Unexpected error:", e);
-      setStatus({ text: "An unexpected error occurred.", type: "error" });
-    }
-  };
 
   const handlePasswordUpdate = async () => {
     if (!newPassword || !confirmPassword) {
@@ -85,6 +72,14 @@ const ResetPasswordScreen = ({ navigation }) => {
       return;
     }
 
+    if (newPassword.length < 6) {
+      setStatus({
+        text: "Password must be at least 6 characters long.",
+        type: "error",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
@@ -92,26 +87,43 @@ const ResetPasswordScreen = ({ navigation }) => {
 
       if (error) {
         console.error("Password update error:", error);
-        setStatus({ text: "Failed to reset password.", type: "error" });
-      } else {
-        setStatus({
-          text: "Password updated! You can now log in.",
-          type: "success",
-        });
-        await supabase.auth.signOut();
-
-        // Optional: Go to login after a delay
-        setTimeout(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Login" }],
-          });
-        }, 2000);
+        const friendlyMessage = error.message.includes("6 characters")
+          ? "Password must be at least 6 characters long."
+          : error.message || "Failed to reset password.";
+        setStatus({ text: friendlyMessage, type: "error" });
+        return;
       }
-    } catch (e) {
-      console.error("Unexpected error:", e);
+
+      // Success
+      setStatus({
+        text: "Password updated! Redirecting to login...",
+        type: "success",
+      });
+      await supabase.auth.signOut();
+
+      // ✅ disable recoveryMode in App.tsx
+      if (onResetComplete) onResetComplete();
+
+      // ✅ Go back to login after short delay
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Login" }],
+        });
+      }, 1800);
+    } catch (err) {
+      console.error("Unexpected error:", err);
       setStatus({ text: "An unexpected error occurred.", type: "error" });
     }
+  };
+
+  const handleCancel = async () => {
+    await supabase.auth.signOut();
+    if (onResetComplete) onResetComplete();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Login" }],
+    });
   };
 
   return (
@@ -149,15 +161,6 @@ const ResetPasswordScreen = ({ navigation }) => {
             }}
             style={styles.input}
             theme={{ colors: { primary: colors.primary } }}
-            right={
-              newPassword ? (
-                <PaperInput.Icon
-                  icon="close"
-                  onPress={() => setNewPassword("")}
-                  color={colors.primary}
-                />
-              ) : null
-            }
           />
 
           <PaperInput
@@ -171,15 +174,6 @@ const ResetPasswordScreen = ({ navigation }) => {
             }}
             style={styles.input}
             theme={{ colors: { primary: colors.primary } }}
-            right={
-              confirmPassword ? (
-                <PaperInput.Icon
-                  icon="close"
-                  onPress={() => setConfirmPassword("")}
-                  color={colors.primary}
-                />
-              ) : null
-            }
           />
 
           {status.text ? (
@@ -196,26 +190,19 @@ const ResetPasswordScreen = ({ navigation }) => {
               {status.text}
             </Text>
           ) : null}
+
           <TouchableOpacity
             onPress={handlePasswordUpdate}
             style={styles.button}
           >
-            <Text style={styles.buttonText}>Forgot password?</Text>
+            <Text style={styles.buttonText}>Update Password</Text>
           </TouchableOpacity>
+
           <TouchableOpacity
-            onPress={handleCancelUpdate}
-            style={styles.resetPasswordContainer}
+            onPress={handleCancel}
+            style={styles.cancelContainer}
           >
-            <Text
-              style={{
-                color: colors.primary,
-                fontSize: 13,
-                fontWeight: "500",
-                fontFamily: "Sora",
-              }}
-            >
-              Cancel
-            </Text>
+            <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -224,11 +211,6 @@ const ResetPasswordScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    justifyContent: "center",
-    padding: 24,
-  },
   scrollContent: {
     flexGrow: 1,
     padding: 24,
@@ -244,6 +226,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 10,
     fontFamily: "SoraBold",
+    textAlign: "center",
   },
   input: {
     marginBottom: 16,
@@ -262,9 +245,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Sora",
   },
-  resetPasswordContainer: {
+  cancelContainer: {
     alignSelf: "center",
     marginBottom: 12,
+  },
+  cancelText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "500",
+    fontFamily: "Sora",
   },
 });
 

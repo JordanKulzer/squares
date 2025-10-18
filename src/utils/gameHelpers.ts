@@ -54,3 +54,101 @@ export function getVisibleQuarterScores(game: any): any[] {
   const completed = getCompletedQuarters(game);
   return allScores.slice(0, completed);
 }
+
+/**
+ * Determine the winner for each quarter based on final digits of the scores.
+ *
+ * @param scores - Array of quarter score objects, each with { home, away }
+ * @param selections - Array of user selections, each with { x, y, userId }
+ * @param xAxis - Array of 10 numbers representing the team2 (away) axis
+ * @param yAxis - Array of 10 numbers representing the team1 (home) axis
+ * @param isTeam1Home - Whether team1 is the home team (affects digit mapping)
+ */
+export function determineQuarterWinners(
+  scores: { home: number | null; away: number | null }[],
+  selections: { x: number; y: number; userId: string }[],
+  xAxis: number[],
+  yAxis: number[],
+  isTeam1Home: boolean,
+  playerUsernames: Record<string, string> = {}
+) {
+  if (!Array.isArray(scores) || scores.length === 0) return [];
+
+  return scores.map((score, index) => {
+    const { home, away } = score || {};
+    if (home == null || away == null) {
+      return {
+        quarter: `Q${index + 1}`,
+        username: "No Winner",
+        square: ["-", "-"],
+      };
+    }
+
+    // Determine which side corresponds to X and Y axes
+    const team1Score = isTeam1Home ? home : away;
+    const team2Score = isTeam1Home ? away : home;
+
+    const xVal = team2Score % 10;
+    const yVal = team1Score % 10;
+
+    const xIndex = xAxis.findIndex((v) => v === xVal);
+    const yIndex = yAxis.findIndex((v) => v === yVal);
+
+    if (xIndex === -1 || yIndex === -1) {
+      console.warn(
+        `⚠️ Could not find axis index for digits (${xVal}, ${yVal})`
+      );
+      return {
+        quarter: `Q${index + 1}`,
+        username: "No Winner",
+        square: [xVal, yVal],
+      };
+    }
+
+    // Find the user selection that matches this (x, y) coordinate
+    const matchingSelection = selections.find(
+      (sel) => sel.x === xIndex && sel.y === yIndex
+    );
+
+    const username = matchingSelection
+      ? playerUsernames[matchingSelection.userId] || "Unknown"
+      : "No Winner";
+
+    return {
+      quarter: `Q${index + 1}`,
+      username,
+      square: [xAxis[xIndex], yAxis[yIndex]],
+    };
+  });
+}
+
+export const calculatePlayerWinnings = (
+  quarterWinners: any[],
+  playerUsernames: Record<string, string>,
+  pricePerSquare: number,
+  totalSquares: number
+) => {
+  const winningsMap: Record<string, number> = {};
+
+  if (!Array.isArray(quarterWinners) || !pricePerSquare || totalSquares === 0)
+    return winningsMap;
+
+  const totalPayout = pricePerSquare * totalSquares;
+  const payoutPerQuarter = totalPayout / quarterWinners.length;
+
+  const usernameToUserId: Record<string, string> = {};
+  Object.entries(playerUsernames).forEach(([uid, name]) => {
+    usernameToUserId[name.trim()] = uid;
+  });
+
+  quarterWinners.forEach((w) => {
+    if (w?.username && w.username !== "No Winner") {
+      const userId = usernameToUserId[w.username.trim()];
+      if (userId) {
+        winningsMap[userId] = (winningsMap[userId] || 0) + payoutPerQuarter;
+      }
+    }
+  });
+
+  return winningsMap;
+};

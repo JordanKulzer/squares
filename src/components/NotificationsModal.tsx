@@ -132,8 +132,6 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
           </Text>
 
           {[
-            { key: "quarterResults", label: "Quarter and final results" },
-
             {
               key: "deadlineReminders",
               label:

@@ -57,6 +57,7 @@ const SessionOptionsModal = ({
   const [showKickModal, setShowKickModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showEditGameModal, setShowEditGameModal] = useState(false);
+  const [showScoreEditorModal, setShowScoreEditorModal] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -258,7 +259,7 @@ const SessionOptionsModal = ({
                 >
                   Change Deadline
                 </Button> */}
-                <Button
+                {/* <Button
                   icon="pencil"
                   mode="outlined"
                   onPress={() => {
@@ -280,6 +281,29 @@ const SessionOptionsModal = ({
                 >
                   Edit Game Info
                 </Button>
+                <Button
+                  icon="scoreboard-outline"
+                  mode="outlined"
+                  onPress={() => {
+                    onDismiss();
+                    setTimeout(() => setShowScoreEditorModal(true), 300);
+                  }}
+                  style={{
+                    marginBottom: 12,
+                    borderColor: theme.colors.primary,
+                    borderRadius: 20,
+                    paddingHorizontal: 12,
+                  }}
+                  labelStyle={{
+                    fontWeight: "600",
+                    color: theme.colors.primary,
+                    textTransform: "none",
+                    fontFamily: "Sora",
+                  }}
+                >
+                  Edit Scores / Winners
+                </Button> */}
+
                 <Button
                   icon="account-remove"
                   mode="outlined"
@@ -350,7 +374,7 @@ const SessionOptionsModal = ({
         triggerRefresh={triggerRefresh}
       />
 
-      <EditGameModal
+      {/* <EditGameModal
         visible={showEditGameModal}
         onDismiss={() => setShowEditGameModal(false)}
         gridId={gridId}
@@ -362,6 +386,17 @@ const SessionOptionsModal = ({
         currentDeadline={deadlineValue ? deadlineValue.toISOString() : null}
         isOwner={isOwner}
       />
+
+      <ScoreEditorModal
+        visible={showScoreEditorModal}
+        onDismiss={() => setShowScoreEditorModal(false)}
+        gridId={gridId}
+        team1={team1}
+        team2={team2}
+        quarterScores={quarterScores}
+        triggerRefresh={triggerRefresh}
+        isOwner={isOwner}
+      /> */}
 
       <NotificationSettingsModal
         visible={notifModalVisible}

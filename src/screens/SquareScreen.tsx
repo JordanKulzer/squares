@@ -34,6 +34,12 @@ import { supabase } from "../lib/supabase";
 import { API_BASE_URL } from "../utils/apiConfig";
 import * as Sentry from "@sentry/react-native";
 import { getCompletedQuarters } from "../utils/gameHelpers";
+import { useFonts, Anton_400Regular } from "@expo-google-fonts/anton";
+import {
+  Rubik_400Regular,
+  Rubik_500Medium,
+  Rubik_600SemiBold,
+} from "@expo-google-fonts/rubik";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -155,7 +161,12 @@ const SquareScreen = ({ route }) => {
   const [winningsByUser, setWinningsByUser] = useState<Record<string, number>>(
     {}
   );
-
+  const [fontsLoaded] = useFonts({
+    Anton_400Regular,
+    Rubik_400Regular,
+    Rubik_500Medium,
+    Rubik_600SemiBold,
+  });
   const leaveAnim = useRef(new Animated.Value(0)).current;
   const deleteAnim = useRef(new Animated.Value(0)).current;
 
@@ -216,11 +227,11 @@ const SquareScreen = ({ route }) => {
 
   const navigation = useNavigation();
 
-  useLayoutEffect(() => {
-    if (!isFocused) return;
+  // useLayoutEffect(() => {
+  //   if (!isFocused) return;
 
-    navigation.setOptions({ headerTitle: title });
-  }, [navigation, title]);
+  //   navigation.setOptions({ headerTitle: title });
+  // }, [navigation, title]);
 
   const determineQuarterWinners = (
     scores,
@@ -329,72 +340,86 @@ const SquareScreen = ({ route }) => {
     if (!gameCompleted || !Object.keys(playerUsernames).length) return;
 
     const finalizeTotalWinnings = async () => {
+      // 1) Load snapshot + how many periods we already paid
       const { data: squareData, error: fetchErr } = await supabase
         .from("squares")
-        .select("payout_done, winnings_snapshot")
+        .select(
+          "payout_done, winnings_snapshot, winnings_quarters_done, quarter_payouts"
+        )
         .eq("id", gridId)
         .single();
+      if (fetchErr) return;
 
-      if (fetchErr) {
-        console.warn("⚠️ Could not check payout_done:", fetchErr.message);
-        return;
-      }
+      // If we already marked done and nothing new, bail
+      // (prevents double-paying when the effect fires again)
+      const prevPaidCount = squareData?.winnings_quarters_done ?? 0;
 
-      const newMap = calculatePlayerWinnings(
-        quarterWinners,
-        playerUsernames,
-        pricePerSquare,
-        Object.keys(squareColors).length
-      );
+      // Count how many actually have scores
+      const completed = quarterScores.filter(
+        (q) => q.home != null && q.away != null
+      ).length;
+      if (completed <= prevPaidCount) return;
 
-      const previousMap = squareData?.winnings_snapshot || {};
-      const deltaMap: Record<string, number> = {};
+      // Build username->uid map once
+      const nameToUid: Record<string, string> = {};
+      Object.entries(playerUsernames).forEach(([uid, name]) => {
+        if (typeof name === "string") nameToUid[name.trim()] = uid;
+      });
 
-      // Compute difference between old and new
-      for (const [uid, newAmount] of Object.entries(newMap)) {
-        const prev = previousMap?.[uid] ?? 0;
-        const diff = parseFloat((newAmount - prev).toFixed(2));
-        if (diff !== 0) deltaMap[uid] = diff;
-      }
+      // Start from previous snapshot (don’t recompute older periods!)
+      const newSnapshot: Record<string, number> = {
+        ...(squareData?.winnings_snapshot ?? {}),
+      };
 
-      const anyChanges = Object.keys(deltaMap).length > 0;
+      // 2) Credit ONLY the newly completed periods
+      for (let i = prevPaidCount; i < completed; i++) {
+        const win = quarterWinners[i];
+        if (!win || win.username === "No Winner") continue;
 
-      if (!anyChanges) {
-        console.log("🟢 No winnings changes detected — skipping update.");
-        return;
-      }
+        const uid = nameToUid[win.username.trim()];
+        if (!uid) continue;
 
-      console.log("🔁 Winnings changed — updating deltas:", deltaMap);
+        // Prefer a stored per-period payout if you’ve been saving it;
+        // otherwise fall back to current-per-period (one-time)
+        const storedPayouts: number[] = squareData?.quarter_payouts ?? [];
+        const periodsCount = quarterScores.length; // includes OT if present
+        const claimedNow = Object.keys(squareColors).length;
+        const fallbackPayout =
+          ((pricePerSquare || 0) * claimedNow) / periodsCount;
 
-      // Apply the differences
-      for (const [uid, diff] of Object.entries(deltaMap)) {
-        const { error } = await supabase.rpc("increment_user_winnings", {
-          user_id: uid,
-          amount_to_add: diff,
-        });
-        if (error)
-          console.warn(`❌ Failed to update winnings for ${uid}:`, error);
-        else
-          console.log(
-            `✅ Adjusted winnings by ${diff > 0 ? "+" : ""}${diff} for ${uid}`
+        const payoutForThisPeriod =
+          typeof storedPayouts[i] === "number"
+            ? storedPayouts[i]
+            : fallbackPayout;
+
+        // Apply cents rounding
+        const cents = Math.round((payoutForThisPeriod + 1e-8) * 100) / 100;
+
+        // Increment user winnings immediately (delta only for this period)
+        const { error: incErr } = await supabase.rpc(
+          "increment_user_winnings",
+          {
+            user_id: uid,
+            amount_to_add: cents,
+          }
+        );
+        if (!incErr) {
+          newSnapshot[uid] = parseFloat(
+            ((newSnapshot[uid] ?? 0) + cents).toFixed(2)
           );
+        }
       }
 
-      // Store snapshot + re-mark payout_done true
-      const { error: updateErr } = await supabase
+      // 3) Persist snapshot + how many periods are paid
+      await supabase
         .from("squares")
         .update({
+          winnings_snapshot: newSnapshot,
+          winnings_quarters_done: completed,
+          // Optional: only set payout_done when ALL periods are truly final
           payout_done: true,
-          winnings_snapshot: newMap,
         })
         .eq("id", gridId);
-
-      if (updateErr)
-        console.warn(
-          "⚠️ Failed to update winnings_snapshot:",
-          updateErr.message
-        );
-      else console.log("🏆 Winnings snapshot updated successfully!");
     };
 
     finalizeTotalWinnings();
@@ -845,12 +870,13 @@ const SquareScreen = ({ route }) => {
             numberOfLines={1}
             ellipsizeMode="tail"
             style={{
-              fontSize: 18,
+              fontSize: 24,
               fontWeight: "600",
               textAlign: "center",
               color: theme.colors.onBackground,
-              maxWidth: "70%",
-              fontFamily: "Sora",
+              maxWidth: "80%",
+              fontFamily: "Rubik_600SemiBold",
+              marginRight: 40,
             }}
           >
             {inputTitle}
@@ -862,7 +888,13 @@ const SquareScreen = ({ route }) => {
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.navigate("Main")}
-          style={{ paddingLeft: 12 }}
+          style={{
+            height: 30,
+            width: 30,
+            borderRadius: 20,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
@@ -870,7 +902,13 @@ const SquareScreen = ({ route }) => {
       headerRight: () => (
         <TouchableOpacity
           onPress={() => setSessionOptionsVisible(true)}
-          style={{ paddingRight: 12 }}
+          style={{
+            height: 30,
+            width: 30,
+            borderRadius: 20,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <Icon name="more-vert" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
@@ -1144,7 +1182,7 @@ const SquareScreen = ({ route }) => {
             title="Players"
             titleStyle={[
               styles.tabSectionTitle,
-              { color: theme.colors.onSurface },
+              { color: theme.colors.primary },
             ]}
             style={{ marginBottom: 8, paddingHorizontal: 12 }}
           />
@@ -1195,12 +1233,19 @@ const SquareScreen = ({ route }) => {
                         <Text
                           style={{
                             color: theme.colors.onSurface,
-                            fontWeight: "600",
+                            fontFamily: "Rubik_600SemiBold",
+                            fontSize: 18,
                           }}
                         >
                           {username}
                         </Text>
-                        <Text style={{ color: theme.colors.onSurface }}>
+                        <Text
+                          style={{
+                            color: theme.colors.onSurface,
+                            fontSize: 16,
+                            fontFamily: "Rubik_400Regular",
+                          }}
+                        >
                           {count} / {maxSelections} squares selected
                         </Text>
 
@@ -1209,7 +1254,8 @@ const SquareScreen = ({ route }) => {
                             <Text
                               style={{
                                 color: theme.colors.onSurfaceVariant,
-                                fontSize: 12,
+                                fontSize: 14,
+                                fontFamily: "Rubik_400Regular",
                                 marginTop: 2,
                               }}
                             >
@@ -1282,34 +1328,18 @@ const SquareScreen = ({ route }) => {
       playerColors?.[usernameToUid[name.trim()]] || "#999";
 
     return (
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
-        {manualOverride && (
-          <View
-            style={{
-              backgroundColor: "#FFF3CD",
-              borderColor: "#FFEEBA",
-              borderWidth: 1,
-              padding: 8,
-              borderRadius: 8,
-              marginBottom: 12,
-            }}
-          >
-            <Text
-              style={{
-                color: "#856404",
-                fontWeight: "600",
-                textAlign: "center",
-                fontFamily: "Sora",
-              }}
-            >
-              ⚙️ Manual Override Active
-            </Text>
-          </View>
-        )}
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
         <Card
           style={[
             styles.card,
-            { backgroundColor: theme.colors.surface, height: usableHeight },
+            {
+              backgroundColor: theme.colors.surface,
+              borderLeftWidth: 5,
+              borderWidth: 1.5,
+              borderLeftColor: theme.colors.primary,
+              borderColor: "rgba(94, 96, 206, 0.4)",
+              marginBottom: 16,
+            },
           ]}
         >
           <Card.Title
@@ -1318,15 +1348,20 @@ const SquareScreen = ({ route }) => {
                 ? quarterWinners.some(
                     (w) => w?.username && w.username !== "No Winner"
                   )
-                  ? "Check Your Results!"
+                  ? "🏆 Results"
                   : "No Winners"
-                : "Waiting for scores..."
+                : "Waiting for Scores..."
             }
-            titleStyle={[
-              styles.tabSectionTitle,
-              { color: theme.colors.onSurface },
-            ]}
-            style={{ marginBottom: 8, paddingHorizontal: 12 }}
+            titleStyle={{
+              fontFamily: "Anton_400Regular",
+              color: theme.colors.primary,
+              letterSpacing: 1,
+              fontSize: 20,
+            }}
+            // style={{
+            //   borderBottomWidth: 1,
+            //   borderBottomColor: "rgba(94,96,206,0.3)",
+            // }}
           />
 
           <Card.Content>
@@ -1335,96 +1370,129 @@ const SquareScreen = ({ route }) => {
                 const { home, away } = q;
                 const winner = quarterWinners[i];
                 if (home == null || away == null || !winner) return null;
+
                 const username = winner?.username ?? "No Winner";
                 const square = winner?.square ?? ["-", "-"];
-                const totalSelected = Object.keys(squareColors).length;
-                const totalPayout = pricePerSquare * totalSelected;
-                const periodsCount = quarterScores.length; // includes OT if present
-                const payoutPerPeriod = totalPayout / periodsCount;
-                const payout = pricePerSquare
-                  ? `$${payoutPerPeriod.toFixed(2)}`
-                  : "";
-                const quarterNumber = q.quarter.replace("Q", "");
-
-                const periodLabel = formatPeriodLabel(q.quarter, i);
+                const isWinner = username !== "No Winner";
 
                 return (
-                  <Card
+                  <View
                     key={i}
-                    style={[
-                      styles.sessionTitleCard,
-                      {
-                        backgroundColor: theme.colors.elevation.level2,
-                        marginBottom: 12,
-                      },
-                    ]}
+                    style={{
+                      backgroundColor: theme.colors.elevation.level2,
+                      borderRadius: 12,
+                      borderWidth: 1.25,
+                      borderColor: "rgba(94,96,206,0.3)",
+                      padding: 14,
+                      marginBottom: 12,
+                      shadowColor: "#000",
+                      shadowOpacity: 0.1,
+                      shadowRadius: 4,
+                      elevation: 2,
+                    }}
                   >
-                    <Card.Content>
-                      <Text
-                        style={[
-                          styles.quarterLabel,
-                          { color: theme.colors.onSurface },
-                        ]}
-                      >
-                        {q.manual ? "✏️ " : ""}
-                        {periodLabel}: {team1Mascot}{" "}
-                        {isTeam1Home ? q.home : q.away} - {team2Mascot}{" "}
-                        {isTeam1Home ? q.away : q.home}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.squareInfoText,
-                          { color: theme.colors.onSurfaceVariant },
-                        ]}
-                      >
-                        Winning square: ({square[0]}, {square[1]})
-                      </Text>
+                    {/* Quarter Title */}
+                    <Text
+                      style={{
+                        fontFamily: "Anton_400Regular",
+                        fontSize: 20,
+                        color: theme.colors.onSurface,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Quarter {i + 1}: {team1Mascot}{" "}
+                      {isTeam1Home ? q.home : q.away} - {team2Mascot}{" "}
+                      {isTeam1Home ? q.away : q.home}
+                    </Text>
 
-                      {username !== "No Winner" ? (
-                        <>
-                          <View style={styles.winnerRow}>
-                            <View
-                              style={{
-                                width: 18,
-                                height: 18,
-                                borderRadius: 9,
-                                backgroundColor: getColorForUsername(username),
+                    {/* Winning Square */}
+                    <Text
+                      style={{
+                        fontFamily: "Rubik_400Regular",
+                        color: theme.colors.onSurfaceVariant,
+                        marginTop: 4,
+                        marginBottom: 2,
+                        fontSize: 15,
+                      }}
+                    >
+                      Winning square: ({square[0]}, {square[1]})
+                    </Text>
 
-                                marginRight: 8,
-                                borderWidth: 1,
-                                borderColor: theme.dark ? "#444" : "#ccc",
-                              }}
-                            />
-                            <Text
-                              style={[
-                                styles.winnerText,
-                                { color: theme.colors.onSurface },
-                              ]}
-                            >
-                              {username} wins ${payoutPerPeriod.toFixed(2)}
-                            </Text>
-                          </View>
-                        </>
-                      ) : (
+                    {/* Winner Row */}
+                    {isWinner ? (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginTop: 6,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: 9,
+                            backgroundColor:
+                              playerColors?.[
+                                Object.keys(playerUsernames).find(
+                                  (id) =>
+                                    playerUsernames[id]?.trim() ===
+                                    username.trim()
+                                )
+                              ] || "#4CAF50",
+                            marginRight: 8,
+                            borderWidth: 1,
+                            borderColor: theme.dark ? "#444" : "#ccc",
+                          }}
+                        />
                         <Text
-                          style={[
-                            styles.winnerText,
-                            { color: theme.colors.onSurface },
-                          ]}
+                          style={{
+                            fontFamily: "Rubik_600SemiBold",
+                            color: "#4CAF50",
+                            fontSize: 15,
+                          }}
                         >
-                          ❌ No winner for this {periodLabel.toLowerCase()}
+                          {username} wins $
+                          {pricePerSquare
+                            ? (
+                                (pricePerSquare *
+                                  Object.keys(squareColors).length) /
+                                quarterScores.length
+                              ).toFixed(2)
+                            : ""}
                         </Text>
-                      )}
-                    </Card.Content>
-                  </Card>
+                      </View>
+                    ) : (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginTop: 6,
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, marginRight: 4 }}>❌</Text>
+                        <Text
+                          style={{
+                            fontFamily: "Rubik_500Medium",
+                            color: "#FF5252",
+                            fontSize: 14,
+                          }}
+                        >
+                          No winner for this quarter
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 );
               })
             ) : (
               <Text
                 style={{
-                  color: theme.colors.onSurface,
+                  fontFamily: "Rubik_400Regular",
+                  fontSize: 16,
+                  color: theme.colors.onSurfaceVariant,
                   marginTop: 10,
-                  fontFamily: "Sora",
+                  textAlign: "center",
                 }}
               >
                 Your game has not yet started.
@@ -1474,59 +1542,69 @@ const SquareScreen = ({ route }) => {
                 ]}
               >
                 <Card.Content>
-                  <Card
-                    style={[
-                      styles.sessionTitleCard,
-                      {
-                        backgroundColor: theme.colors.elevation.level2,
-                      },
-                    ]}
+                  {/* <Card> */}
+                  <View
+                    style={{
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingBottom: 12,
+                    }}
                   >
-                    <Card.Content style={{ alignItems: "center" }}>
-                      <View
+                    <View
+                      style={{
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text
                         style={{
-                          alignItems: "center",
-                          shadowColor: "#000",
-                          shadowOpacity: 0.1,
-                          shadowRadius: 6,
-                          elevation: 2,
+                          fontSize: 22,
+                          fontFamily: "Anton_400Regular",
+                          color: theme.colors.primary,
+                          textTransform: "uppercase",
+                          letterSpacing: 1,
+                          textAlign: "center",
                         }}
                       >
-                        <Text
-                          style={{
-                            fontSize: 18,
-                            fontWeight: "600",
-                            color: theme.colors.onSurface,
-                          }}
-                        >
-                          {fullTeam1}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 16,
-                            fontWeight: "500",
-                            color: theme.colors.onSurfaceVariant,
-                          }}
-                        >
-                          vs
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 18,
-                            fontWeight: "600",
-                            color: theme.colors.onSurface,
-                          }}
-                        >
-                          {fullTeam2}
-                        </Text>
-                      </View>
-                    </Card.Content>
-                  </Card>
+                        {fullTeam1}
+                      </Text>
+
+                      <Text
+                        style={{
+                          fontSize: 14,
+                          fontFamily: "Rubik_500Medium",
+                          color: theme.colors.onSurfaceVariant,
+                          marginVertical: 4,
+                          textTransform: "uppercase",
+                          letterSpacing: 1.5,
+                        }}
+                      >
+                        vs
+                      </Text>
+
+                      <Text
+                        style={{
+                          fontSize: 22,
+                          fontFamily: "Anton_400Regular",
+                          color: theme.colors.primary,
+                          textTransform: "uppercase",
+                          letterSpacing: 1,
+                          textAlign: "center",
+                        }}
+                      >
+                        {fullTeam2}
+                      </Text>
+                    </View>
+                  </View>
+                  {/* </Card> */}
                   <View style={{ alignItems: "center", marginBottom: 8 }}>
                     <Text
                       style={[
                         styles.teamLabel,
-                        { color: theme.colors.onSurface },
+                        {
+                          color: theme.colors.onSurface,
+                          fontFamily: "Rubik_500Medium",
+                        },
                       ]}
                     >
                       {team2Mascot}
@@ -1539,7 +1617,10 @@ const SquareScreen = ({ route }) => {
                           key={i}
                           style={[
                             styles.teamLetter,
-                            { color: theme.colors.onSurface },
+                            {
+                              color: theme.colors.onSurface,
+                              fontFamily: "Rubik_500Medium",
+                            },
                           ]}
                         >
                           {letter}
@@ -1582,7 +1663,6 @@ const SquareScreen = ({ route }) => {
                   {pricePerSquare > 0 && (
                     <View
                       style={{
-                        marginTop: 12,
                         alignItems: "center",
                         justifyContent: "center",
                         paddingVertical: 10,
@@ -1594,7 +1674,7 @@ const SquareScreen = ({ route }) => {
                         style={{
                           color: theme.colors.onSurface,
                           fontSize: 16,
-                          fontFamily: "SoraBold",
+                          fontFamily: "Rubik_400Regular",
                         }}
                       >
                         Price per square: ${pricePerSquare.toFixed(2)}
@@ -1604,11 +1684,26 @@ const SquareScreen = ({ route }) => {
                           color: theme.colors.primary,
                           fontSize: 16,
                           fontWeight: "bold",
-                          fontFamily: "SoraBold",
+                          fontFamily: "Rubik_400Regular",
+                          paddingTop: 6,
                         }}
                       >
                         Total Bet: ${totalOwed.toFixed(2)}
                       </Text>
+
+                      {winningsByUser?.[userId] > 0 && (
+                        <Text
+                          style={{
+                            color: "#4CAF50",
+                            fontSize: 16,
+                            fontWeight: "bold",
+                            fontFamily: "Rubik_400Regular",
+                            paddingTop: 6,
+                          }}
+                        >
+                          Your Winnings: ${winningsByUser[userId].toFixed(2)}
+                        </Text>
+                      )}
                     </View>
                   )}
                 </Card.Content>
@@ -2022,9 +2117,9 @@ const styles = StyleSheet.create({
   },
 
   quarterLabel: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
     marginBottom: 4,
+    fontFamily: "Rubik_600SemiBold",
   },
 
   teamColumn: {
@@ -2077,7 +2172,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#333",
     marginTop: 4,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_400Regular",
   },
   titleCard: {
     marginBottom: 24,
@@ -2179,10 +2274,12 @@ const styles = StyleSheet.create({
     fontFamily: "Sora",
   },
   tabSectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 22,
     color: colors.primaryText,
-    fontFamily: "Sora",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    fontFamily: "Anton_400Regular",
+    paddingTop: 4,
   },
   sessionTitleCard: {
     marginBottom: 12,

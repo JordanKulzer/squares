@@ -27,6 +27,12 @@ import NotificationsModal from "../components/NotificationsModal";
 import { supabase } from "../lib/supabase";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import PerSquareSettingsModal from "../components/PerSquareSettingsModal";
+import { useFonts, Anton_400Regular } from "@expo-google-fonts/anton";
+import {
+  Rubik_400Regular,
+  Rubik_500Medium,
+  Rubik_600SemiBold,
+} from "@expo-google-fonts/rubik";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -73,6 +79,12 @@ const CreateSquareScreen = ({ navigation }) => {
     quarterResults: false,
     playerJoined: false,
     gameUpdated: false,
+  });
+  const [fontsLoaded] = useFonts({
+    Anton_400Regular,
+    Rubik_400Regular,
+    Rubik_500Medium,
+    Rubik_600SemiBold,
   });
   const insets = useSafeAreaInsets();
 
@@ -248,15 +260,20 @@ const CreateSquareScreen = ({ navigation }) => {
         style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
       >
         <Text
-          style={{
-            color: theme.colors.onSurface,
-            fontWeight: "600",
-            marginBottom: 10,
-            fontFamily: "SoraBold",
-          }}
+          style={[
+            styles.title,
+            {
+              fontSize: 22,
+              letterSpacing: 1,
+              fontFamily: "Anton_400Regular",
+              color: theme.colors.primary,
+              textTransform: "uppercase",
+            },
+          ]}
         >
-          Game Settings
+          Create Your Square
         </Text>
+
         <PaperInput
           label="Enter Your Square Title"
           value={inputTitle}
@@ -282,11 +299,22 @@ const CreateSquareScreen = ({ navigation }) => {
             { backgroundColor: theme.colors.elevation.level1 },
           ]}
         >
-          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+          <Text
+            style={{
+              color: theme.colors.onSurface,
+              marginBottom: 4,
+              fontFamily: "Rubik_500Medium",
+            }}
+          >
             {team1 && team2 ? `${team1} vs ${team2}` : "Game Selection"}
           </Text>
           <View style={styles.gameCardRow}>
-            <Text style={{ color: theme.colors.onSurface }}>
+            <Text
+              style={{
+                color: theme.colors.onSurface,
+                fontFamily: "Rubik_400Regular",
+              }}
+            >
               {team1 && team2
                 ? `Click here to select a different game`
                 : `Click here to select your game`}
@@ -303,7 +331,8 @@ const CreateSquareScreen = ({ navigation }) => {
             color: theme.colors.onSurface,
             fontWeight: "600",
             marginBottom: 10,
-            fontFamily: "SoraBold",
+            fontSize: 18,
+            fontFamily: "Rubik_600SemiBold",
           }}
         >
           Settings Per Square
@@ -316,18 +345,35 @@ const CreateSquareScreen = ({ navigation }) => {
             { backgroundColor: theme.colors.elevation.level1 },
           ]}
         >
-          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+          <Text
+            style={{
+              color: theme.colors.onSurface,
+              marginBottom: 4,
+              fontFamily: "Rubik_500Medium",
+            }}
+          >
             {maxSelections
               ? `Max Amount of Squares Per Player: ${maxSelections}`
               : "No Maximum"}
           </Text>
-          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+          <Text
+            style={{
+              color: theme.colors.onSurface,
+              marginBottom: 4,
+              fontFamily: "Rubik_400Regular",
+            }}
+          >
             {pricePerSquare
               ? `Price Per Square: $${pricePerSquare.toFixed(2)}`
               : "No Price Per Square Selected"}
           </Text>
           <View style={styles.gameCardRow}>
-            <Text style={{ color: theme.colors.onSurface }}>
+            <Text
+              style={{
+                color: theme.colors.onSurface,
+                fontFamily: "Rubik_400Regular",
+              }}
+            >
               Click here to edit these settings
             </Text>
             <Icon
@@ -343,7 +389,8 @@ const CreateSquareScreen = ({ navigation }) => {
             color: theme.colors.onSurface,
             fontWeight: "600",
             marginBottom: 10,
-            fontFamily: "SoraBold",
+            fontSize: 18,
+            fontFamily: "Rubik_600SemiBold",
           }}
         >
           Final Deadline
@@ -355,11 +402,22 @@ const CreateSquareScreen = ({ navigation }) => {
             { backgroundColor: theme.colors.elevation.level1 },
           ]}
         >
-          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+          <Text
+            style={{
+              color: theme.colors.onSurface,
+              marginBottom: 4,
+              fontFamily: "Rubik_500Medium",
+            }}
+          >
             {deadline.toLocaleString()}
           </Text>
           <View style={styles.gameCardRow}>
-            <Text style={{ color: theme.colors.onSurface }}>
+            <Text
+              style={{
+                color: theme.colors.onSurface,
+                fontFamily: "Rubik_400Regular",
+              }}
+            >
               Click here to change your deadline
             </Text>
             <Icon
@@ -381,8 +439,9 @@ const CreateSquareScreen = ({ navigation }) => {
           style={{
             color: theme.colors.onSurface,
             fontWeight: "600",
-            marginTop: 0,
-            fontFamily: "SoraBold",
+            marginBottom: 10,
+            fontSize: 18,
+            fontFamily: "Rubik_600SemiBold",
           }}
         >
           X & Y Axis
@@ -451,8 +510,19 @@ const CreateSquareScreen = ({ navigation }) => {
       <Card
         style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
       >
-        <Text style={[styles.sectionHeader, { color: theme.colors.onSurface }]}>
-          Player Settings
+        <Text
+          style={[
+            styles.title,
+            {
+              fontSize: 22,
+              letterSpacing: 1,
+              fontFamily: "Anton_400Regular",
+              color: theme.colors.primary,
+              textTransform: "uppercase",
+            },
+          ]}
+        >
+          Create Your Square
         </Text>
         <PaperInput
           label="Enter Your Username"
@@ -463,12 +533,14 @@ const CreateSquareScreen = ({ navigation }) => {
         />
         <Text
           style={{
-            color: theme.colors.onSurfaceVariant || theme.colors.outline,
-            fontSize: 13,
-            fontFamily: "Sora",
+            color: theme.colors.onSurface,
+            fontWeight: "600",
+            marginBottom: 10,
+            fontSize: 18,
+            fontFamily: "Rubik_600SemiBold",
           }}
         >
-          Choose a color to represent your squares on the board.
+          Choose Your Color
         </Text>
 
         <ScrollView
@@ -517,7 +589,13 @@ const CreateSquareScreen = ({ navigation }) => {
             { backgroundColor: theme.colors.elevation.level1 },
           ]}
         >
-          <Text style={{ color: theme.colors.onSurface, marginBottom: 4 }}>
+          <Text
+            style={{
+              color: theme.colors.onSurface,
+              marginBottom: 4,
+              fontFamily: "Rubik_500Medium",
+            }}
+          >
             Notification Preferences
           </Text>
 
@@ -567,7 +645,11 @@ const CreateSquareScreen = ({ navigation }) => {
                 </>
               ) : (
                 <Text
-                  style={{ color: theme.colors.onSurface, marginBottom: 4 }}
+                  style={{
+                    color: theme.colors.onSurface,
+                    marginBottom: 4,
+                    fontFamily: "Rubik_400Regular",
+                  }}
                 >
                   Click here to add notifications
                 </Text>
@@ -594,9 +676,20 @@ const CreateSquareScreen = ({ navigation }) => {
       style={{ flex: 1 }}
     >
       <SafeAreaView style={styles.container}>
-        <Text style={[styles.title, { color: theme.colors.onBackground }]}>
+        {/* <Text
+          style={[
+            styles.title,
+            {
+              fontSize: 22,
+              letterSpacing: 1,
+              fontFamily: "Anton_400Regular",
+              color: theme.colors.primary,
+              textTransform: "uppercase",
+            },
+          ]}
+        >
           Create a New Square
-        </Text>
+        </Text> */}
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -699,18 +792,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    textAlign: "center",
-    marginVertical: 10,
-    fontFamily: "SoraBold",
+    fontFamily: "Rubik_600SemiBold",
   },
   sectionHeader: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 10,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
   input: { marginBottom: 15 },
   cardSection: {
+    marginTop: 8,
     borderRadius: 12,
     marginBottom: 20,
     padding: 16,
@@ -748,20 +840,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     marginRight: 10,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
   saveButton: {
     flex: 1,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
   buttonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
   progressRow: {
     flexDirection: "row",
@@ -772,12 +864,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#999",
     marginHorizontal: 12,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
   activeStep: {
     fontWeight: "bold",
     color: "#5e60ce",
-    fontFamily: "Sora",
+    fontFamily: "Rubik_600SemiBold",
   },
   colorScrollContainer: { paddingVertical: 10 },
   colorRowsContainer: { marginBottom: 10 },
