@@ -14,7 +14,7 @@ const SkeletonLoader = ({
   const isDark = theme.dark;
 
   const baseColor = isDark ? "#2b2b2d" : "#e8e8f0";
-  const highlightColor = isDark ? "#5e60ce" : "#f4f4f8";
+  const highlightColor = isDark ? "#5e60ce" : "#5e60ce";
 
   if (variant === "gamePickerScreen") {
     // GamePickerScreen: cards or rows of games

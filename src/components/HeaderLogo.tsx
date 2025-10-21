@@ -13,10 +13,9 @@ const HeaderLogo = () => (
     <Image
       source={require("../../assets/icons/squares-logo.png")}
       style={{
-        width: 110,
-        height: 35,
-        tintColor: undefined,
-        resizeMode: "center", // prevents blur scaling
+        width: 120,
+        height: 45,
+        resizeMode: "contain",
       }}
       resizeMode="center"
     />
