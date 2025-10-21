@@ -315,7 +315,11 @@ const App: React.FC = () => {
               headerShown: true,
               headerTitleAlign: "center",
               headerTitle: () => <HeaderLogo />,
-              headerStyle: { backgroundColor: paperTheme.colors.surface },
+              headerStyle: {
+                backgroundColor: paperTheme.colors.surface,
+                shadowOpacity: 0,
+                elevation: 0,
+              },
               headerTintColor: paperTheme.colors.onBackground,
             }}
           >
@@ -384,6 +388,8 @@ const App: React.FC = () => {
                         backgroundColor: paperTheme.colors.surface,
                         borderBottomWidth: 2,
                         borderBottomColor: "red",
+                        shadowOpacity: 0, // iOS
+                        elevation: 0,
                       },
                       headerBackTitleVisible: false,
                       headerTintColor: paperTheme.colors.onBackground,
@@ -412,11 +418,20 @@ const App: React.FC = () => {
               </>
             ) : (
               <>
-                <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="Signup" component={SignupScreen} />
+                <Stack.Screen
+                  name="Login"
+                  component={LoginScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="Signup"
+                  component={SignupScreen}
+                  options={{ headerShown: false }}
+                />
                 <Stack.Screen
                   name="ForgotPassword"
                   component={ForgotPasswordScreen}
+                  options={{ headerShown: false }}
                 />
               </>
             )}

@@ -353,6 +353,8 @@ const AppDrawer = ({
           headerTitleAlign: "center",
           headerStyle: {
             backgroundColor: theme.colors.surface,
+            shadowOpacity: 0,
+            elevation: 0,
           },
           headerLeft: () => (
             <TouchableOpacity

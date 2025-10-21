@@ -82,11 +82,17 @@ const formatDateLabel = (date) =>
     year: "numeric",
   });
 
+// ✅ Align "Week of" to real calendar weeks relative to *today*, not startDate
 const getStartOfWeek = (gameType, offsetWeeks = 0) => {
-  const base = new Date(gameTypeBehaviors[gameType]?.startDate || new Date());
-  base.setDate(base.getDate() + offsetWeeks * 7);
-  base.setHours(12, 0, 0, 0);
-  return base;
+  const today = new Date();
+  const startOfWeek = new Date(today);
+
+  // Move to the most recent Sunday
+  const day = today.getDay(); // 0=Sun ... 6=Sat
+  startOfWeek.setDate(today.getDate() - day + offsetWeeks * 7);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  return startOfWeek;
 };
 
 const formatWeekLabel = (date) =>
@@ -190,17 +196,8 @@ const GamePickerScreen = () => {
   }, [weekOffset, gameType, calendarDate, selectedSport]);
 
   useEffect(() => {
-    const base = gameTypeBehaviors[gameType]?.startDate;
-    if (!base) return;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const daysSinceStart = Math.floor(
-      (today.getTime() - base.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    const calculatedOffset = Math.max(0, Math.floor(daysSinceStart / 7));
-    setWeekOffset(calculatedOffset);
+    setWeekOffset(0);
+    setWeekStart(getStartOfWeek(gameType, 0));
   }, [gameType]);
 
   const handleSelectGame = async (game) => {
@@ -655,12 +652,7 @@ const GamePickerScreen = () => {
                       style={{ paddingRight: 15 }}
                     />
                   </TouchableOpacity>
-                  <View
-                    style={{
-                      height: 1,
-                      backgroundColor: dividerColor,
-                    }}
-                  />
+                  <View style={{ height: 1, backgroundColor: dividerColor }} />
                 </React.Fragment>
               ))}
             </ScrollView>

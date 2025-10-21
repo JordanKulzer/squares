@@ -162,18 +162,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    marginTop: 40,
+    marginTop: 20,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
     marginBottom: 20,
-    fontFamily: "SoraBold",
+    fontFamily: "Rubik_600SemiBold",
   },
   logo: {
-    width: 200,
-    height: 200,
+    width: 250,
+    height: 250,
     alignSelf: "center",
+    marginBottom: -30,
   },
   input: {
     marginBottom: 16,
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_500Medium",
   },
   backButton: {
     flexDirection: "row",
@@ -206,7 +207,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     marginLeft: 6,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_400Regular",
   },
 });
 

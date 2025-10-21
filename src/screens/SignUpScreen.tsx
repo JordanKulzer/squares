@@ -228,18 +228,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    marginTop: 40,
+    marginTop: 20,
   },
   logo: {
-    width: 200,
-    height: 200,
+    width: 250,
+    height: 250,
     alignSelf: "center",
+    marginBottom: -30,
   },
   title: {
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 10,
-    fontFamily: "SoraBold",
+    fontFamily: "Rubik_600SemiBold",
   },
   input: {
     marginBottom: 10,
@@ -255,7 +256,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_500Medium",
   },
   errorBox: {
     padding: 10,
@@ -272,7 +273,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "500",
     marginLeft: 6,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_400Regular",
   },
 });
 

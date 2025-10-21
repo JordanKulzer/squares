@@ -167,18 +167,19 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
-    marginTop: 40,
+    marginTop: 20,
   },
   title: {
     fontSize: 22,
     fontWeight: "700",
     marginBottom: 10,
-    fontFamily: "SoraBold",
+    fontFamily: "Rubik_600SemiBold",
   },
   logo: {
-    width: 200,
-    height: 200,
+    width: 250,
+    height: 250,
     alignSelf: "center",
+    marginBottom: -30,
   },
   input: {
     marginBottom: 16,
@@ -195,7 +196,7 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
     fontSize: 16,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_500Medium",
   },
   forgotPasswordContainer: {
     alignSelf: "center",
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     fontSize: 14,
     marginTop: 4,
-    fontFamily: "Sora",
+    fontFamily: "Rubik_400Regular",
   },
 });
 
