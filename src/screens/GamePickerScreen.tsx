@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   Animated,
@@ -34,6 +33,7 @@ import DateSelectorModal from "../components/DateSelectorModal";
 import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { leagueMap } from "../utils/types";
+import SkeletonLoader from "../components/SkeletonLoader";
 
 const gameTypeBehaviors = {
   NFL: { usesWeeks: true, startDate: new Date("2025-07-28T12:00:00") },
@@ -119,6 +119,7 @@ const GamePickerScreen = () => {
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const selectedSport = gameType.toLowerCase(); // derived, no state
+  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const {
     inputTitle = "",
@@ -132,11 +133,27 @@ const GamePickerScreen = () => {
     if (incomingDeadline) setDeadline(new Date(incomingDeadline));
   }, [incomingDeadline]);
 
+  useEffect(() => {
+    if (loading) {
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [loading]);
+
   const fetchGamesForDate = async (date) => {
     const formattedDate = date.toISOString().split("T")[0];
 
     try {
-      // Use the new API-Sports route
       const url = `${API_BASE_URL}/apisports/schedule?startDate=${formattedDate}&league=${gameType}`;
 
       const res = await fetch(url);
@@ -180,7 +197,7 @@ const GamePickerScreen = () => {
         : [];
 
       setGames(extractedGames);
-      setLoading(false);
+      setTimeout(() => setLoading(false), 400);
       console.log(
         "📋 API returned games:",
         extractedGames.map((g, i) => ({
@@ -517,7 +534,11 @@ const GamePickerScreen = () => {
             //   </Text>
             // ) :
             loading ? (
-              <ActivityIndicator size="large" style={{ marginTop: 30 }} />
+              <View style={{ flex: 1, paddingHorizontal: 16, marginTop: 24 }}>
+                <Animated.View style={{ opacity: fadeAnim }}>
+                  <SkeletonLoader variant="gamePickerScreen" />
+                </Animated.View>
+              </View>
             ) : games.length === 0 ? (
               <Text
                 style={[

@@ -33,13 +33,13 @@ import {
 import { supabase } from "../lib/supabase";
 import { API_BASE_URL } from "../utils/apiConfig";
 import * as Sentry from "@sentry/react-native";
-import { getCompletedQuarters } from "../utils/gameHelpers";
 import { useFonts, Anton_400Regular } from "@expo-google-fonts/anton";
 import {
   Rubik_400Regular,
   Rubik_500Medium,
   Rubik_600SemiBold,
 } from "@expo-google-fonts/rubik";
+import SkeletonLoader from "../components/SkeletonLoader";
 
 const screenWidth = Dimensions.get("window").width;
 const squareSize = (screenWidth - 80) / 11;
@@ -169,6 +169,11 @@ const SquareScreen = ({ route }) => {
   });
   const leaveAnim = useRef(new Animated.Value(0)).current;
   const deleteAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [refreshingScores, setRefreshingScores] = useState(false);
+  const [squareDataLoaded, setSquareDataLoaded] = useState(false);
+  const [scoresLoaded, setScoresLoaded] = useState(false);
+  const loading = !squareDataLoaded || !scoresLoaded;
 
   const screenHeight = Dimensions.get("window").height;
   const insets = useSafeAreaInsets();
@@ -227,12 +232,6 @@ const SquareScreen = ({ route }) => {
 
   const navigation = useNavigation();
 
-  // useLayoutEffect(() => {
-  //   if (!isFocused) return;
-
-  //   navigation.setOptions({ headerTitle: title });
-  // }, [navigation, title]);
-
   const determineQuarterWinners = (
     scores,
     selections,
@@ -283,6 +282,23 @@ const SquareScreen = ({ route }) => {
       })
       .filter(Boolean);
   };
+
+  useEffect(() => {
+    if (loading) {
+      fadeAnim.setValue(0);
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [loading]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -496,79 +512,83 @@ const SquareScreen = ({ route }) => {
     if (!isFocused || !userId) return;
 
     const fetchSquareData = async () => {
-      Sentry.addBreadcrumb({
-        category: "fetch information",
-        message: "fetchSquareData",
-        level: "info",
-      });
-      const { data, error } = await supabase
-        .from("squares")
-        .select("*")
-        .eq("id", gridId)
-        .single();
-
-      if (error || !data) return;
-
-      setManualOverride(!!data.manual_override);
-
-      const colorMapping = {};
-      const nameMapping = {};
-
-      setTitle(data.title || "");
-      setTeam1(data.team1 || "");
-      setTeam2(data.team2 || "");
-      setFullTeam1(data.team1_full_name || "");
-      setFullTeam2(data.team2_full_name || "");
-
-      setTeam1Mascot(data.team1?.split(" ").slice(-1)[0]);
-      setTeam2Mascot(data.team2?.split(" ").slice(-1)[0]);
-      setSelections(data.selections || []);
-
-      if (data.players) {
-        setPlayers(data.players);
-        data.players.forEach((p) => {
-          colorMapping[p.userId] = p.color || "#999";
-          nameMapping[p.userId] = p.username || p.userId;
+      try {
+        Sentry.addBreadcrumb({
+          category: "fetch information",
+          message: "fetchSquareData",
+          level: "info",
         });
-        setPlayerColors(colorMapping);
-        setPlayerUsernames(nameMapping);
-      }
+        const { data, error } = await supabase
+          .from("squares")
+          .select("*")
+          .eq("id", gridId)
+          .single();
 
-      if (data.selections) {
-        const squareMap = {};
-        data.selections.forEach((sel) => {
-          const id = `${sel.x},${sel.y}`;
-          squareMap[id] = colorMapping[sel.userId] || "#999";
-        });
-        setSquareColors(squareMap);
+        if (error || !data) return;
 
-        if (userId) {
-          const mySelections = data.selections.filter(
-            (s) => s.userId === userId
-          );
-          const mySet = new Set(mySelections.map((s) => `${s.x},${s.y}`));
-          const allPendingResolved = [...pendingSquares].every((sq) =>
-            mySet.has(sq)
-          );
-          if (allPendingResolved || pendingSquares.size === 0) {
-            setSelectedSquares(mySet);
-            setPendingSquares(new Set());
+        setManualOverride(!!data.manual_override);
+
+        const colorMapping = {};
+        const nameMapping = {};
+
+        setTitle(data.title || "");
+        setTeam1(data.team1 || "");
+        setTeam2(data.team2 || "");
+        setFullTeam1(data.team1_full_name || "");
+        setFullTeam2(data.team2_full_name || "");
+
+        setTeam1Mascot(data.team1?.split(" ").slice(-1)[0]);
+        setTeam2Mascot(data.team2?.split(" ").slice(-1)[0]);
+        setSelections(data.selections || []);
+
+        if (data.players) {
+          setPlayers(data.players);
+          data.players.forEach((p) => {
+            colorMapping[p.userId] = p.color || "#999";
+            nameMapping[p.userId] = p.username || p.userId;
+          });
+          setPlayerColors(colorMapping);
+          setPlayerUsernames(nameMapping);
+        }
+
+        if (data.selections) {
+          const squareMap = {};
+          data.selections.forEach((sel) => {
+            const id = `${sel.x},${sel.y}`;
+            squareMap[id] = colorMapping[sel.userId] || "#999";
+          });
+          setSquareColors(squareMap);
+
+          if (userId) {
+            const mySelections = data.selections.filter(
+              (s) => s.userId === userId
+            );
+            const mySet = new Set(mySelections.map((s) => `${s.x},${s.y}`));
+            const allPendingResolved = [...pendingSquares].every((sq) =>
+              mySet.has(sq)
+            );
+            if (allPendingResolved || pendingSquares.size === 0) {
+              setSelectedSquares(mySet);
+              setPendingSquares(new Set());
+            }
           }
         }
+
+        setXAxis(
+          data.x_axis?.length === 10 ? data.x_axis : [...Array(10).keys()]
+        );
+        setYAxis(
+          data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()]
+        );
+
+        if (data.created_by === userId) setIsOwner(true);
+        if (data.deadline) setDeadlineValue(new Date(data.deadline));
+        setMaxSelections(data.max_selection);
+        if (typeof data.axis_hidden === "boolean")
+          setHideAxisUntilDeadline(data.axis_hidden);
+      } finally {
+        setTimeout(() => setSquareDataLoaded(true), 300);
       }
-
-      setXAxis(
-        data.x_axis?.length === 10 ? data.x_axis : [...Array(10).keys()]
-      );
-      setYAxis(
-        data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()]
-      );
-
-      if (data.created_by === userId) setIsOwner(true);
-      if (data.deadline) setDeadlineValue(new Date(data.deadline));
-      setMaxSelections(data.max_selection);
-      if (typeof data.axis_hidden === "boolean")
-        setHideAxisUntilDeadline(data.axis_hidden);
     };
 
     fetchSquareData();
@@ -629,6 +649,7 @@ const SquareScreen = ({ route }) => {
         console.log("⚙️ Manual override active — skipping API overwrite");
         return;
       }
+      setRefreshingScores(true);
 
       try {
         Sentry.addBreadcrumb({
@@ -654,6 +675,10 @@ const SquareScreen = ({ route }) => {
         const game = JSON.parse(text);
         if (!game || !game.id)
           throw new Error("Invalid game data from backend");
+
+        if (!scoresLoaded) {
+          setScoresLoaded(true);
+        }
 
         const myNotifySettings = players.find(
           (p) => p.userId === userId
@@ -735,6 +760,8 @@ const SquareScreen = ({ route }) => {
       } catch (e) {
         Sentry.captureException(e);
         console.warn("Error fetching quarter scores", e);
+      } finally {
+        setRefreshingScores(false);
       }
     };
 
@@ -1731,319 +1758,340 @@ const SquareScreen = ({ route }) => {
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
     >
-      <TabView
-        navigationState={{ index, routes }}
-        renderScene={renderScene}
-        onIndexChange={setIndex}
-        initialLayout={{ width: Dimensions.get("window").width }}
-        renderTabBar={(props) => (
-          <TabBar
-            {...(props as TabBarProps)}
-            indicatorStyle={{
-              backgroundColor: "#5e60ce",
-              height: 4,
-              borderRadius: 2,
-            }}
-            style={{
-              backgroundColor: theme.colors.surface,
-              shadowColor: "#000",
-              shadowOpacity: 0.1,
-              shadowOffset: { width: 0, height: 2 },
-              elevation: 3,
-            }}
-            activeColor="#5e60ce"
-            inactiveColor={theme.dark ? theme.colors.onSurface : "#333333"}
-            renderLabel={({ route, focused, color }) => (
-              <Text
-                style={{
-                  color: color,
-                  fontWeight: focused ? "bold" : "500",
-                  fontSize: 14,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
+      {loading ? (
+        <Animated.View style={{ opacity: fadeAnim, flex: 1, padding: 16 }}>
+          <SkeletonLoader variant="squareScreen" />
+        </Animated.View>
+      ) : (
+        <>
+          <TabView
+            navigationState={{ index, routes }}
+            renderScene={renderScene}
+            onIndexChange={setIndex}
+            initialLayout={{ width: Dimensions.get("window").width }}
+            renderTabBar={(props) => (
+              <TabBar
+                {...(props as TabBarProps)}
+                indicatorStyle={{
+                  backgroundColor: "#5e60ce",
+                  height: 4,
+                  borderRadius: 2,
                 }}
-              >
-                {route.title}
-              </Text>
+                style={{
+                  backgroundColor: theme.colors.surface,
+                  shadowColor: "#000",
+                  shadowOpacity: 0.1,
+                  shadowOffset: { width: 0, height: 2 },
+                  elevation: 3,
+                }}
+                activeColor="#5e60ce"
+                inactiveColor={theme.dark ? theme.colors.onSurface : "#333333"}
+                renderLabel={({ route, focused, color }) => (
+                  <Text
+                    style={{
+                      color: color,
+                      fontWeight: focused ? "bold" : "500",
+                      fontSize: 14,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
+                    }}
+                  >
+                    {route.title}
+                  </Text>
+                )}
+              />
             )}
           />
-        )}
-      />
-      <DeadlinePickerModal
-        visible={showDeadlineModal}
-        onDismiss={() => setShowDeadlineModal(false)}
-        date={tempDeadline || new Date()}
-        onConfirm={(newDate) => {
-          setDeadlineValue(newDate);
-          handleDeadlineChange(null, newDate);
-        }}
-      />
-      <SessionOptionsModal
-        visible={sessionOptionsVisible}
-        onDismiss={() => setSessionOptionsVisible(false)}
-        gridId={gridId}
-        isOwner={isOwner}
-        handleLeaveSquare={handleLeaveSquare}
-        handleDeleteSquare={handleDeleteSquare}
-        setTempDeadline={setTempDeadline}
-        deadlineValue={deadlineValue}
-        setShowDeadlineModal={setShowDeadlineModal}
-        triggerRefresh={() => setRefreshKey((k) => k + 1)}
-        currentTitle={title}
-        team1={team1}
-        team2={team2}
-        quarterScores={quarterScores}
-      />
+          <DeadlinePickerModal
+            visible={showDeadlineModal}
+            onDismiss={() => setShowDeadlineModal(false)}
+            date={tempDeadline || new Date()}
+            onConfirm={(newDate) => {
+              setDeadlineValue(newDate);
+              handleDeadlineChange(null, newDate);
+            }}
+          />
+          <SessionOptionsModal
+            visible={sessionOptionsVisible}
+            onDismiss={() => setSessionOptionsVisible(false)}
+            gridId={gridId}
+            isOwner={isOwner}
+            handleLeaveSquare={handleLeaveSquare}
+            handleDeleteSquare={handleDeleteSquare}
+            setTempDeadline={setTempDeadline}
+            deadlineValue={deadlineValue}
+            setShowDeadlineModal={setShowDeadlineModal}
+            triggerRefresh={() => setRefreshKey((k) => k + 1)}
+            currentTitle={title}
+            team1={team1}
+            team2={team2}
+            quarterScores={quarterScores}
+          />
 
-      <Portal>
-        <Modal
-          visible={showLeaveConfirm}
-          onDismiss={() => closeAnimatedDialog(setShowLeaveConfirm, leaveAnim)}
-        >
-          <Animated.View
-            style={[
-              {
-                backgroundColor: theme.colors.surface,
-                borderRadius: 16,
-                borderWidth: 1.5,
-                borderColor: "rgba(94, 96, 206, 0.4)",
-                borderLeftWidth: 5,
-                borderBottomWidth: 0,
-                borderLeftColor: theme.colors.primary,
-                marginHorizontal: 16,
-                paddingVertical: 20,
-                paddingHorizontal: 16,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 8,
-                elevation: 6,
-              },
-              getAnimatedDialogStyle(leaveAnim),
-            ]}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "bold",
-                color: theme.colors.onSurface,
-                marginBottom: 12,
-              }}
+          <Portal>
+            <Modal
+              visible={showLeaveConfirm}
+              onDismiss={() =>
+                closeAnimatedDialog(setShowLeaveConfirm, leaveAnim)
+              }
             >
-              Leave Square
-            </Text>
-            <View
-              style={{
-                height: 1,
-                backgroundColor: dividerColor,
-                marginBottom: 20,
-              }}
-            />
-            <Text style={{ color: theme.colors.onSurface, marginBottom: 20 }}>
-              Are you sure you want to leave this square?
-            </Text>
-            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-              <Button
-                onPress={() =>
-                  closeAnimatedDialog(setShowLeaveConfirm, leaveAnim)
-                }
-                textColor={theme.colors.error}
+              <Animated.View
+                style={[
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(94, 96, 206, 0.4)",
+                    borderLeftWidth: 5,
+                    borderBottomWidth: 0,
+                    borderLeftColor: theme.colors.primary,
+                    marginHorizontal: 16,
+                    paddingVertical: 20,
+                    paddingHorizontal: 16,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 6,
+                  },
+                  getAnimatedDialogStyle(leaveAnim),
+                ]}
               >
-                Cancel
-              </Button>
-              <Button
-                onPress={async () => {
-                  if (!userId) return;
-
-                  closeAnimatedDialog(setShowLeaveConfirm, leaveAnim);
-
-                  try {
-                    const { data, error } = await supabase
-                      .from("squares")
-                      .select("player_ids, players, selections, title")
-                      .eq("id", gridId)
-                      .single();
-
-                    if (error || !data) {
-                      console.warn("No square found for gridId:", gridId);
-                      Toast.show({
-                        type: "error",
-                        text1: "Session not found or access denied.",
-                        position: "bottom",
-                        bottomOffset: 60,
-                      });
-                      return;
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "bold",
+                    color: theme.colors.onSurface,
+                    marginBottom: 12,
+                  }}
+                >
+                  Leave Square
+                </Text>
+                <View
+                  style={{
+                    height: 1,
+                    backgroundColor: dividerColor,
+                    marginBottom: 20,
+                  }}
+                />
+                <Text
+                  style={{ color: theme.colors.onSurface, marginBottom: 20 }}
+                >
+                  Are you sure you want to leave this square?
+                </Text>
+                <View
+                  style={{ flexDirection: "row", justifyContent: "flex-end" }}
+                >
+                  <Button
+                    onPress={() =>
+                      closeAnimatedDialog(setShowLeaveConfirm, leaveAnim)
                     }
+                    textColor={theme.colors.error}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onPress={async () => {
+                      if (!userId) return;
 
-                    const updatedPlayerIds = (data.player_ids || []).filter(
-                      (id) => id !== userId
-                    );
-                    const updatedPlayers = (data.players || []).filter(
-                      (p) => p.userId !== userId
-                    );
-                    const updatedSelections = (data.selections || []).filter(
-                      (sel) => sel.userId !== userId
-                    );
+                      closeAnimatedDialog(setShowLeaveConfirm, leaveAnim);
 
-                    const { error: updateError } = await supabase
-                      .from("squares")
-                      .update({
-                        players: updatedPlayers,
-                        player_ids: updatedPlayerIds,
-                        selections: updatedSelections,
-                      })
-                      .eq("id", gridId)
-                      .single();
+                      try {
+                        const { data, error } = await supabase
+                          .from("squares")
+                          .select("player_ids, players, selections, title")
+                          .eq("id", gridId)
+                          .single();
 
-                    if (updateError) {
-                      Toast.show({
-                        type: "error",
-                        text1: "Failed to leave session. Try again.",
-                        position: "bottom",
-                        bottomOffset: 60,
-                      });
-                      return;
-                    }
+                        if (error || !data) {
+                          console.warn("No square found for gridId:", gridId);
+                          Toast.show({
+                            type: "error",
+                            text1: "Session not found or access denied.",
+                            position: "bottom",
+                            bottomOffset: 60,
+                          });
+                          return;
+                        }
 
-                    if (updatedPlayers.length === 0) {
-                      const { error: deleteError } = await supabase
-                        .from("squares")
-                        .delete()
-                        .eq("id", gridId);
-                      if (deleteError) {
-                        console.error(
-                          "Error deleting empty square:",
-                          deleteError
+                        const updatedPlayerIds = (data.player_ids || []).filter(
+                          (id) => id !== userId
                         );
+                        const updatedPlayers = (data.players || []).filter(
+                          (p) => p.userId !== userId
+                        );
+                        const updatedSelections = (
+                          data.selections || []
+                        ).filter((sel) => sel.userId !== userId);
+
+                        const { error: updateError } = await supabase
+                          .from("squares")
+                          .update({
+                            players: updatedPlayers,
+                            player_ids: updatedPlayerIds,
+                            selections: updatedSelections,
+                          })
+                          .eq("id", gridId)
+                          .single();
+
+                        if (updateError) {
+                          Toast.show({
+                            type: "error",
+                            text1: "Failed to leave session. Try again.",
+                            position: "bottom",
+                            bottomOffset: 60,
+                          });
+                          return;
+                        }
+
+                        if (updatedPlayers.length === 0) {
+                          const { error: deleteError } = await supabase
+                            .from("squares")
+                            .delete()
+                            .eq("id", gridId);
+                          if (deleteError) {
+                            console.error(
+                              "Error deleting empty square:",
+                              deleteError
+                            );
+                          }
+                        }
+
+                        Toast.show({
+                          type: "info",
+                          text1: `You’ve left ${title}`,
+                          position: "bottom",
+                          visibilityTime: 2500,
+                          bottomOffset: 60,
+                          text1Style: {
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: "#333",
+                            textAlign: "center",
+                          },
+                        });
+
+                        navigation.navigate("Main");
+                      } catch (err) {
+                        console.error("Failed to leave square:", err);
+                        Sentry.captureException(err);
+                        Toast.show({
+                          type: "error",
+                          text1: "Unexpected error leaving the square.",
+                          position: "bottom",
+                          bottomOffset: 60,
+                        });
                       }
-                    }
+                    }}
+                    textColor={theme.colors.primary}
+                  >
+                    Leave
+                  </Button>
+                </View>
+              </Animated.View>
+            </Modal>
+          </Portal>
 
-                    Toast.show({
-                      type: "info",
-                      text1: `You’ve left ${title}`,
-                      position: "bottom",
-                      visibilityTime: 2500,
-                      bottomOffset: 60,
-                      text1Style: {
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: "#333",
-                        textAlign: "center",
-                      },
-                    });
-
-                    navigation.navigate("Main");
-                  } catch (err) {
-                    console.error("Failed to leave square:", err);
-                    Sentry.captureException(err);
-                    Toast.show({
-                      type: "error",
-                      text1: "Unexpected error leaving the square.",
-                      position: "bottom",
-                      bottomOffset: 60,
-                    });
-                  }
-                }}
-                textColor={theme.colors.primary}
-              >
-                Leave
-              </Button>
-            </View>
-          </Animated.View>
-        </Modal>
-      </Portal>
-
-      <Portal>
-        <Modal
-          visible={showDeleteConfirm}
-          onDismiss={() =>
-            closeAnimatedDialog(setShowDeleteConfirm, deleteAnim)
-          }
-        >
-          <Animated.View
-            style={[
-              {
-                backgroundColor: theme.colors.surface,
-                borderRadius: 16,
-                borderWidth: 1.5,
-                borderColor: "rgba(94, 96, 206, 0.4)",
-                borderLeftWidth: 5,
-                borderBottomWidth: 0,
-                borderLeftColor: theme.colors.primary,
-                marginHorizontal: 16,
-                paddingVertical: 20,
-                paddingHorizontal: 16,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
-                shadowRadius: 8,
-                elevation: 6,
-              },
-              getAnimatedDialogStyle(deleteAnim),
-            ]}
-          >
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "bold",
-                color: theme.colors.onSurface,
-                marginBottom: 12,
-              }}
+          <Portal>
+            <Modal
+              visible={showDeleteConfirm}
+              onDismiss={() =>
+                closeAnimatedDialog(setShowDeleteConfirm, deleteAnim)
+              }
             >
-              Delete Square
-            </Text>
-            <View
-              style={{
-                height: 1,
-                backgroundColor: dividerColor,
-                marginBottom: 20,
-              }}
-            />
-            <Text style={{ color: theme.colors.onSurface, marginBottom: 20 }}>
-              Are you sure you want to permanently delete this square?
-            </Text>
-            <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-              <Button
-                onPress={() =>
-                  closeAnimatedDialog(setShowDeleteConfirm, deleteAnim)
-                }
-                textColor={theme.colors.error}
+              <Animated.View
+                style={[
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(94, 96, 206, 0.4)",
+                    borderLeftWidth: 5,
+                    borderBottomWidth: 0,
+                    borderLeftColor: theme.colors.primary,
+                    marginHorizontal: 16,
+                    paddingVertical: 20,
+                    paddingHorizontal: 16,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.2,
+                    shadowRadius: 8,
+                    elevation: 6,
+                  },
+                  getAnimatedDialogStyle(deleteAnim),
+                ]}
               >
-                Cancel
-              </Button>
-              <Button
-                onPress={async () => {
-                  closeAnimatedDialog(setShowDeleteConfirm, deleteAnim);
-                  try {
-                    await supabase.from("squares").delete().eq("id", gridId);
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "bold",
+                    color: theme.colors.onSurface,
+                    marginBottom: 12,
+                  }}
+                >
+                  Delete Square
+                </Text>
+                <View
+                  style={{
+                    height: 1,
+                    backgroundColor: dividerColor,
+                    marginBottom: 20,
+                  }}
+                />
+                <Text
+                  style={{ color: theme.colors.onSurface, marginBottom: 20 }}
+                >
+                  Are you sure you want to permanently delete this square?
+                </Text>
+                <View
+                  style={{ flexDirection: "row", justifyContent: "flex-end" }}
+                >
+                  <Button
+                    onPress={() =>
+                      closeAnimatedDialog(setShowDeleteConfirm, deleteAnim)
+                    }
+                    textColor={theme.colors.error}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onPress={async () => {
+                      closeAnimatedDialog(setShowDeleteConfirm, deleteAnim);
+                      try {
+                        await supabase
+                          .from("squares")
+                          .delete()
+                          .eq("id", gridId);
 
-                    Toast.show({
-                      type: "error",
-                      text1: `You’ve deleted ${title}!`,
-                      position: "bottom",
-                      visibilityTime: 2500,
-                      bottomOffset: 60,
-                      text1Style: {
-                        fontSize: 16,
-                        fontWeight: "600",
-                        color: "#333",
-                        textAlign: "center",
-                      },
-                    });
-                    navigation.navigate("Main");
-                  } catch (err) {
-                    Sentry.captureException(err);
-                    console.error("Failed to delete square:", err);
-                  }
-                }}
-                textColor={theme.colors.primary}
-              >
-                Delete
-              </Button>
-            </View>
-          </Animated.View>
-        </Modal>
-      </Portal>
+                        Toast.show({
+                          type: "error",
+                          text1: `You’ve deleted ${title}!`,
+                          position: "bottom",
+                          visibilityTime: 2500,
+                          bottomOffset: 60,
+                          text1Style: {
+                            fontSize: 16,
+                            fontWeight: "600",
+                            color: "#333",
+                            textAlign: "center",
+                          },
+                        });
+                        navigation.navigate("Main");
+                      } catch (err) {
+                        Sentry.captureException(err);
+                        console.error("Failed to delete square:", err);
+                      }
+                    }}
+                    textColor={theme.colors.primary}
+                  >
+                    Delete
+                  </Button>
+                </View>
+              </Animated.View>
+            </Modal>
+          </Portal>
+        </>
+      )}
     </LinearGradient>
   );
 };
