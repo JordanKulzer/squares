@@ -384,12 +384,16 @@ const App: React.FC = () => {
                       animation: "slide_from_right",
                       headerTitle: () => <HeaderLogo />,
                       headerTitleAlign: "center",
+                      headerTitleContainerStyle: {
+                        justifyContent: "center",
+                        alignItems: "center",
+                      },
+
                       headerStyle: {
                         backgroundColor: paperTheme.colors.surface,
-                        borderBottomWidth: 2,
-                        borderBottomColor: "red",
-                        shadowOpacity: 0, // iOS
+                        shadowOpacity: 0,
                         elevation: 0,
+                        borderBottomWidth: 2, // ✅ make sure this is gone
                       },
                       headerBackTitleVisible: false,
                       headerTintColor: paperTheme.colors.onBackground,

@@ -2,22 +2,14 @@ import React from "react";
 import { Image, View } from "react-native";
 
 const HeaderLogo = () => (
-  <View
-    style={{
-      height: 40,
-      justifyContent: "center",
-      alignItems: "center",
-      backgroundColor: "transparent",
-    }}
-  >
+  <View style={{ justifyContent: "center", alignItems: "center", height: 10 }}>
     <Image
-      source={require("../../assets/icons/squares-logo.png")}
+      source={require("../../assets/icons/squares-logo1.png")}
       style={{
-        width: 120,
-        height: 45,
+        height: 120,
+        width: 140,
         resizeMode: "contain",
       }}
-      resizeMode="center"
     />
   </View>
 );
