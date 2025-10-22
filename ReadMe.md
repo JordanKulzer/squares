@@ -76,3 +76,126 @@ User preference is stored in AsyncStorage and loaded at startup.
 
 ## 🗂️ Project Structure
 
+src/
+├── screens/
+│ ├── HomeScreen.tsx
+│ ├── CreateSquareScreen.tsx
+│ ├── JoinSquareScreen.tsx
+│ ├── SquareScreen.tsx
+│ ├── GamePickerScreen.tsx
+│ ├── ForgotPassword.tsx
+│ ├── ResetPasswordScreen.tsx
+│ ├── SignUpScreen.tsx
+│ ├── HowToScreen.tsx
+│ └── LoginScreen.tsx
+│
+├── navigation/
+│ └── AppDrawer.tsx
+│
+├── utils/
+│ ├── apiConfig.ts
+│ ├── gameHelpers.ts
+│ ├── notifications.ts
+│ ├── registerPushToken.ts
+│ ├── types.ts
+│ └── supabase.ts
+│
+├── components/
+│ ├── HeaderLogo.tsx
+│ ├── HeaderSettingsMenu.tsx
+│ ├── ProfileModal.tsx
+│ ├── SessionOptionsModal.tsx
+│ └── DeadlinePickerModal.tsx
+│
+└── App.tsx
+
+yaml
+Copy code
+
+---
+
+## 🚀 Setup & Run
+
+### 1️⃣ Clone the Repo
+```bash
+git clone https://github.com/JordanKulzer/squares.git
+cd squares
+2️⃣ Install Dependencies
+bash
+Copy code
+npm install
+# or
+yarn install
+3️⃣ Add Environment Variables
+Create a .env file at the project root:
+
+ini
+Copy code
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+EXPO_PUBLIC_API_BASE_URL=http://localhost:3000
+4️⃣ Run the App
+bash
+Copy code
+npx expo start
+Use a development build (not Expo Go) to enable push notifications and native modules.
+
+🧠 Supabase Schema Overview
+Tables
+
+users: id, email, first_name, push_token, total_winnings
+
+squares: id, title, created_by, team1, team2, deadline, price_per_square, players[], selections[], x_axis[], y_axis[], quarter_scores[]
+
+players: user_id, grid_id, username, color, joined_at, notifySettings
+
+selections: x, y, userId, username
+
+Functions (RPC)
+
+add_player_to_square
+
+add_selection
+
+remove_selection
+
+increment_user_winnings
+
+🏈 Live Sports Integration
+Data comes from a custom backend connected to API-Sports:
+
+bash
+Copy code
+GET /apisports/scores?eventId={id}&league={NFL|NCAAF}
+Used for:
+
+Quarter-by-quarter scores
+
+Game completion status
+
+Team abbreviations and names
+
+Winner detection per period
+
+🧰 Developer Notes
+Expo SDK 54 (JSC engine)
+
+Deep linking enabled: squaresgame://session/:sessionId
+
+Error tracking via Sentry
+
+Tested on Android emulator + iOS TestFlight
+
+💡 Future Enhancements
+Add NBA/MLB support
+
+Support for variable payout distributions
+
+Player invite and QR sharing
+
+Historical analytics & stats
+
+📧 Contact
+Squares App Support
+📩 squaresgameofficial@outlook.com
+🔗 Privacy Policy
