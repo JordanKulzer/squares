@@ -1041,7 +1041,7 @@ const SquareScreen = ({ route }) => {
           useNativeDriver: true,
         }).start();
       });
-    }, 3000);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, [loadingMessages.length]);
