@@ -170,6 +170,8 @@ const SquareScreen = ({ route }) => {
   const leaveAnim = useRef(new Animated.Value(0)).current;
   const deleteAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const messageFade = useRef(new Animated.Value(1)).current;
+
   const [refreshingScores, setRefreshingScores] = useState(false);
   const [squareDataLoaded, setSquareDataLoaded] = useState(false);
   const [scoresLoaded, setScoresLoaded] = useState(false);
@@ -178,6 +180,7 @@ const SquareScreen = ({ route }) => {
   const screenHeight = Dimensions.get("window").height;
   const insets = useSafeAreaInsets();
   const usableHeight = screenHeight - insets.top - insets.bottom - 120;
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
 
   const openAnimatedDialog = (setter, animRef) => {
     setSessionOptionsVisible(false);
@@ -892,6 +895,7 @@ const SquareScreen = ({ route }) => {
             fontSize: 20,
             fontWeight: "600",
             textAlign: "center",
+            textTransform: "uppercase",
             color: theme.colors.onBackground,
             fontFamily: "Rubik_600SemiBold",
             maxWidth: Dimensions.get("window").width * 0.8,
@@ -1012,6 +1016,35 @@ const SquareScreen = ({ route }) => {
       playerUsernames,
     ]
   );
+
+  const loadingMessages = [
+    `Hi...`,
+    `${title} is sooooo close to being ready`,
+    `I pinky promise...${title} is almost ready!`,
+    `Just a few more seconds...`,
+    `Did you know? The first video game ever created was "Tennis for Two" in 1958!`,
+    `This is just awkward at this point....`,
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      Animated.timing(messageFade, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start(() => {
+        setCurrentMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+
+        Animated.timing(messageFade, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [loadingMessages.length]);
 
   useEffect(() => {
     if (!isFocused || !userId || !gridId) return;
@@ -1760,6 +1793,20 @@ const SquareScreen = ({ route }) => {
     >
       {loading ? (
         <Animated.View style={{ opacity: fadeAnim, flex: 1, padding: 16 }}>
+          <Animated.View style={{ opacity: messageFade }}>
+            <Text
+              style={{
+                color: theme.colors.onSurfaceVariant,
+                fontSize: 16,
+                marginBottom: 12,
+                textAlign: "center",
+                fontFamily: "Rubik_600SemiBold",
+              }}
+            >
+              {loadingMessages[currentMessageIndex]}
+            </Text>
+          </Animated.View>
+
           <SkeletonLoader variant="squareScreen" />
         </Animated.View>
       ) : (
