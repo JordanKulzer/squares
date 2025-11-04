@@ -1018,12 +1018,12 @@ const SquareScreen = ({ route }) => {
   );
 
   const loadingMessages = [
-    `Hi...`,
-    `${title} is sooooo close to being ready`,
-    `I pinky promise...${title} is almost ready!`,
-    `Just a few more seconds...`,
-    `Did you know? The first video game ever created was "Tennis for Two" in 1958!`,
-    `This is just awkward at this point....`,
+    `Loading...`,
+    // `${title} is sooooo close to being ready`,
+    // `I pinky promise...${title} is almost ready!`,
+    // `Just a few more seconds...`,
+    // `Did you know? The first video game ever created was "Tennis for Two" in 1958!`,
+    // `This is just awkward at this point....`,
   ];
 
   useEffect(() => {
@@ -1041,7 +1041,7 @@ const SquareScreen = ({ route }) => {
           useNativeDriver: true,
         }).start();
       });
-    }, 6000);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [loadingMessages.length]);

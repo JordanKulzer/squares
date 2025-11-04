@@ -220,12 +220,12 @@ const GamePickerScreen = () => {
   }, [gameType]);
 
   const loadingMessages = [
-    `Hang tight...fetching live ${gameType} games...`,
-    `I'm thinking...`,
-    `This is awkward...`,
-    `Almost there...`,
-    `Loading the good stuff...`,
-    `Good things come to those who wait...`,
+    `Loading...`,
+    // `I'm thinking...`,
+    // `This is awkward...`,
+    // `Almost there...`,
+    // `Loading the good stuff...`,
+    // `Good things come to those who wait...`,
   ];
 
   useEffect(() => {
@@ -246,7 +246,7 @@ const GamePickerScreen = () => {
           useNativeDriver: true,
         }).start();
       });
-    }, 6000);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [loadingMessages.length]);
