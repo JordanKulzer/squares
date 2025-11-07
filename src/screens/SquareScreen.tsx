@@ -645,8 +645,10 @@ const SquareScreen = ({ route }) => {
       console.log("🔗 API Base URL:", API_BASE_URL);
 
       const now = new Date();
-      if (now < new Date(deadlineValue)) return;
-
+      if (now < new Date(deadlineValue)) {
+        if (!scoresLoaded) setScoresLoaded(true);
+        return;
+      }
       await checkOverride();
       if (manualOverride) {
         console.log("⚙️ Manual override active — skipping API overwrite");
