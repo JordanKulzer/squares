@@ -34,6 +34,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { MaterialIcons } from "@expo/vector-icons";
 import { leagueMap } from "../utils/types";
 import SkeletonLoader from "../components/SkeletonLoader";
+import { formatKickoff } from "../utils/dateDisplay";
 
 const gameTypeBehaviors = {
   NFL: { usesWeeks: true, startDate: new Date("2025-07-28T12:00:00") },
@@ -647,7 +648,7 @@ const GamePickerScreen = () => {
                               { color: theme.colors.onSurfaceVariant },
                             ]}
                           >
-                            Kickoff: {new Date(item.date).toLocaleString()}
+                            Kickoff: {formatKickoff(item.date)}
                           </Text>
                           <Text
                             style={[

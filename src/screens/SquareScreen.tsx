@@ -1215,8 +1215,6 @@ const SquareScreen = ({ route }) => {
 
     const winningsMap = winningsByUser || {};
 
-    console.log("🎯 Calculated winningsByUser:", winningsMap);
-
     return (
       <View style={{ flex: 1 }}>
         <Card
@@ -1593,7 +1591,6 @@ const SquareScreen = ({ route }) => {
                 ]}
               >
                 <Card.Content>
-                  {/* <Card> */}
                   <View
                     style={{
                       alignItems: "center",
@@ -1677,16 +1674,14 @@ const SquareScreen = ({ route }) => {
                         </Text>
                       ))}
                     </View>
-                    <ScrollView horizontal>
-                      <ScrollView>
-                        {renderSquareGrid({
-                          editable: !isAfterDeadline,
-                          onSquarePress: isAfterDeadline
-                            ? handleSquarePress
-                            : handlePress,
-                        })}
-                      </ScrollView>
-                    </ScrollView>
+                    <View>
+                      {renderSquareGrid({
+                        editable: !isAfterDeadline,
+                        onSquarePress: isAfterDeadline
+                          ? handleSquarePress
+                          : handlePress,
+                      })}
+                    </View>
                   </View>
                   {
                     <View style={styles.deadlineContainerCentered}>
@@ -1794,7 +1789,10 @@ const SquareScreen = ({ route }) => {
       style={{ flex: 1 }}
     >
       {loading ? (
-        <Animated.View style={{ opacity: fadeAnim, flex: 1, padding: 16 }}>
+        <Animated.View
+          pointerEvents={loading ? "auto" : "none"}
+          style={{ opacity: fadeAnim, flex: 1, padding: 16 }}
+        >
           <Animated.View style={{ opacity: messageFade }}>
             <Text
               style={{
