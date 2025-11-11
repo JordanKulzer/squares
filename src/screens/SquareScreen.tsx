@@ -15,6 +15,7 @@ import {
   TouchableOpacity,
   FlatList,
   Animated,
+  Pressable,
 } from "react-native";
 import { Button, Card, Modal, Portal, useTheme } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
@@ -41,8 +42,17 @@ import {
 } from "@expo-google-fonts/rubik";
 import SkeletonLoader from "../components/SkeletonLoader";
 
-const screenWidth = Dimensions.get("window").width;
-const squareSize = (screenWidth - 80) / 11;
+// ✅ Dynamic square sizing with better constraints
+const getSquareSize = () => {
+  const screenWidth = Dimensions.get("window").width;
+  const availableWidth = screenWidth - 80; // Account for padding
+  const calculatedSize = availableWidth / 11;
+
+  // Ensure squares are at least 20px and at most 40px for better usability
+  return Math.max(20, Math.min(40, calculatedSize));
+};
+
+const squareSize = getSquareSize();
 
 const splitTeamName = (teamName) => {
   return teamName ? teamName.split("") : [];
@@ -53,6 +63,7 @@ const formatPeriodLabel = (quarter: string, index: number) => {
   if (num <= 4) return `Quarter ${num}`;
   return `Overtime ${num - 4}`;
 };
+
 const calculatePlayerWinnings = (
   quarterWinners: any[],
   playerUsernames: Record<string, string>,
@@ -62,7 +73,7 @@ const calculatePlayerWinnings = (
   const winningsMap: Record<string, number> = {};
 
   if (!Array.isArray(quarterWinners) || !pricePerSquare || totalSquares === 0) {
-    console.log("⚠️ Skipping winnings calculation — invalid inputs");
+    console.log("⚠️ Skipping winnings calculation – invalid inputs");
     console.log({ quarterWinners, pricePerSquare, totalSquares });
     return winningsMap;
   }
@@ -78,7 +89,7 @@ const calculatePlayerWinnings = (
   });
 
   console.log("👥 Player usernames map:", playerUsernames);
-  console.log("🔁 Reverse lookup (username → userId):", usernameToUserId);
+  console.log("🔄 Reverse lookup (username → userId):", usernameToUserId);
   console.log("🏈 Quarter winners array:", quarterWinners);
   console.log(
     "💵 pricePerSquare:",
@@ -331,7 +342,6 @@ const SquareScreen = ({ route }) => {
   useEffect(() => {
     if (!quarterWinners?.length || !Object.keys(playerUsernames).length) return;
 
-    // Only include quarters that have actual numeric scores
     const completedQuarters = quarterScores.filter(
       (q) => q.home != null && q.away != null
     );
@@ -352,14 +362,13 @@ const SquareScreen = ({ route }) => {
     playerUsernames,
     pricePerSquare,
     squareColors,
-    gameCompleted, // ✅ ensures final winnings still show
+    gameCompleted,
   ]);
 
   useEffect(() => {
     if (!gameCompleted || !Object.keys(playerUsernames).length) return;
 
     const finalizeTotalWinnings = async () => {
-      // 1) Load snapshot + how many periods we already paid
       const { data: squareData, error: fetchErr } = await supabase
         .from("squares")
         .select(
@@ -369,28 +378,22 @@ const SquareScreen = ({ route }) => {
         .single();
       if (fetchErr) return;
 
-      // If we already marked done and nothing new, bail
-      // (prevents double-paying when the effect fires again)
       const prevPaidCount = squareData?.winnings_quarters_done ?? 0;
 
-      // Count how many actually have scores
       const completed = quarterScores.filter(
         (q) => q.home != null && q.away != null
       ).length;
       if (completed <= prevPaidCount) return;
 
-      // Build username->uid map once
       const nameToUid: Record<string, string> = {};
       Object.entries(playerUsernames).forEach(([uid, name]) => {
         if (typeof name === "string") nameToUid[name.trim()] = uid;
       });
 
-      // Start from previous snapshot (don’t recompute older periods!)
       const newSnapshot: Record<string, number> = {
         ...(squareData?.winnings_snapshot ?? {}),
       };
 
-      // 2) Credit ONLY the newly completed periods
       for (let i = prevPaidCount; i < completed; i++) {
         const win = quarterWinners[i];
         if (!win || win.username === "No Winner") continue;
@@ -398,10 +401,8 @@ const SquareScreen = ({ route }) => {
         const uid = nameToUid[win.username.trim()];
         if (!uid) continue;
 
-        // Prefer a stored per-period payout if you’ve been saving it;
-        // otherwise fall back to current-per-period (one-time)
         const storedPayouts: number[] = squareData?.quarter_payouts ?? [];
-        const periodsCount = quarterScores.length; // includes OT if present
+        const periodsCount = quarterScores.length;
         const claimedNow = Object.keys(squareColors).length;
         const fallbackPayout =
           ((pricePerSquare || 0) * claimedNow) / periodsCount;
@@ -411,10 +412,8 @@ const SquareScreen = ({ route }) => {
             ? storedPayouts[i]
             : fallbackPayout;
 
-        // Apply cents rounding
         const cents = Math.round((payoutForThisPeriod + 1e-8) * 100) / 100;
 
-        // Increment user winnings immediately (delta only for this period)
         const { error: incErr } = await supabase.rpc(
           "increment_user_winnings",
           {
@@ -429,13 +428,11 @@ const SquareScreen = ({ route }) => {
         }
       }
 
-      // 3) Persist snapshot + how many periods are paid
       await supabase
         .from("squares")
         .update({
           winnings_snapshot: newSnapshot,
           winnings_quarters_done: completed,
-          // Optional: only set payout_done when ALL periods are truly final
           payout_done: true,
         })
         .eq("id", gridId);
@@ -651,7 +648,7 @@ const SquareScreen = ({ route }) => {
       }
       await checkOverride();
       if (manualOverride) {
-        console.log("⚙️ Manual override active — skipping API overwrite");
+        console.log("⚙️ Manual override active – skipping API overwrite");
         return;
       }
       setRefreshingScores(true);
@@ -734,7 +731,6 @@ const SquareScreen = ({ route }) => {
           ? game?.quarterScores ?? []
           : game?.quarterScores?.slice(0, completedCount) ?? [];
 
-        // ✅ Merge API updates only into non-manual quarters
         setQuarterScores((prevScores) => {
           if (!Array.isArray(prevScores) || prevScores.length === 0)
             return visibleScores;
@@ -743,7 +739,6 @@ const SquareScreen = ({ route }) => {
             const apiQ = visibleScores[i];
             if (!apiQ) return prev;
 
-            // Skip if this quarter was manually edited
             if (prev.manual) return prev;
 
             const homeChanged =
@@ -953,9 +948,23 @@ const SquareScreen = ({ route }) => {
     });
   };
 
+  // ✅ Improved handlePress with debouncing to prevent double-taps
+  const lastPressTime = useRef<Record<string, number>>({});
+
   const handlePress = useCallback(
     async (x, y) => {
       const squareId = `${x},${y}`;
+      const now = Date.now();
+
+      // ✅ Debounce: ignore if pressed within last 300ms
+      if (
+        lastPressTime.current[squareId] &&
+        now - lastPressTime.current[squareId] < 300
+      ) {
+        return;
+      }
+      lastPressTime.current[squareId] = now;
+
       const currentColor = squareColors[squareId];
 
       if (currentColor && currentColor !== playerColors[userId]) {
@@ -1016,17 +1025,11 @@ const SquareScreen = ({ route }) => {
       deselectSquareInSupabase,
       selectSquareInSupabase,
       playerUsernames,
+      maxSelections,
     ]
   );
 
-  const loadingMessages = [
-    `Loading...`,
-    // `${title} is sooooo close to being ready`,
-    // `I pinky promise...${title} is almost ready!`,
-    // `Just a few more seconds...`,
-    // `Did you know? The first video game ever created was "Tennis for Two" in 1958!`,
-    // `This is just awkward at this point....`,
-  ];
+  const loadingMessages = [`Loading...`];
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1153,10 +1156,11 @@ const SquareScreen = ({ route }) => {
           const isSelected = selectedSquares.has(key);
           const isWinner = winningSquares.has(key);
 
+          // ✅ Use Pressable instead of TouchableOpacity for better touch response
           row.push(
-            <TouchableOpacity
+            <Pressable
               key={key}
-              style={[
+              style={({ pressed }) => [
                 styles.square,
                 {
                   backgroundColor: color,
@@ -1170,6 +1174,7 @@ const SquareScreen = ({ route }) => {
                   shadowOpacity: isSelected ? 0.5 : 0,
                   shadowRadius: isSelected ? 6 : 0,
                   elevation: isSelected ? 5 : 1,
+                  opacity: pressed ? 0.7 : 1,
                 },
               ]}
               onPress={() => {
@@ -1177,11 +1182,13 @@ const SquareScreen = ({ route }) => {
                   onSquarePress(x - 1, y - 1);
                 }
               }}
+              // ✅ Increased hit slop for better touch target
+              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
             >
               {isWinner && (
                 <Text style={{ fontSize: 16, color: "#FFD700" }}>🏆</Text>
               )}
-            </TouchableOpacity>
+            </Pressable>
           );
         }
       }
@@ -1408,10 +1415,6 @@ const SquareScreen = ({ route }) => {
               letterSpacing: 1,
               fontSize: 20,
             }}
-            // style={{
-            //   borderBottomWidth: 1,
-            //   borderBottomColor: "rgba(94,96,206,0.3)",
-            // }}
           />
 
           <Card.Content>
@@ -1441,7 +1444,6 @@ const SquareScreen = ({ route }) => {
                       elevation: 2,
                     }}
                   >
-                    {/* Quarter Title */}
                     <Text
                       style={{
                         fontFamily: "Anton_400Regular",
@@ -1455,7 +1457,6 @@ const SquareScreen = ({ route }) => {
                       {isTeam1Home ? q.away : q.home}
                     </Text>
 
-                    {/* Winning Square */}
                     <Text
                       style={{
                         fontFamily: "Rubik_400Regular",
@@ -1468,7 +1469,6 @@ const SquareScreen = ({ route }) => {
                       Winning square: ({square[0]}, {square[1]})
                     </Text>
 
-                    {/* Winner Row */}
                     {isWinner ? (
                       <View
                         style={{
@@ -1586,7 +1586,7 @@ const SquareScreen = ({ route }) => {
                   styles.card,
                   {
                     backgroundColor: theme.colors.surface,
-                    height: usableHeight,
+                    minHeight: usableHeight,
                   },
                 ]}
               >
@@ -1657,31 +1657,42 @@ const SquareScreen = ({ route }) => {
                       {team2Mascot}
                     </Text>
                   </View>
-                  <View style={{ flexDirection: "row", marginBottom: 15 }}>
-                    <View style={styles.teamColumn}>
-                      {splitTeamName(team1Mascot).map((letter, i) => (
-                        <Text
-                          key={i}
-                          style={[
-                            styles.teamLetter,
-                            {
-                              color: theme.colors.onSurface,
-                              fontFamily: "Rubik_500Medium",
-                            },
-                          ]}
-                        >
-                          {letter}
-                        </Text>
-                      ))}
-                    </View>
-                    <View>
-                      {renderSquareGrid({
-                        editable: !isAfterDeadline,
-                        onSquarePress: isAfterDeadline
-                          ? handleSquarePress
-                          : handlePress,
-                      })}
-                    </View>
+                  <View style={{ alignItems: "center", marginLeft: -5 }}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{
+                        paddingHorizontal: -10,
+                        alignItems: "center",
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", marginBottom: 15 }}>
+                        <View style={styles.teamColumn}>
+                          {splitTeamName(team1Mascot).map((letter, i) => (
+                            <Text
+                              key={i}
+                              style={[
+                                styles.teamLetter,
+                                {
+                                  color: theme.colors.onSurface,
+                                  fontFamily: "Rubik_500Medium",
+                                },
+                              ]}
+                            >
+                              {letter}
+                            </Text>
+                          ))}
+                        </View>
+                        <View>
+                          {renderSquareGrid({
+                            editable: !isAfterDeadline,
+                            onSquarePress: isAfterDeadline
+                              ? handleSquarePress
+                              : handlePress,
+                          })}
+                        </View>
+                      </View>
+                    </ScrollView>
                   </View>
                   {
                     <View style={styles.deadlineContainerCentered}>
@@ -1778,6 +1789,7 @@ const SquareScreen = ({ route }) => {
       quarterWinners,
       isFocused,
       theme,
+      winningsByUser,
     ]
   );
 
@@ -2006,7 +2018,7 @@ const SquareScreen = ({ route }) => {
 
                         Toast.show({
                           type: "info",
-                          text1: `You’ve left ${title}`,
+                          text1: `You've left ${title}`,
                           position: "bottom",
                           visibilityTime: 2500,
                           bottomOffset: 60,
@@ -2112,7 +2124,7 @@ const SquareScreen = ({ route }) => {
 
                         Toast.show({
                           type: "error",
-                          text1: `You’ve deleted ${title}!`,
+                          text1: `You've deleted ${title}!`,
                           position: "bottom",
                           visibilityTime: 2500,
                           bottomOffset: 60,
@@ -2167,7 +2179,7 @@ const styles = StyleSheet.create({
     borderColor: "#ddd",
   },
   axisText: {
-    fontSize: 15,
+    fontSize: Math.min(15, squareSize * 0.6),
     fontWeight: "bold",
     textAlign: "center",
     fontFamily: "Sora",
@@ -2198,21 +2210,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "500",
   },
-
   quarterLabel: {
     fontSize: 18,
     marginBottom: 4,
     fontFamily: "Rubik_600SemiBold",
   },
-
   teamColumn: {
     justifyContent: "center",
     alignItems: "center",
     paddingRight: 5,
-    marginLeft: -10,
   },
   teamLetter: {
-    fontSize: 20,
+    fontSize: Math.min(20, squareSize * 0.8),
     fontWeight: "bold",
     fontFamily: "Sora",
     textTransform: "uppercase",
@@ -2308,12 +2317,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     elevation: 2,
   },
-  // quarterLabel: {
-  //   fontSize: 16,
-  //   fontWeight: "bold",
-  //   marginBottom: 6,
-  //   color: "#333",
-  // },
   scoreColumn: {
     flexDirection: "column",
     justifyContent: "space-between",

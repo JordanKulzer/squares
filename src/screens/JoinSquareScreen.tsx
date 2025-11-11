@@ -17,7 +17,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
 import NotificationsModal from "../components/NotificationsModal";
-import { scheduleNotifications } from "../utils/notifications";
+import {
+  scheduleNotifications,
+  sendPlayerJoinedNotification,
+} from "../utils/notifications";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
@@ -205,6 +208,7 @@ const JoinSquareScreen = () => {
         const deadlineDate = new Date(deadline);
         await scheduleNotifications(deadlineDate, gridId, notifySettings);
       }
+      await sendPlayerJoinedNotification(gridId, username);
 
       navigation.navigate("SquareScreen", {
         gridId,

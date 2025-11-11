@@ -226,3 +226,37 @@ export const sendGameUpdateNotification = async (gridId: string) => {
     }
   });
 };
+
+export const sendPlayerJoinedNotification = async (
+  gridId: string,
+  newUsername: string
+) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const currentUserId = user?.id;
+  if (!currentUserId) return;
+
+  // Get all players in this session
+  const { data: players, error } = await supabase
+    .from("players")
+    .select("user_id, is_manager, notification_settings")
+    .eq("grid_id", gridId);
+
+  if (error || !players) return;
+
+  // Notify managers only
+  const managers = players.filter((p) => p.is_manager);
+  for (const m of managers) {
+    if (m.user_id !== currentUserId && m.notification_settings?.playerJoined) {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: "👋 New Player Joined",
+          body: `${newUsername} just joined your session.`,
+          sound: true,
+        },
+        trigger: null,
+      });
+    }
+  }
+};

@@ -154,7 +154,7 @@ const GamePickerScreen = () => {
   }, [loading]);
 
   const fetchGamesForDate = async (date) => {
-    const formattedDate = date.toISOString().split("T")[0];
+    const formattedDate = date.toLocaleDateString("en-CA");
 
     try {
       const url = `${API_BASE_URL}/apisports/schedule?startDate=${formattedDate}&league=${gameType}`;
