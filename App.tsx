@@ -108,6 +108,14 @@ const App: React.FC = () => {
     loadTheme();
   }, []);
 
+  useEffect(() => {
+  console.log("🔧 ENV EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
+  console.log(
+    "🔧 ENV EXPO_PUBLIC_SUPABASE_ANON_KEY present:",
+    !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+  );
+}, []);
+
   const toggleTheme = async () => {
     const next = !isDarkTheme;
     setIsDarkTheme(next);

@@ -1,8 +1,10 @@
+import "dotenv/config";
+
 export default {
   expo: {
     name: "Squares",
     slug: "squares",
-    version: "1.7",
+    version: "1.7.1",
     orientation: "portrait",
     icon: "./assets/icons/squares-logo-white.png",
     userInterfaceStyle: "automatic",
@@ -62,6 +64,10 @@ export default {
       eas: {
         projectId: "a0d72e60-1d9e-4aa4-93ec-66f16f8da1c8",
       },
+      EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+      EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+
     },
   },
 };

@@ -1,9 +1,11 @@
-// utils/apiConfig.ts
+// src/utils/apiConfig.ts
 import Constants from "expo-constants";
 
-const LOCAL = "http://192.168.1.207:3000";
-// your local IP (keep updated)
-const PROD = "https://squares-api.onrender.com";
+const extra: any =
+  Constants.expoConfig?.extra ?? (Constants as any).manifest?.extra ?? {};
 
-export const API_BASE_URL = __DEV__ ? LOCAL : PROD;
-//export const API_BASE_URL = PROD;
+export const API_BASE_URL: string | undefined = extra.EXPO_PUBLIC_API_BASE_URL;
+
+if (!API_BASE_URL) {
+  throw new Error("Missing EXPO_PUBLIC_API_BASE_URL (check .env / EAS env)");
+}

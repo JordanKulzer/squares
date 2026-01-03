@@ -29,6 +29,7 @@
     "@types/react": "~19.1.10",
     "axios": "^1.9.0",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
     "expo": "54.0.13",
     "expo-auth-session": "~7.0.8",
     "expo-build-properties": "~1.0.9",
