@@ -14,6 +14,38 @@ import { TextInput as PaperInput, useTheme } from "react-native-paper";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../lib/supabase";
+import Constants from "expo-constants";
+
+function RuntimeConfigDebug() {
+  const extra: any =
+    Constants.expoConfig?.extra ?? (Constants as any).manifest?.extra ?? {};
+
+  const supabaseUrl = extra.EXPO_PUBLIC_SUPABASE_URL;
+  const anonKey = extra.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  const apiBase = extra.EXPO_PUBLIC_API_BASE_URL;
+
+  // mask URL/key so you aren't exposing secrets on screen
+  const maskedUrl =
+    typeof supabaseUrl === "string"
+      ? supabaseUrl.replace(/^https?:\/\//, "").slice(0, 24) + "…"
+      : "❌ MISSING";
+
+  const hasAnon = !!anonKey;
+
+  return (
+    <View style={styles.debugBox}>
+      <Text style={styles.debugTitle}>Runtime Config</Text>
+
+      <Text style={styles.debugLine}>APP_OWNERSHIP: {Constants.appOwnership ?? "unknown"}</Text>
+      <Text style={styles.debugLine}>SUPABASE_URL: {maskedUrl}</Text>
+      <Text style={styles.debugLine}>ANON_KEY_PRESENT: {hasAnon ? "✅ YES" : "❌ NO"}</Text>
+      <Text style={styles.debugLine}>
+        API_BASE_URL: {apiBase ? String(apiBase) : "❌ MISSING"}
+      </Text>
+    </View>
+  );
+}
+
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -157,6 +189,9 @@ const LoginScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
             <Text style={styles.linkText}>Don't have an account? Sign up</Text>
           </TouchableOpacity>
+          <View style={{ marginTop: 14 }}>
+  <RuntimeConfigDebug />
+</View>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -215,6 +250,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontFamily: "Rubik_400Regular",
   },
+    debugBox: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: "#2b2b2b",
+  },
+  debugTitle: {
+    color: "#ffcc00",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  debugLine: {
+    color: "#ffffff",
+    fontSize: 11,
+    marginBottom: 2,
+  },
+
 });
 
 export default LoginScreen;
