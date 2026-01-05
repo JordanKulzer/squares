@@ -189,9 +189,9 @@ const LoginScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
             <Text style={styles.linkText}>Don't have an account? Sign up</Text>
           </TouchableOpacity>
-          <View style={{ marginTop: 14 }}>
-  <RuntimeConfigDebug />
-</View>
+          {/* <View style={{ marginTop: 14 }}>
+            <RuntimeConfigDebug />
+          </View> */}
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
