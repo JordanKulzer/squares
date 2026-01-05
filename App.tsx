@@ -44,6 +44,7 @@ import {
   Rubik_500Medium,
   Rubik_600SemiBold,
 } from "@expo-google-fonts/rubik";
+import Constants from "expo-constants";
 
 Sentry.init({
   dsn: "https://ad2eab012c320c284637c80f6b9cb1cd@o4509662000054272.ingest.us.sentry.io/4509662000316416",
@@ -109,12 +110,11 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-  console.log("🔧 ENV EXPO_PUBLIC_SUPABASE_URL:", process.env.EXPO_PUBLIC_SUPABASE_URL);
-  console.log(
-    "🔧 ENV EXPO_PUBLIC_SUPABASE_ANON_KEY present:",
-    !!process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-  );
-}, []);
+    const extra: any = Constants.expoConfig?.extra ?? (Constants as any).manifest?.extra ?? {};
+    console.log("RUNTIME_SUPSABASE_URL:", extra.EXPO_PUBLIC_SUPABASE_URL);
+    console.log("RUNTIME_SUPABASE_ANON_KEY PRESN:", extra.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+    console.log("RUNTIME_API_BASE_URL:", extra.EXPO_PUBLIC_API_BASE_URL);
+  }, []);
 
   const toggleTheme = async () => {
     const next = !isDarkTheme;

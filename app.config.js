@@ -4,7 +4,7 @@ export default {
   expo: {
     name: "Squares",
     slug: "squares",
-    version: "1.7.1",
+    version: "1.7.2",
     orientation: "portrait",
     icon: "./assets/icons/squares-logo-white.png",
     userInterfaceStyle: "automatic",
