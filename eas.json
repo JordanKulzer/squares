@@ -15,7 +15,8 @@
       },
       "env": {
         "APP_ENV": "development",
-        "SENTRY_AUTH_TOKEN": "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",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://usjarubftgzhxgbdfspl.supabase.co",
+        "EXPO_PUBLIC_API_BASE_URL": "https://squares-api.onrender.com",
         "SENTRY_ORG": "squares-cp",
         "SENTRY_PROJECT": "react-native"
       }
@@ -24,7 +25,8 @@
       "distribution": "internal",
       "env": {
         "APP_ENV": "preview",
-        "SENTRY_AUTH_TOKEN": "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",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://usjarubftgzhxgbdfspl.supabase.co",
+        "EXPO_PUBLIC_API_BASE_URL": "https://squares-api.onrender.com",
         "SENTRY_ORG": "squares-cp",
         "SENTRY_PROJECT": "react-native"
       }
@@ -42,7 +44,8 @@
       },
       "env": {
         "APP_ENV": "production",
-        "SENTRY_AUTH_TOKEN": "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",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://usjarubftgzhxgbdfspl.supabase.co",
+        "EXPO_PUBLIC_API_BASE_URL": "https://squares-api.onrender.com",
         "SENTRY_ORG": "squares-cp",
         "SENTRY_PROJECT": "react-native"
       }
@@ -54,7 +57,8 @@
       },
       "env": {
         "APP_ENV": "test",
-        "SENTRY_AUTH_TOKEN": "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",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://usjarubftgzhxgbdfspl.supabase.co",
+        "EXPO_PUBLIC_API_BASE_URL": "https://squares-api.onrender.com",
         "SENTRY_ORG": "squares-cp",
         "SENTRY_PROJECT": "react-native"
       }
