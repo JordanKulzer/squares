@@ -20,6 +20,7 @@ import { supabase } from "../lib/supabase";
 import * as Application from "expo-application";
 import Constants from "expo-constants";
 import { Animated } from "react-native";
+import SuggestionModal from "../components/SuggestionModal";
 
 const Drawer = createDrawerNavigator();
 
@@ -41,6 +42,7 @@ const AppDrawerContent = ({
 }) => {
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [suggestionModalVisible, setSuggestionModalVisible] = useState(false);
   const theme = useTheme();
   const logoutAnim = useRef(new Animated.Value(600)).current;
   const deleteAnim = useRef(new Animated.Value(600)).current;
@@ -167,6 +169,12 @@ const AppDrawerContent = ({
           {renderItemWithIcon("bell-outline", "Notifications", () =>
             Linking.openSettings()
           )}
+
+          {renderItemWithIcon(
+  "lightbulb-outline", 
+  "Send Suggestion", 
+  () => setSuggestionModalVisible(true)
+)}
 
           {renderItemWithIcon("help-circle-outline", "Contact Us", () =>
             Linking.openURL("mailto:squaresgameofficial@outlook.com")
@@ -312,6 +320,11 @@ const AppDrawerContent = ({
           </Animated.View>
         </Modal>
       </Portal>
+
+      <SuggestionModal
+  visible={suggestionModalVisible}
+  onDismiss={() => setSuggestionModalVisible(false)}
+/>
     </View>
   );
 };
