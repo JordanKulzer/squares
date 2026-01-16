@@ -4,7 +4,7 @@ export default {
   expo: {
     name: "Squares",
     slug: "squares",
-    version: "1.7.2",
+    version: "1.7.3",
     orientation: "portrait",
     icon: "./assets/icons/squares-logo-white.png",
     userInterfaceStyle: "automatic",
@@ -67,7 +67,6 @@ export default {
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
-
     },
   },
 };
