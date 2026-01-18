@@ -34,11 +34,13 @@ const AppDrawerContent = ({
   onLogout,
   isDarkTheme,
   toggleTheme,
+  navigation,
 }: {
   userId: string;
   onLogout: () => void;
   isDarkTheme: boolean;
   toggleTheme: () => void;
+  navigation: any;
 }) => {
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
@@ -97,7 +99,7 @@ const AppDrawerContent = ({
       console.error("Error deleting account:", error);
       Alert.alert(
         "Error",
-        "Failed to delete account. Please try again later or contact support."
+        "Failed to delete account. Please try again later or contact support.",
       );
     }
   };
@@ -106,10 +108,12 @@ const AppDrawerContent = ({
     iconName: string,
     label: string,
     onPress?: () => void,
-    labelColor = theme.colors.onBackground
+    labelColor = theme.colors.onBackground,
   ) => (
     <TouchableOpacity style={styles.settingItem} onPress={onPress}>
-      <MaterialCommunityIcons name={iconName} size={20} color={labelColor} />
+      <View style={styles.iconContainer}>
+        <MaterialCommunityIcons name={iconName} size={20} color={labelColor} />
+      </View>
       <Text style={[styles.settingLabel, { color: labelColor }]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -145,11 +149,13 @@ const AppDrawerContent = ({
 
         <View style={{ flex: 1 }}>
           <View style={styles.settingItem}>
-            <MaterialCommunityIcons
-              name="weather-night"
-              size={20}
-              color={theme.colors.onBackground}
-            />
+            <View style={styles.iconContainer}>
+              <MaterialCommunityIcons
+                name="weather-night"
+                size={20}
+                color={theme.colors.onBackground}
+              />
+            </View>
             <Text
               style={[
                 styles.settingLabel,
@@ -167,38 +173,39 @@ const AppDrawerContent = ({
           </View>
 
           {renderItemWithIcon("bell-outline", "Notifications", () =>
-            Linking.openSettings()
+            Linking.openSettings(),
           )}
 
-          {renderItemWithIcon(
-  "lightbulb-outline", 
-  "Send Suggestion", 
-  () => setSuggestionModalVisible(true)
-)}
+          {renderItemWithIcon("book-open-outline", "How To Play", () =>
+            navigation.navigate("HowToScreen"),
+          )}
 
-          {renderItemWithIcon("help-circle-outline", "Contact Us", () =>
-            Linking.openURL("mailto:squaresgameofficial@outlook.com")
+          {renderItemWithIcon("lightbulb-outline", "Send Suggestion", () =>
+            setSuggestionModalVisible(true),
+          )}
+
+          {renderItemWithIcon("email-outline", "Contact Us", () =>
+            Linking.openURL("mailto:squaresgameofficial@outlook.com"),
           )}
 
           {renderItemWithIcon("shield-check-outline", "Privacy Policy", () =>
             Linking.openURL(
-              "https://www.privacypolicies.com/live/a728545e-92d3-4658-8c00-edf18d0c828c"
-            )
+              "https://www.privacypolicies.com/live/a728545e-92d3-4658-8c00-edf18d0c828c",
+            ),
           )}
 
           {renderItemWithIcon("file-document-outline", "Terms of Service", () =>
             Linking.openURL(
-              "https://docs.google.com/document/d/1EXypu9tNdve5x3kK3N5bh9voZKKA6feHTNffVC8nM7s/edit?usp=sharing"
-            )
+              "https://docs.google.com/document/d/1EXypu9tNdve5x3kK3N5bh9voZKKA6feHTNffVC8nM7s/edit?usp=sharing",
+            ),
           )}
-          <View style={{ paddingLeft: 3 }}>
-            {renderItemWithIcon(
-              "logout",
-              "Log Out",
-              () => setLogoutConfirmVisible(true),
-              theme.colors.error
-            )}
-          </View>
+
+          {renderItemWithIcon(
+            "logout",
+            "Log Out",
+            () => setLogoutConfirmVisible(true),
+            theme.colors.error,
+          )}
         </View>
       </DrawerContentScrollView>
 
@@ -230,6 +237,7 @@ const AppDrawerContent = ({
           fontSize: 12,
           opacity: 0.6,
           marginBottom: 40,
+          fontFamily: "Sora",
         }}
       >
         Version {version}
@@ -322,9 +330,9 @@ const AppDrawerContent = ({
       </Portal>
 
       <SuggestionModal
-  visible={suggestionModalVisible}
-  onDismiss={() => setSuggestionModalVisible(false)}
-/>
+        visible={suggestionModalVisible}
+        onDismiss={() => setSuggestionModalVisible(false)}
+      />
     </View>
   );
 };
@@ -353,12 +361,13 @@ const AppDrawer = ({
             onLogout={onLogout}
             isDarkTheme={isDarkTheme}
             toggleTheme={toggleTheme}
+            navigation={props.navigation}
           />
         ),
         screenOptions: ({ navigation }) => ({
           headerTitle: () => (
             <Image
-              source={require("../../assets/icons/squares-logo.png")}
+              source={require("../../assets/icons/My_Squares_new_logo_transparent1.png")}
               style={{ width: 100, height: 100 }}
               resizeMode="contain"
             />
@@ -409,12 +418,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "rgba(180,180,180,0.3)",
-    gap: 12,
     minHeight: 60,
+  },
+  iconContainer: {
+    width: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
   },
   settingLabel: {
     fontSize: 16,
     fontFamily: "Sora",
+    flex: 1,
   },
   modalContainer: {
     padding: 20,

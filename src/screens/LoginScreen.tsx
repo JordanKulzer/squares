@@ -36,16 +36,19 @@ function RuntimeConfigDebug() {
     <View style={styles.debugBox}>
       <Text style={styles.debugTitle}>Runtime Config</Text>
 
-      <Text style={styles.debugLine}>APP_OWNERSHIP: {Constants.appOwnership ?? "unknown"}</Text>
+      <Text style={styles.debugLine}>
+        APP_OWNERSHIP: {Constants.appOwnership ?? "unknown"}
+      </Text>
       <Text style={styles.debugLine}>SUPABASE_URL: {maskedUrl}</Text>
-      <Text style={styles.debugLine}>ANON_KEY_PRESENT: {hasAnon ? "✅ YES" : "❌ NO"}</Text>
+      <Text style={styles.debugLine}>
+        ANON_KEY_PRESENT: {hasAnon ? "✅ YES" : "❌ NO"}
+      </Text>
       <Text style={styles.debugLine}>
         API_BASE_URL: {apiBase ? String(apiBase) : "❌ MISSING"}
       </Text>
     </View>
   );
 }
-
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -97,7 +100,7 @@ const LoginScreen = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
         >
           <Image
-            source={require("../../assets/icons/squares-logo.png")}
+            source={require("../../assets/icons/My_Squares_new_logo_transparent1.png")}
             style={styles.logo}
             resizeMode="contain"
           />
@@ -250,7 +253,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontFamily: "Rubik_400Regular",
   },
-    debugBox: {
+  debugBox: {
     marginTop: 8,
     padding: 10,
     borderRadius: 10,
@@ -267,7 +270,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginBottom: 2,
   },
-
 });
 
 export default LoginScreen;

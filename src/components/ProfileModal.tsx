@@ -61,7 +61,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
   useEffect(() => animateModal(logoutAnim, showLogout), [showLogout]);
   useEffect(
     () => animateModal(deleteAnim, showConfirmDelete),
-    [showConfirmDelete]
+    [showConfirmDelete],
   );
 
   const fetchFirstName = async () => {

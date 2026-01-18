@@ -142,7 +142,7 @@ const ResetPasswordScreen = ({ navigation, onResetComplete }) => {
           keyboardShouldPersistTaps="handled"
         >
           <Image
-            source={require("../../assets/icons/squares-logo.png")}
+            source={require("../../assets/icons/My_Squares_new_logo_transparent1.png")}
             style={styles.logo}
             resizeMode="contain"
           />

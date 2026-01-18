@@ -16,8 +16,16 @@ import {
   FlatList,
   Animated,
   Pressable,
+  RefreshControl,
 } from "react-native";
-import { Button, Card, Modal, Portal, useTheme } from "react-native-paper";
+import {
+  Button,
+  Card,
+  Modal,
+  Portal,
+  useTheme,
+  Chip,
+} from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import { useIsFocused, useNavigation } from "@react-navigation/native";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
@@ -42,17 +50,19 @@ import {
 } from "@expo-google-fonts/rubik";
 import SkeletonLoader from "../components/SkeletonLoader";
 
-// ✅ Dynamic square sizing with better constraints
+// ✨ Square size calculation - moved to component level for proper recalculation
 const getSquareSize = () => {
   const screenWidth = Dimensions.get("window").width;
-  const availableWidth = screenWidth - 80; // Account for padding
-  const calculatedSize = availableWidth / 11;
-
-  // Ensure squares are at least 20px and at most 40px for better usability
-  return Math.max(20, Math.min(40, calculatedSize));
+  // Account for all horizontal spacing:
+  // - Card padding left/right: 16 (from paddingHorizontal: 8 on both sides)
+  // - Y-axis labels: ~30px
+  // - Container margins: 32 (16 per side)
+  // - Safety buffer for borders/shadows: 8
+  const availableWidth = screenWidth - 86;
+  const calculatedSize = availableWidth / 11; // 11 columns (1 axis + 10 squares)
+  // Ensure minimum usability (22px) while fitting on screen (max 44px for larger devices)
+  return Math.max(30, Math.min(52, calculatedSize));
 };
-
-const squareSize = getSquareSize();
 
 const splitTeamName = (teamName) => {
   return teamName ? teamName.split("") : [];
@@ -68,13 +78,11 @@ const calculatePlayerWinnings = (
   quarterWinners: any[],
   playerUsernames: Record<string, string>,
   pricePerSquare: number,
-  totalSquares: number
+  totalSquares: number,
 ) => {
   const winningsMap: Record<string, number> = {};
 
   if (!Array.isArray(quarterWinners) || !pricePerSquare || totalSquares === 0) {
-    console.log("⚠️ Skipping winnings calculation – invalid inputs");
-    console.log({ quarterWinners, pricePerSquare, totalSquares });
     return winningsMap;
   }
 
@@ -88,36 +96,17 @@ const calculatePlayerWinnings = (
     }
   });
 
-  console.log("👥 Player usernames map:", playerUsernames);
-  console.log("🔄 Reverse lookup (username → userId):", usernameToUserId);
-  console.log("🏈 Quarter winners array:", quarterWinners);
-  console.log(
-    "💵 pricePerSquare:",
-    pricePerSquare,
-    "totalSquares:",
-    totalSquares
-  );
-
   quarterWinners.forEach((w, index) => {
     const username = w?.username;
     if (typeof username === "string" && username !== "No Winner") {
       const trimmed = username.trim();
       const userId = usernameToUserId[trimmed];
-      console.log(
-        `➡️ Quarter ${index + 1}: username=${trimmed}, userId=${userId}`
-      );
 
       if (userId) {
         winningsMap[userId] = (winningsMap[userId] || 0) + payoutPerQuarter;
-      } else {
-        console.warn(`⚠️ Could not map username "${trimmed}" to any userId`);
       }
-    } else {
-      console.log(`❌ No valid winner for quarter ${index + 1}`, w);
     }
   });
-
-  console.log("✅ Final winningsMap:", winningsMap);
 
   return winningsMap;
 };
@@ -170,18 +159,31 @@ const SquareScreen = ({ route }) => {
   const [isTeam1Home, setIsTeam1Home] = useState<boolean | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [winningsByUser, setWinningsByUser] = useState<Record<string, number>>(
-    {}
+    {},
   );
+  const [refreshing, setRefreshing] = useState(false);
+
   const [fontsLoaded] = useFonts({
     Anton_400Regular,
     Rubik_400Regular,
     Rubik_500Medium,
     Rubik_600SemiBold,
   });
+
+  // ✨ Calculate square size dynamically inside component
+  const squareSize = useMemo(() => getSquareSize(), []);
+
+  // ✨ Generate dynamic styles based on calculated square size
+  const dynamicStyles = useMemo(
+    () => getDynamicStyles(squareSize),
+    [squareSize],
+  );
+
   const leaveAnim = useRef(new Animated.Value(0)).current;
   const deleteAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const messageFade = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const [refreshingScores, setRefreshingScores] = useState(false);
   const [squareDataLoaded, setSquareDataLoaded] = useState(false);
@@ -191,7 +193,48 @@ const SquareScreen = ({ route }) => {
   const screenHeight = Dimensions.get("window").height;
   const insets = useSafeAreaInsets();
   const usableHeight = screenHeight - insets.top - insets.bottom - 120;
-  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+
+  // ✨ Smooth pulse animation for deadline timer - managed to prevent restart on re-renders
+  useEffect(() => {
+    // Stop any existing animation
+    if (pulseAnimationRef.current) {
+      pulseAnimationRef.current.stop();
+      pulseAnimationRef.current = null;
+    }
+
+    if (deadlineValue && !isAfterDeadline) {
+      // Create a subtle, smooth pulse animation
+      pulseAnimationRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.03, // More subtle than 1.05
+            duration: 1500, // Slower for smoothness
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      pulseAnimationRef.current.start();
+    } else {
+      // Reset to normal scale when deadline passes
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (pulseAnimationRef.current) {
+        pulseAnimationRef.current.stop();
+      }
+    };
+  }, [deadlineValue, isAfterDeadline]);
 
   const openAnimatedDialog = (setter, animRef) => {
     setSessionOptionsVisible(false);
@@ -235,14 +278,14 @@ const SquareScreen = ({ route }) => {
 
   const [index, setIndex] = useState(0);
   const [routes] = useState([
-    { key: "squares", title: "Square" },
+    { key: "squares", title: "Grid" },
     { key: "players", title: "Players" },
-    { key: "winners", title: "Winners" },
+    { key: "winners", title: "Results" },
   ]);
 
   const gradientColors = theme.dark
-    ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
-    : (["#fdfcf9", "#e0e7ff"] as const);
+    ? (["#0a0a0a", "#1a1a1a", "#252525"] as const)
+    : (["#f8f9fa", "#ffffff"] as const);
 
   const navigation = useNavigation();
 
@@ -251,7 +294,7 @@ const SquareScreen = ({ route }) => {
     selections,
     xAxis,
     yAxis,
-    isTeam1Home
+    isTeam1Home,
   ) => {
     return scores
       .map(({ home, away }, i) => {
@@ -264,11 +307,6 @@ const SquareScreen = ({ route }) => {
         const y = yAxis.findIndex((val) => val === team1Score % 10);
 
         if (x === -1 || y === -1) {
-          console.warn(
-            `❌ Could not find index for home % 10 (${
-              home % 10
-            }) or away % 10 (${away % 10}) in axis arrays`
-          );
           return {
             quarter: `${i + 1}`,
             username: "No Winner",
@@ -277,14 +315,8 @@ const SquareScreen = ({ route }) => {
         }
 
         const matchingSelection = selections.find(
-          (sel) => sel.x === x && sel.y === y
+          (sel) => sel.x === x && sel.y === y,
         );
-
-        if (!matchingSelection) {
-          console.log(
-            `❌ No selection matched for (x=${x}, y=${y}) aka (${xAxis[x]}, ${yAxis[y]})`
-          );
-        }
 
         return {
           quarter: `${i + 1}`,
@@ -325,7 +357,7 @@ const SquareScreen = ({ route }) => {
         selections,
         xAxis,
         yAxis,
-        isTeam1Home
+        isTeam1Home,
       );
       setQuarterWinners(winners);
     }
@@ -343,7 +375,7 @@ const SquareScreen = ({ route }) => {
     if (!quarterWinners?.length || !Object.keys(playerUsernames).length) return;
 
     const completedQuarters = quarterScores.filter(
-      (q) => q.home != null && q.away != null
+      (q) => q.home != null && q.away != null,
     );
 
     if (completedQuarters.length === 0) return;
@@ -352,7 +384,7 @@ const SquareScreen = ({ route }) => {
       quarterWinners.slice(0, completedQuarters.length),
       playerUsernames,
       pricePerSquare,
-      Object.keys(squareColors).length
+      Object.keys(squareColors).length,
     );
 
     setWinningsByUser(liveWinnings);
@@ -372,7 +404,7 @@ const SquareScreen = ({ route }) => {
       const { data: squareData, error: fetchErr } = await supabase
         .from("squares")
         .select(
-          "payout_done, winnings_snapshot, winnings_quarters_done, quarter_payouts"
+          "payout_done, winnings_snapshot, winnings_quarters_done, quarter_payouts",
         )
         .eq("id", gridId)
         .single();
@@ -381,7 +413,7 @@ const SquareScreen = ({ route }) => {
       const prevPaidCount = squareData?.winnings_quarters_done ?? 0;
 
       const completed = quarterScores.filter(
-        (q) => q.home != null && q.away != null
+        (q) => q.home != null && q.away != null,
       ).length;
       if (completed <= prevPaidCount) return;
 
@@ -419,11 +451,11 @@ const SquareScreen = ({ route }) => {
           {
             user_id: uid,
             amount_to_add: cents,
-          }
+          },
         );
         if (!incErr) {
           newSnapshot[uid] = parseFloat(
-            ((newSnapshot[uid] ?? 0) + cents).toFixed(2)
+            ((newSnapshot[uid] ?? 0) + cents).toFixed(2),
           );
         }
       }
@@ -445,11 +477,6 @@ const SquareScreen = ({ route }) => {
     if (!isFocused || !userId) return;
 
     const fetchSelectionsAndWinners = async () => {
-      Sentry.addBreadcrumb({
-        category: "fetch information",
-        message: "fetchSelectionsAndWinners",
-        level: "info",
-      });
       const { data, error } = await supabase
         .from("squares")
         .select("quarter_scores, selections")
@@ -457,7 +484,6 @@ const SquareScreen = ({ route }) => {
         .single();
 
       if (error || !data) return;
-      console.log(data.quarter_scores);
 
       if (data.quarter_scores && data.quarter_scores.length > 0) {
         setQuarterScores((prev) => {
@@ -474,7 +500,7 @@ const SquareScreen = ({ route }) => {
             selections,
             xAxis,
             yAxis,
-            isTeam1Home
+            isTeam1Home,
           );
           setQuarterWinners(winners);
         }
@@ -500,7 +526,7 @@ const SquareScreen = ({ route }) => {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setUserId(session?.user?.id || null);
-      }
+      },
     );
 
     return () => {
@@ -513,11 +539,6 @@ const SquareScreen = ({ route }) => {
 
     const fetchSquareData = async () => {
       try {
-        Sentry.addBreadcrumb({
-          category: "fetch information",
-          message: "fetchSquareData",
-          level: "info",
-        });
         const { data, error } = await supabase
           .from("squares")
           .select("*")
@@ -561,11 +582,11 @@ const SquareScreen = ({ route }) => {
 
           if (userId) {
             const mySelections = data.selections.filter(
-              (s) => s.userId === userId
+              (s) => s.userId === userId,
             );
             const mySet = new Set(mySelections.map((s) => `${s.x},${s.y}`));
             const allPendingResolved = [...pendingSquares].every((sq) =>
-              mySet.has(sq)
+              mySet.has(sq),
             );
             if (allPendingResolved || pendingSquares.size === 0) {
               setSelectedSquares(mySet);
@@ -575,10 +596,10 @@ const SquareScreen = ({ route }) => {
         }
 
         setXAxis(
-          data.x_axis?.length === 10 ? data.x_axis : [...Array(10).keys()]
+          data.x_axis?.length === 10 ? data.x_axis : [...Array(10).keys()],
         );
         setYAxis(
-          data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()]
+          data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()],
         );
 
         if (data.created_by === userId) setIsOwner(true);
@@ -639,7 +660,6 @@ const SquareScreen = ({ route }) => {
 
     const fetchQuarterScores = async () => {
       const startDate = deadlineValue.toISOString().split("T")[0];
-      console.log("🔗 API Base URL:", API_BASE_URL);
 
       const now = new Date();
       if (now < new Date(deadlineValue)) {
@@ -654,24 +674,11 @@ const SquareScreen = ({ route }) => {
       setRefreshingScores(true);
 
       try {
-        Sentry.addBreadcrumb({
-          category: "fetch information",
-          message: "fetchQuarterScores",
-          level: "info",
-        });
-        console.log(
-          "🔍 Fetching scores for eventId:",
-          eventId,
-          "league:",
-          league
-        );
-
         const res = await fetch(
-          `${API_BASE_URL}/apisports/scores?eventId=${eventId}&league=${league}&startDate=${startDate}&team1=${team1}&team2=${team2}`
+          `${API_BASE_URL}/apisports/scores?eventId=${eventId}&league=${league}&startDate=${startDate}&team1=${team1}&team2=${team2}`,
         );
 
         const text = await res.text();
-        console.log("🧠 Raw backend response:", text.slice(0, 400));
         if (text.startsWith("<"))
           throw new Error("Received HTML instead of JSON");
         const game = JSON.parse(text);
@@ -683,7 +690,7 @@ const SquareScreen = ({ route }) => {
         }
 
         const myNotifySettings = players.find(
-          (p) => p.userId === userId
+          (p) => p.userId === userId,
         )?.notifySettings;
 
         if (myNotifySettings) {
@@ -692,7 +699,6 @@ const SquareScreen = ({ route }) => {
 
         const apiScores = game?.quarterScores ?? [];
         const isCompleted = game?.completed ?? false;
-        console.log("🏁 Game completed from API:", isCompleted);
         setGameCompleted(isCompleted);
 
         const homeAbbrev = game?.team2_abbr?.toLowerCase();
@@ -716,20 +722,15 @@ const SquareScreen = ({ route }) => {
             .update({ quarter_scores: apiScores })
             .eq("id", gridId);
 
-          if (error) {
-            console.warn(
-              "❌ Failed to update quarter_scores in Supabase:",
-              error.message
-            );
-          } else {
+          if (!error) {
             console.log("✅ Saved quarter_scores to Supabase");
           }
         }
 
         const completedCount = game?.completedQuarters ?? 0;
         const visibleScores = isCompleted
-          ? game?.quarterScores ?? []
-          : game?.quarterScores?.slice(0, completedCount) ?? [];
+          ? (game?.quarterScores ?? [])
+          : (game?.quarterScores?.slice(0, completedCount) ?? []);
 
         setQuarterScores((prevScores) => {
           if (!Array.isArray(prevScores) || prevScores.length === 0)
@@ -777,7 +778,7 @@ const SquareScreen = ({ route }) => {
 
   const playerList = useMemo(
     () => Object.entries(playerColors),
-    [playerColors]
+    [playerColors],
   );
 
   const handleLeaveSquare = () => {
@@ -803,8 +804,8 @@ const SquareScreen = ({ route }) => {
       typeof selectedDate === "string"
         ? new Date(selectedDate)
         : selectedDate instanceof Date
-        ? selectedDate
-        : null;
+          ? selectedDate
+          : null;
 
     if (!safeDeadline || isNaN(safeDeadline.getTime())) {
       console.warn("Invalid deadline:", selectedDate);
@@ -827,20 +828,17 @@ const SquareScreen = ({ route }) => {
   const formatTimeLeft = (targetDate: Date, now: Date = new Date()) => {
     const diff = targetDate.getTime() - now.getTime();
 
-    if (diff <= 0) return "Deadline has passed";
+    if (diff <= 0) return "Deadline passed";
 
     const seconds = Math.floor(diff / 1000) % 60;
     const minutes = Math.floor(diff / (1000 * 60)) % 60;
     const hours = Math.floor(diff / (1000 * 60 * 60)) % 24;
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    const parts = [];
-    if (days > 0) parts.push(`${days}d`);
-    if (hours > 0 || days > 0) parts.push(`${hours}h`);
-    if (minutes > 0 || hours > 0 || days > 0) parts.push(`${minutes}m`);
-    parts.push(`${seconds}s`);
-
-    return parts.join(" ");
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
   };
 
   const showSquareToast = (message: string) => {
@@ -851,35 +849,42 @@ const SquareScreen = ({ route }) => {
         type: "info",
         text1: message,
         position: "bottom",
-        visibilityTime: 3000,
+        visibilityTime: 2500,
         autoHide: true,
         bottomOffset: 60,
         text1Style: {
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: "600",
-          color: "#333",
+          color: theme.colors.onSurface,
           textAlign: "center",
         },
       });
-    }, 200);
+    }, 100);
   };
 
   const handleSquarePress = (x: number, y: number) => {
     const key = `${x},${y}`;
     const userColor = squareColors[key];
     const userId = Object.entries(playerColors).find(
-      ([, color]) => color === userColor
+      ([, color]) => color === userColor,
     )?.[0];
-    const username = playerUsernames[userId] || "Unknown Player";
+    const username = playerUsernames[userId] || "Unclaimed";
     const xLabel = xAxis[x];
     const yLabel = yAxis[y];
 
     const message = userColor
-      ? `${username} owns (${xLabel},${yLabel})`
-      : "This square is unclaimed";
+      ? `${username} • (${xLabel}, ${yLabel})`
+      : `Unclaimed • (${xLabel}, ${yLabel})`;
 
     showSquareToast(message);
   };
+
+  // ✨ Pull to refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setRefreshKey((k) => k + 1);
+    setTimeout(() => setRefreshing(false), 1000);
+  }, []);
 
   useLayoutEffect(() => {
     if (!isFocused) return;
@@ -889,13 +894,12 @@ const SquareScreen = ({ route }) => {
           numberOfLines={1}
           ellipsizeMode="tail"
           style={{
-            fontSize: 20,
-            fontWeight: "600",
+            fontSize: 18,
+            fontWeight: "700",
             textAlign: "center",
-            textTransform: "uppercase",
             color: theme.colors.onBackground,
             fontFamily: "Rubik_600SemiBold",
-            maxWidth: Dimensions.get("window").width * 0.8,
+            maxWidth: Dimensions.get("window").width * 0.7,
           }}
         >
           {inputTitle}
@@ -906,13 +910,7 @@ const SquareScreen = ({ route }) => {
       headerLeft: () => (
         <TouchableOpacity
           onPress={() => navigation.navigate("Main")}
-          style={{
-            height: 30,
-            width: 30,
-            borderRadius: 20,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={styles.headerButton}
         >
           <Icon name="arrow-back" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
@@ -920,19 +918,13 @@ const SquareScreen = ({ route }) => {
       headerRight: () => (
         <TouchableOpacity
           onPress={() => setSessionOptionsVisible(true)}
-          style={{
-            height: 30,
-            width: 30,
-            borderRadius: 20,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={styles.headerButton}
         >
           <Icon name="more-vert" size={24} color={theme.colors.onBackground} />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, isOwner]);
+  }, [navigation, isOwner, inputTitle]);
 
   const selectSquareInSupabase = async (x, y) => {
     await supabase.rpc("add_selection", {
@@ -948,7 +940,6 @@ const SquareScreen = ({ route }) => {
     });
   };
 
-  // ✅ Improved handlePress with debouncing to prevent double-taps
   const lastPressTime = useRef<Record<string, number>>({});
 
   const handlePress = useCallback(
@@ -956,10 +947,9 @@ const SquareScreen = ({ route }) => {
       const squareId = `${x},${y}`;
       const now = Date.now();
 
-      // ✅ Debounce: ignore if pressed within last 300ms
       if (
         lastPressTime.current[squareId] &&
-        now - lastPressTime.current[squareId] < 300
+        now - lastPressTime.current[squareId] < 400
       ) {
         return;
       }
@@ -969,10 +959,10 @@ const SquareScreen = ({ route }) => {
 
       if (currentColor && currentColor !== playerColors[userId]) {
         const username = Object.entries(playerColors).find(
-          ([, color]) => color === currentColor
+          ([, color]) => color === currentColor,
         )?.[0];
         showSquareToast(
-          `${playerUsernames[username] || "Someone"} already owns this square.`
+          `${playerUsernames[username] || "Someone"} owns this square`,
         );
         return;
       }
@@ -981,7 +971,7 @@ const SquareScreen = ({ route }) => {
       const updatedSet = new Set(selectedSquares);
 
       if (!isSelected && selectedSquares.size >= maxSelections) {
-        showSquareToast(`Limit reached: Max ${maxSelections} squares allowed.`);
+        showSquareToast(`Limit reached: ${maxSelections} squares max`);
         return;
       }
 
@@ -994,7 +984,7 @@ const SquareScreen = ({ route }) => {
         setSquareColors(newColors);
 
         setSelections((prev) =>
-          prev.filter((s) => !(s.x === x && s.y === y && s.userId === userId))
+          prev.filter((s) => !(s.x === x && s.y === y && s.userId === userId)),
         );
       } else {
         await selectSquareInSupabase(x, y);
@@ -1026,30 +1016,8 @@ const SquareScreen = ({ route }) => {
       selectSquareInSupabase,
       playerUsernames,
       maxSelections,
-    ]
+    ],
   );
-
-  const loadingMessages = [`Loading...`];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      Animated.timing(messageFade, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }).start(() => {
-        setCurrentMessageIndex((prev) => (prev + 1) % loadingMessages.length);
-
-        Animated.timing(messageFade, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [loadingMessages.length]);
 
   useEffect(() => {
     if (!isFocused || !userId || !gridId) return;
@@ -1066,7 +1034,7 @@ const SquareScreen = ({ route }) => {
       if (isCancelled || error || !data?.selections) return;
 
       const mySelections = data.selections.filter(
-        (sel) => sel.userId === userId
+        (sel) => sel.userId === userId,
       );
       const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
       setSelectedSquares(mySet);
@@ -1082,8 +1050,9 @@ const SquareScreen = ({ route }) => {
     };
   }, [userId, gridId, isFocused]);
 
-  const dividerColor = theme.dark ? "#333" : "#eee";
+  const dividerColor = theme.dark ? "#2a2a2a" : "#e8e8e8";
 
+  // ✨ Improved grid rendering with better visual feedback
   const renderSquareGrid = ({
     editable,
     onSquarePress,
@@ -1091,10 +1060,11 @@ const SquareScreen = ({ route }) => {
     editable: boolean;
     onSquarePress: (x: number, y: number) => void;
   }) => {
-    const numberColor = isDark ? "#eee" : "#222";
-    const axisSquareColor = isDark ? "#1e1e1e" : "#f2f2f2";
-    const selectedBorderColor = isDark ? "#9fa8ff" : "#5e60ce";
-    const defaultSquareColor = isDark ? "#1e1e1e" : "#fff";
+    const numberColor = isDark ? "#f0f0f0" : "#1a1a1a";
+    const axisSquareColor = isDark ? "#1a1a1a" : "#f5f5f5";
+    const selectedBorderColor = theme.colors.primary;
+    const defaultSquareColor = isDark ? "#252525" : "#ffffff";
+
     const winningSquares = new Set(
       quarterWinners
         .map((w) => {
@@ -1104,16 +1074,10 @@ const SquareScreen = ({ route }) => {
           const visualX = xAxis.findIndex((val) => val === scoreX);
           const visualY = yAxis.findIndex((val) => val === scoreY);
 
-          if (visualX === -1 || visualY === -1) {
-            console.warn(
-              `⚠️ Invalid axis mapping for winner square: [${scoreX}, ${scoreY}]`
-            );
-            return null;
-          }
-
+          if (visualX === -1 || visualY === -1) return null;
           return `${visualX},${visualY}`;
         })
-        .filter(Boolean)
+        .filter(Boolean),
     );
 
     const rows = [];
@@ -1125,30 +1089,48 @@ const SquareScreen = ({ route }) => {
           row.push(
             <View
               key="corner"
-              style={[styles.square, { backgroundColor: axisSquareColor }]}
-            />
+              style={[
+                dynamicStyles.square,
+                {
+                  backgroundColor: axisSquareColor,
+                  borderTopLeftRadius: 8,
+                },
+              ]}
+            />,
           );
         } else if (y === 0) {
           row.push(
             <View
               key={`x-${x}`}
-              style={[styles.square, { backgroundColor: axisSquareColor }]}
+              style={[
+                dynamicStyles.square,
+                {
+                  backgroundColor: axisSquareColor,
+                  borderTopRightRadius: x === 10 ? 8 : 0,
+                },
+              ]}
             >
-              <Text style={[styles.axisText, { color: numberColor }]}>
+              <Text style={[dynamicStyles.axisText, { color: numberColor }]}>
                 {!hideAxisUntilDeadline || isAfterDeadline ? xAxis[x - 1] : "?"}
               </Text>
-            </View>
+            </View>,
           );
         } else if (x === 0) {
           row.push(
             <View
               key={`y-${y}`}
-              style={[styles.square, { backgroundColor: axisSquareColor }]}
+              style={[
+                dynamicStyles.square,
+                {
+                  backgroundColor: axisSquareColor,
+                  borderBottomLeftRadius: y === 10 ? 8 : 0,
+                },
+              ]}
             >
-              <Text style={[styles.axisText, { color: numberColor }]}>
+              <Text style={[dynamicStyles.axisText, { color: numberColor }]}>
                 {!hideAxisUntilDeadline || isAfterDeadline ? yAxis[y - 1] : "?"}
               </Text>
-            </View>
+            </View>,
           );
         } else {
           const key = `${x - 1},${y - 1}`;
@@ -1156,54 +1138,50 @@ const SquareScreen = ({ route }) => {
           const isSelected = selectedSquares.has(key);
           const isWinner = winningSquares.has(key);
 
-          // ✅ Use Pressable instead of TouchableOpacity for better touch response
           row.push(
             <Pressable
               key={key}
               style={({ pressed }) => [
-                styles.square,
+                dynamicStyles.square,
                 {
                   backgroundColor: color,
                   borderColor: isSelected
                     ? selectedBorderColor
                     : isDark
-                    ? "#444"
-                    : "#ccc",
-                  borderWidth: isSelected ? 2 : 1,
-                  shadowColor: isSelected ? selectedBorderColor : "transparent",
-                  shadowOpacity: isSelected ? 0.5 : 0,
-                  shadowRadius: isSelected ? 6 : 0,
-                  elevation: isSelected ? 5 : 1,
-                  opacity: pressed ? 0.7 : 1,
+                      ? "#333"
+                      : "#e0e0e0",
+                  borderWidth: isSelected ? 2.5 : 1,
+                  opacity: pressed ? 0.6 : 1,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                  borderBottomRightRadius: x === 10 && y === 10 ? 8 : 0,
                 },
+                isSelected && styles.selectedSquare,
               ]}
               onPress={() => {
                 if (editable || onSquarePress === handleSquarePress) {
                   onSquarePress(x - 1, y - 1);
                 }
               }}
-              // ✅ Increased hit slop for better touch target
-              hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              {isWinner && (
-                <Text style={{ fontSize: 16, color: "#FFD700" }}>🏆</Text>
-              )}
-            </Pressable>
+              {isWinner && <Text style={dynamicStyles.trophyEmoji}>🏆</Text>}
+            </Pressable>,
           );
         }
       }
       rows.push(
         <View key={y} style={styles.row}>
           {row}
-        </View>
+        </View>,
       );
     }
 
     return rows;
   };
 
+  // ✨ Modernized Players tab with better layout
   const renderPlayers = useCallback(() => {
-    if (!isFocused || !userId) return;
+    if (!isFocused || !userId) return null;
 
     const userSelections: Record<string, string[]> = {};
     const userSquareCount: Record<string, number> = {};
@@ -1223,37 +1201,39 @@ const SquareScreen = ({ route }) => {
     const winningsMap = winningsByUser || {};
 
     return (
-      <View style={{ flex: 1 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <Card
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surface,
-              marginHorizontal: 16,
-              marginTop: 16,
-              height: usableHeight,
-            },
-          ]}
+          style={[styles.modernCard, { backgroundColor: theme.colors.surface }]}
         >
-          <Card.Title
-            title="Players"
-            titleStyle={[
-              styles.tabSectionTitle,
-              { color: theme.colors.primary },
-            ]}
-            style={{ marginBottom: 8, paddingHorizontal: 12 }}
-          />
           <Card.Content>
-            <FlatList
-              data={playerList}
-              keyExtractor={([uid]) => uid}
-              contentContainerStyle={{
-                flexGrow: 1,
-                paddingBottom: 100,
-              }}
-              style={{ maxHeight: usableHeight - 80 }}
-              renderItem={({ item }) => {
-                const [uid, color] = item;
+            <Text style={[styles.cardTitle, { color: theme.colors.primary }]}>
+              Players
+            </Text>
+
+            {playerList.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Icon
+                  name="people-outline"
+                  size={48}
+                  color={theme.colors.onSurfaceVariant}
+                />
+                <Text
+                  style={[
+                    styles.emptyText,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  No players yet
+                </Text>
+              </View>
+            ) : (
+              playerList.map(([uid, color], idx) => {
                 const userKey = String(uid);
                 const username = playerUsernames[userKey] || userKey;
                 const count = userSquareCount[userKey] || 0;
@@ -1264,57 +1244,58 @@ const SquareScreen = ({ route }) => {
 
                 return (
                   <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                      paddingVertical: 12,
-                      borderBottomWidth: 1,
-                      borderBottomColor:
-                        theme.colors.outlineVariant || "rgba(0,0,0,0.1)",
-                    }}
+                    key={uid}
+                    style={[
+                      styles.playerRow,
+                      {
+                        borderBottomColor:
+                          theme.colors.outlineVariant || "rgba(0,0,0,0.05)",
+                        borderBottomWidth: idx < playerList.length - 1 ? 1 : 0,
+                      },
+                    ]}
                   >
-                    <View style={{ flexDirection: "row", flex: 1 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flex: 1,
+                        alignItems: "center",
+                      }}
+                    >
                       <View
-                        style={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 12,
-                          backgroundColor: color as string,
-                          marginRight: 12,
-                          borderWidth: 1,
-                          borderColor: theme.dark ? "#333" : "#ccc",
-                        }}
+                        style={[
+                          styles.colorIndicator,
+                          {
+                            backgroundColor: color as string,
+                            borderColor: theme.dark ? "#444" : "#ddd",
+                          },
+                        ]}
                       />
                       <View style={{ flex: 1 }}>
                         <Text
-                          style={{
-                            color: theme.colors.onSurface,
-                            fontFamily: "Rubik_600SemiBold",
-                            fontSize: 18,
-                          }}
+                          style={[
+                            styles.playerName,
+                            { color: theme.colors.onSurface },
+                          ]}
                         >
                           {username}
                         </Text>
                         <Text
-                          style={{
-                            color: theme.colors.onSurface,
-                            fontSize: 16,
-                            fontFamily: "Rubik_400Regular",
-                          }}
+                          style={[
+                            styles.playerSubtext,
+                            { color: theme.colors.onSurfaceVariant },
+                          ]}
                         >
-                          {count} / {maxSelections} squares selected
+                          {count} / {maxSelections} selected
                         </Text>
 
                         {userSelections[userKey]?.length > 0 &&
                           (!hideAxisUntilDeadline || isAfterDeadline) && (
                             <Text
-                              style={{
-                                color: theme.colors.onSurfaceVariant,
-                                fontSize: 14,
-                                fontFamily: "Rubik_400Regular",
-                                marginTop: 2,
-                              }}
+                              style={[
+                                styles.squaresList,
+                                { color: theme.colors.onSurfaceVariant },
+                              ]}
+                              numberOfLines={2}
                             >
                               {userSelections[userKey].join(", ")}
                             </Text>
@@ -1322,40 +1303,42 @@ const SquareScreen = ({ route }) => {
                       </View>
                     </View>
 
-                    <View style={{ alignItems: "flex-end" }}>
-                      {totalOwed !== null && (
-                        <Text
-                          style={{
-                            color: theme.colors.primary,
-                            fontWeight: "bold",
-                            fontSize: 14,
-                            fontFamily: "SoraBold",
-                          }}
+                    <View style={styles.statsColumn}>
+                      {totalOwed !== null && totalOwed > 0 && (
+                        <Chip
+                          mode="flat"
+                          textStyle={styles.chipText}
+                          style={[
+                            styles.betChip,
+                            {
+                              backgroundColor: theme.colors.secondaryContainer,
+                            },
+                          ]}
                         >
-                          Bet ${totalOwed.toFixed(2)}
-                        </Text>
+                          ${totalOwed.toFixed(2)}
+                        </Chip>
                       )}
                       {winningsMap[userKey] > 0 && (
-                        <Text
-                          style={{
-                            color: "#4CAF50",
-                            fontWeight: "bold",
-                            fontSize: 14,
-                            fontFamily: "SoraBold",
-                            marginTop: 2,
-                          }}
+                        <Chip
+                          mode="flat"
+                          icon="trophy"
+                          textStyle={[styles.chipText, { color: "#2e7d32" }]}
+                          style={[
+                            styles.winChip,
+                            { backgroundColor: "#e8f5e9" },
+                          ]}
                         >
-                          Won ${winningsMap[userKey].toFixed(2)}
-                        </Text>
+                          ${winningsMap[userKey].toFixed(2)}
+                        </Chip>
                       )}
                     </View>
                   </View>
                 );
-              }}
-            />
+              })
+            )}
           </Card.Content>
         </Card>
-      </View>
+      </ScrollView>
     );
   }, [
     playerList,
@@ -1369,55 +1352,34 @@ const SquareScreen = ({ route }) => {
     hideAxisUntilDeadline,
     isAfterDeadline,
     winningsByUser,
+    refreshing,
   ]);
 
+  // ✨ Modernized Winners tab
   const renderWinners = useCallback(() => {
     if (!isFocused) return null;
-    const usernameToUid = useMemo(() => {
-      const map: Record<string, string> = {};
-      Object.entries(playerUsernames).forEach(([uid, name]) => {
-        map[String(name).trim()] = uid;
-      });
-      return map;
-    }, [playerUsernames]);
-
-    const getColorForUsername = (name: string) =>
-      playerColors?.[usernameToUid[name.trim()]] || "#999";
 
     return (
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 100 }}>
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         <Card
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.colors.surface,
-              borderLeftWidth: 5,
-              borderWidth: 1.5,
-              borderLeftColor: theme.colors.primary,
-              borderColor: "rgba(94, 96, 206, 0.4)",
-              marginBottom: 16,
-            },
-          ]}
+          style={[styles.modernCard, { backgroundColor: theme.colors.surface }]}
         >
-          <Card.Title
-            title={
-              gameCompleted
+          <Card.Content>
+            <Text style={[styles.cardTitle, { color: theme.colors.primary }]}>
+              {gameCompleted
                 ? quarterWinners.some(
-                    (w) => w?.username && w.username !== "No Winner"
+                    (w) => w?.username && w.username !== "No Winner",
                   )
                   ? "🏆 Results"
                   : "No Winners"
-                : "Waiting for Scores..."
-            }
-            titleStyle={{
-              fontFamily: "Anton_400Regular",
-              color: theme.colors.primary,
-              letterSpacing: 1,
-              fontSize: 20,
-            }}
-          />
+                : "⏱️ Awaiting Results"}
+            </Text>
 
-          <Card.Content>
             {quarterScores.length > 0 ? (
               quarterScores.map((q, i) => {
                 const { home, away } = q;
@@ -1431,77 +1393,63 @@ const SquareScreen = ({ route }) => {
                 return (
                   <View
                     key={i}
-                    style={{
-                      backgroundColor: theme.colors.elevation.level2,
-                      borderRadius: 12,
-                      borderWidth: 1.25,
-                      borderColor: "rgba(94,96,206,0.3)",
-                      padding: 14,
-                      marginBottom: 12,
-                      shadowColor: "#000",
-                      shadowOpacity: 0.1,
-                      shadowRadius: 4,
-                      elevation: 2,
-                    }}
+                    style={[
+                      styles.resultCard,
+                      {
+                        backgroundColor: theme.colors.elevation.level2,
+                        borderColor: isWinner
+                          ? "rgba(76, 175, 80, 0.3)"
+                          : theme.colors.outlineVariant,
+                      },
+                    ]}
                   >
-                    <Text
-                      style={{
-                        fontFamily: "Anton_400Regular",
-                        fontSize: 20,
-                        color: theme.colors.onSurface,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Quarter {i + 1}: {team1Mascot}{" "}
-                      {isTeam1Home ? q.home : q.away} - {team2Mascot}{" "}
-                      {isTeam1Home ? q.away : q.home}
-                    </Text>
+                    <View style={styles.resultHeader}>
+                      <Text
+                        style={[
+                          styles.quarterNumber,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
+                        Q{i + 1}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.scoreText,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
+                        {team1Mascot} {isTeam1Home ? q.home : q.away} -{" "}
+                        {team2Mascot} {isTeam1Home ? q.away : q.home}
+                      </Text>
+                    </View>
 
                     <Text
-                      style={{
-                        fontFamily: "Rubik_400Regular",
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 4,
-                        marginBottom: 2,
-                        fontSize: 15,
-                      }}
+                      style={[
+                        styles.squareText,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
                     >
-                      Winning square: ({square[0]}, {square[1]})
+                      Square: ({square[0]}, {square[1]})
                     </Text>
 
                     {isWinner ? (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          marginTop: 6,
-                        }}
-                      >
+                      <View style={styles.winnerInfo}>
                         <View
-                          style={{
-                            width: 18,
-                            height: 18,
-                            borderRadius: 9,
-                            backgroundColor:
-                              playerColors?.[
-                                Object.keys(playerUsernames).find(
-                                  (id) =>
-                                    playerUsernames[id]?.trim() ===
-                                    username.trim()
-                                )
-                              ] || "#4CAF50",
-                            marginRight: 8,
-                            borderWidth: 1,
-                            borderColor: theme.dark ? "#444" : "#ccc",
-                          }}
+                          style={[
+                            styles.winnerDot,
+                            {
+                              backgroundColor:
+                                playerColors?.[
+                                  Object.keys(playerUsernames).find(
+                                    (id) =>
+                                      playerUsernames[id]?.trim() ===
+                                      username.trim(),
+                                  )
+                                ] || "#4CAF50",
+                            },
+                          ]}
                         />
-                        <Text
-                          style={{
-                            fontFamily: "Rubik_600SemiBold",
-                            color: "#4CAF50",
-                            fontSize: 15,
-                          }}
-                        >
+                        <Text style={styles.winnerText}>
                           {username} wins $
                           {pricePerSquare
                             ? (
@@ -1509,43 +1457,33 @@ const SquareScreen = ({ route }) => {
                                   Object.keys(squareColors).length) /
                                 quarterScores.length
                               ).toFixed(2)
-                            : ""}
+                            : "0.00"}
                         </Text>
                       </View>
                     ) : (
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          marginTop: 6,
-                        }}
-                      >
-                        <Text style={{ fontSize: 16, marginRight: 4 }}>❌</Text>
-                        <Text
-                          style={{
-                            fontFamily: "Rubik_500Medium",
-                            color: "#FF5252",
-                            fontSize: 14,
-                          }}
-                        >
-                          No winner for this quarter
-                        </Text>
+                      <View style={styles.noWinnerInfo}>
+                        <Text style={styles.noWinnerText}>No winner</Text>
                       </View>
                     )}
                   </View>
                 );
               })
             ) : (
-              <Text
-                style={{
-                  fontFamily: "Rubik_400Regular",
-                  fontSize: 16,
-                  color: theme.colors.onSurfaceVariant,
-                  marginTop: 10,
-                }}
-              >
-                Your game has not yet started.
-              </Text>
+              <View style={styles.emptyState}>
+                <Icon
+                  name="sports-football"
+                  size={48}
+                  color={theme.colors.onSurfaceVariant}
+                />
+                <Text
+                  style={[
+                    styles.emptyText,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  Game hasn't started yet
+                </Text>
+              </View>
             )}
           </Card.Content>
         </Card>
@@ -1563,6 +1501,7 @@ const SquareScreen = ({ route }) => {
     team2Mascot,
     theme,
     gameCompleted,
+    refreshing,
   ]);
 
   const renderScene = useMemo(
@@ -1574,191 +1513,183 @@ const SquareScreen = ({ route }) => {
           const selectedCount = selectedSquares.size;
           const numericPrice = parseFloat(pricePerSquare || 0);
           const totalOwed = numericPrice * selectedCount;
+
           return (
             <ScrollView
               contentContainerStyle={{
-                padding: 14,
+                padding: 16,
                 paddingBottom: insets.bottom + 40,
               }}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+              }
             >
-              <Card
+              {/* Team Header */}
+              <View
                 style={[
-                  styles.card,
-                  {
-                    backgroundColor: theme.colors.surface,
-                    minHeight: usableHeight,
-                  },
+                  styles.teamHeader,
+                  { backgroundColor: theme.colors.surface },
                 ]}
               >
-                <Card.Content>
-                  <View
-                    style={{
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingBottom: 12,
-                    }}
+                <View style={styles.teamInfo}>
+                  <Text
+                    style={[styles.teamName, { color: theme.colors.onSurface }]}
                   >
-                    <View
-                      style={{
-                        alignItems: "center",
-                        justifyContent: "center",
+                    {fullTeam1}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.vsText,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    VS
+                  </Text>
+                  <Text
+                    style={[styles.teamName, { color: theme.colors.onSurface }]}
+                  >
+                    {fullTeam2}
+                  </Text>
+                </View>
+
+                {/* Deadline Chip */}
+                {deadlineValue && (
+                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                    <Chip
+                      icon="timer"
+                      mode="flat"
+                      style={[
+                        styles.deadlineChip,
+                        {
+                          backgroundColor: isAfterDeadline
+                            ? theme.colors.errorContainer
+                            : theme.colors.secondaryContainer,
+                        },
+                      ]}
+                      textStyle={{
+                        fontFamily: "Rubik_600SemiBold",
+                        fontSize: 13,
+                        color: isAfterDeadline
+                          ? theme.colors.error
+                          : theme.colors.onSecondaryContainer,
                       }}
                     >
-                      <Text
-                        style={{
-                          fontSize: 22,
-                          fontFamily: "Anton_400Regular",
-                          color: theme.colors.primary,
-                          textTransform: "uppercase",
-                          letterSpacing: 1,
-                          textAlign: "center",
-                        }}
-                      >
-                        {fullTeam1}
-                      </Text>
+                      {formatTimeLeft(deadlineValue, now)}
+                    </Chip>
+                  </Animated.View>
+                )}
+              </View>
 
-                      <Text
-                        style={{
-                          fontSize: 14,
-                          fontFamily: "Rubik_500Medium",
-                          color: theme.colors.onSurfaceVariant,
-                          marginVertical: 4,
-                          textTransform: "uppercase",
-                          letterSpacing: 1.5,
-                        }}
-                      >
-                        vs
-                      </Text>
-
-                      <Text
-                        style={{
-                          fontSize: 22,
-                          fontFamily: "Anton_400Regular",
-                          color: theme.colors.primary,
-                          textTransform: "uppercase",
-                          letterSpacing: 1,
-                          textAlign: "center",
-                        }}
-                      >
-                        {fullTeam2}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={{ alignItems: "center", marginBottom: 8 }}>
+              {/* Grid Card */}
+              <Card
+                style={[
+                  styles.gridCard,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                <Card.Content
+                  style={{ paddingHorizontal: 8, paddingVertical: 12 }}
+                >
+                  <View style={styles.gridHeader}>
                     <Text
                       style={[
-                        styles.teamLabel,
-                        {
-                          color: theme.colors.onSurface,
-                          fontFamily: "Rubik_500Medium",
-                        },
+                        styles.axisLabel,
+                        { color: theme.colors.onSurface },
                       ]}
                     >
                       {team2Mascot}
                     </Text>
                   </View>
-                  <View style={{ alignItems: "center", marginLeft: -5 }}>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{
-                        paddingHorizontal: -10,
-                        alignItems: "center",
-                      }}
-                    >
-                      <View style={{ flexDirection: "row", marginBottom: 15 }}>
-                        <View style={styles.teamColumn}>
-                          {splitTeamName(team1Mascot).map((letter, i) => (
-                            <Text
-                              key={i}
-                              style={[
-                                styles.teamLetter,
-                                {
-                                  color: theme.colors.onSurface,
-                                  fontFamily: "Rubik_500Medium",
-                                },
-                              ]}
-                            >
-                              {letter}
-                            </Text>
-                          ))}
-                        </View>
-                        <View>
-                          {renderSquareGrid({
-                            editable: !isAfterDeadline,
-                            onSquarePress: isAfterDeadline
-                              ? handleSquarePress
-                              : handlePress,
-                          })}
-                        </View>
-                      </View>
-                    </ScrollView>
-                  </View>
-                  {
-                    <View style={styles.deadlineContainerCentered}>
-                      <Text
-                        style={[
-                          styles.deadlineLabel,
-                          { color: theme.colors.onSurface },
-                        ]}
-                      >
-                        Time Remaining:
-                      </Text>
-                      <Text
-                        style={[
-                          styles.deadlineValue,
-                          { color: theme.colors.onSurface },
-                        ]}
-                      >
-                        {deadlineValue
-                          ? formatTimeLeft(deadlineValue, now)
-                          : "No deadline set"}
-                      </Text>
+
+                  {/* Grid - Fixed size, no horizontal scroll to prevent render issues with live updates */}
+                  <View style={styles.gridContainer}>
+                    <View style={styles.yAxisLabel}>
+                      {splitTeamName(team1Mascot).map((letter, i) => (
+                        <Text
+                          key={i}
+                          style={[
+                            dynamicStyles.teamLetter,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
+                          {letter}
+                        </Text>
+                      ))}
                     </View>
-                  }
+                    <View style={styles.gridWrapper}>
+                      {renderSquareGrid({
+                        editable: !isAfterDeadline,
+                        onSquarePress: isAfterDeadline
+                          ? handleSquarePress
+                          : handlePress,
+                      })}
+                    </View>
+                  </View>
+
+                  {/* Stats Footer */}
                   {pricePerSquare > 0 && (
                     <View
-                      style={{
-                        alignItems: "center",
-                        justifyContent: "center",
-                        paddingVertical: 10,
-                        borderTopWidth: 1,
-                        borderTopColor: theme.colors.outlineVariant || "#ccc",
-                      }}
+                      style={[
+                        styles.statsFooter,
+                        { borderTopColor: dividerColor },
+                      ]}
                     >
-                      <Text
-                        style={{
-                          color: theme.colors.onSurface,
-                          fontSize: 16,
-                          fontFamily: "Rubik_400Regular",
-                        }}
-                      >
-                        Price per square: ${pricePerSquare.toFixed(2)}
-                      </Text>
-                      <Text
-                        style={{
-                          color: theme.colors.primary,
-                          fontSize: 16,
-                          fontWeight: "bold",
-                          fontFamily: "Rubik_400Regular",
-                          paddingTop: 6,
-                        }}
-                      >
-                        Total Bet: ${totalOwed.toFixed(2)}
-                      </Text>
+                      <View style={styles.statItem}>
+                        <Text
+                          style={[
+                            styles.statLabel,
+                            { color: theme.colors.onSurfaceVariant },
+                          ]}
+                        >
+                          Price per square
+                        </Text>
+                        <Text
+                          style={[
+                            styles.statValue,
+                            { color: theme.colors.onSurface },
+                          ]}
+                        >
+                          ${pricePerSquare.toFixed(2)}
+                        </Text>
+                      </View>
+
+                      {selectedCount > 0 && (
+                        <View style={styles.statItem}>
+                          <Text
+                            style={[
+                              styles.statLabel,
+                              { color: theme.colors.onSurfaceVariant },
+                            ]}
+                          >
+                            Your total bet
+                          </Text>
+                          <Text
+                            style={[
+                              styles.statValue,
+                              { color: theme.colors.primary },
+                            ]}
+                          >
+                            ${totalOwed.toFixed(2)}
+                          </Text>
+                        </View>
+                      )}
 
                       {winningsByUser?.[userId] > 0 && (
-                        <Text
-                          style={{
-                            color: "#4CAF50",
-                            fontSize: 16,
-                            fontWeight: "bold",
-                            fontFamily: "Rubik_400Regular",
-                            paddingTop: 6,
-                          }}
-                        >
-                          Your Winnings: ${winningsByUser[userId].toFixed(2)}
-                        </Text>
+                        <View style={styles.statItem}>
+                          <Text
+                            style={[
+                              styles.statLabel,
+                              { color: theme.colors.onSurfaceVariant },
+                            ]}
+                          >
+                            Your winnings
+                          </Text>
+                          <Text
+                            style={[styles.statValue, { color: "#4CAF50" }]}
+                          >
+                            ${winningsByUser[userId].toFixed(2)}
+                          </Text>
+                        </View>
                       )}
                     </View>
                   )}
@@ -1768,7 +1699,6 @@ const SquareScreen = ({ route }) => {
           );
         },
         players: renderPlayers,
-
         winners: renderWinners,
       }),
     [
@@ -1790,7 +1720,8 @@ const SquareScreen = ({ route }) => {
       isFocused,
       theme,
       winningsByUser,
-    ]
+      refreshing,
+    ],
   );
 
   return (
@@ -1805,20 +1736,6 @@ const SquareScreen = ({ route }) => {
           pointerEvents={loading ? "auto" : "none"}
           style={{ opacity: fadeAnim, flex: 1, padding: 16 }}
         >
-          <Animated.View style={{ opacity: messageFade }}>
-            <Text
-              style={{
-                color: theme.colors.onSurfaceVariant,
-                fontSize: 16,
-                marginBottom: 12,
-                textAlign: "center",
-                fontFamily: "Rubik_600SemiBold",
-              }}
-            >
-              {loadingMessages[currentMessageIndex]}
-            </Text>
-          </Animated.View>
-
           <SkeletonLoader variant="squareScreen" />
         </Animated.View>
       ) : (
@@ -1831,29 +1748,22 @@ const SquareScreen = ({ route }) => {
             renderTabBar={(props) => (
               <TabBar
                 {...(props as TabBarProps)}
-                indicatorStyle={{
-                  backgroundColor: "#5e60ce",
-                  height: 4,
-                  borderRadius: 2,
-                }}
-                style={{
-                  backgroundColor: theme.colors.surface,
-                  shadowColor: "#000",
-                  shadowOpacity: 0.1,
-                  shadowOffset: { width: 0, height: 2 },
-                  elevation: 3,
-                }}
-                activeColor="#5e60ce"
-                inactiveColor={theme.dark ? theme.colors.onSurface : "#333333"}
+                indicatorStyle={styles.tabIndicator}
+                style={[
+                  styles.tabBar,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+                activeColor={theme.colors.primary}
+                inactiveColor={theme.colors.onSurfaceVariant}
                 renderLabel={({ route, focused, color }) => (
                   <Text
-                    style={{
-                      color: color,
-                      fontWeight: focused ? "bold" : "500",
-                      fontSize: 14,
-                      textTransform: "uppercase",
-                      letterSpacing: 0.5,
-                    }}
+                    style={[
+                      styles.tabLabel,
+                      {
+                        color,
+                        fontWeight: focused ? "700" : "500",
+                      },
+                    ]}
                   >
                     {route.title}
                   </Text>
@@ -1861,6 +1771,7 @@ const SquareScreen = ({ route }) => {
               />
             )}
           />
+
           <DeadlinePickerModal
             visible={showDeadlineModal}
             onDismiss={() => setShowDeadlineModal(false)}
@@ -1870,6 +1781,7 @@ const SquareScreen = ({ route }) => {
               handleDeadlineChange(null, newDate);
             }}
           />
+
           <SessionOptionsModal
             visible={sessionOptionsVisible}
             onDismiss={() => setSessionOptionsVisible(false)}
@@ -1887,6 +1799,7 @@ const SquareScreen = ({ route }) => {
             quarterScores={quarterScores}
           />
 
+          {/* Confirmation Modals */}
           <Portal>
             <Modal
               visible={showLeaveConfirm}
@@ -1896,56 +1809,34 @@ const SquareScreen = ({ route }) => {
             >
               <Animated.View
                 style={[
-                  {
-                    backgroundColor: theme.colors.surface,
-                    borderRadius: 16,
-                    borderWidth: 1.5,
-                    borderColor: "rgba(94, 96, 206, 0.4)",
-                    borderLeftWidth: 5,
-                    borderBottomWidth: 0,
-                    borderLeftColor: theme.colors.primary,
-                    marginHorizontal: 16,
-                    paddingVertical: 20,
-                    paddingHorizontal: 16,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 8,
-                    elevation: 6,
-                  },
+                  styles.modalContent,
+                  { backgroundColor: theme.colors.surface },
                   getAnimatedDialogStyle(leaveAnim),
                 ]}
               >
                 <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "bold",
-                    color: theme.colors.onSurface,
-                    marginBottom: 12,
-                  }}
+                  style={[styles.modalTitle, { color: theme.colors.onSurface }]}
                 >
-                  Leave Square
+                  Leave Session
                 </Text>
                 <View
-                  style={{
-                    height: 1,
-                    backgroundColor: dividerColor,
-                    marginBottom: 20,
-                  }}
+                  style={[
+                    styles.modalDivider,
+                    { backgroundColor: dividerColor },
+                  ]}
                 />
                 <Text
-                  style={{ color: theme.colors.onSurface, marginBottom: 20 }}
+                  style={[styles.modalText, { color: theme.colors.onSurface }]}
                 >
-                  Are you sure you want to leave this square?
+                  Are you sure you want to leave this session? Your squares will
+                  be removed.
                 </Text>
-                <View
-                  style={{ flexDirection: "row", justifyContent: "flex-end" }}
-                >
+                <View style={styles.modalActions}>
                   <Button
                     onPress={() =>
                       closeAnimatedDialog(setShowLeaveConfirm, leaveAnim)
                     }
-                    textColor={theme.colors.error}
+                    textColor={theme.colors.onSurfaceVariant}
                   >
                     Cancel
                   </Button>
@@ -1963,10 +1854,9 @@ const SquareScreen = ({ route }) => {
                           .single();
 
                         if (error || !data) {
-                          console.warn("No square found for gridId:", gridId);
                           Toast.show({
                             type: "error",
-                            text1: "Session not found or access denied.",
+                            text1: "Session not found",
                             position: "bottom",
                             bottomOffset: 60,
                           });
@@ -1974,75 +1864,50 @@ const SquareScreen = ({ route }) => {
                         }
 
                         const updatedPlayerIds = (data.player_ids || []).filter(
-                          (id) => id !== userId
+                          (id) => id !== userId,
                         );
                         const updatedPlayers = (data.players || []).filter(
-                          (p) => p.userId !== userId
+                          (p) => p.userId !== userId,
                         );
                         const updatedSelections = (
                           data.selections || []
                         ).filter((sel) => sel.userId !== userId);
 
-                        const { error: updateError } = await supabase
+                        await supabase
                           .from("squares")
                           .update({
                             players: updatedPlayers,
                             player_ids: updatedPlayerIds,
                             selections: updatedSelections,
                           })
-                          .eq("id", gridId)
-                          .single();
-
-                        if (updateError) {
-                          Toast.show({
-                            type: "error",
-                            text1: "Failed to leave session. Try again.",
-                            position: "bottom",
-                            bottomOffset: 60,
-                          });
-                          return;
-                        }
+                          .eq("id", gridId);
 
                         if (updatedPlayers.length === 0) {
-                          const { error: deleteError } = await supabase
+                          await supabase
                             .from("squares")
                             .delete()
                             .eq("id", gridId);
-                          if (deleteError) {
-                            console.error(
-                              "Error deleting empty square:",
-                              deleteError
-                            );
-                          }
                         }
 
                         Toast.show({
                           type: "info",
-                          text1: `You've left ${title}`,
+                          text1: `Left ${title}`,
                           position: "bottom",
-                          visibilityTime: 2500,
                           bottomOffset: 60,
-                          text1Style: {
-                            fontSize: 16,
-                            fontWeight: "600",
-                            color: "#333",
-                            textAlign: "center",
-                          },
                         });
 
                         navigation.navigate("Main");
                       } catch (err) {
-                        console.error("Failed to leave square:", err);
                         Sentry.captureException(err);
                         Toast.show({
                           type: "error",
-                          text1: "Unexpected error leaving the square.",
+                          text1: "Failed to leave session",
                           position: "bottom",
                           bottomOffset: 60,
                         });
                       }
                     }}
-                    textColor={theme.colors.primary}
+                    textColor={theme.colors.error}
                   >
                     Leave
                   </Button>
@@ -2060,56 +1925,34 @@ const SquareScreen = ({ route }) => {
             >
               <Animated.View
                 style={[
-                  {
-                    backgroundColor: theme.colors.surface,
-                    borderRadius: 16,
-                    borderWidth: 1.5,
-                    borderColor: "rgba(94, 96, 206, 0.4)",
-                    borderLeftWidth: 5,
-                    borderBottomWidth: 0,
-                    borderLeftColor: theme.colors.primary,
-                    marginHorizontal: 16,
-                    paddingVertical: 20,
-                    paddingHorizontal: 16,
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.2,
-                    shadowRadius: 8,
-                    elevation: 6,
-                  },
+                  styles.modalContent,
+                  { backgroundColor: theme.colors.surface },
                   getAnimatedDialogStyle(deleteAnim),
                 ]}
               >
                 <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "bold",
-                    color: theme.colors.onSurface,
-                    marginBottom: 12,
-                  }}
+                  style={[styles.modalTitle, { color: theme.colors.onSurface }]}
                 >
-                  Delete Square
+                  Delete Session
                 </Text>
                 <View
-                  style={{
-                    height: 1,
-                    backgroundColor: dividerColor,
-                    marginBottom: 20,
-                  }}
+                  style={[
+                    styles.modalDivider,
+                    { backgroundColor: dividerColor },
+                  ]}
                 />
                 <Text
-                  style={{ color: theme.colors.onSurface, marginBottom: 20 }}
+                  style={[styles.modalText, { color: theme.colors.onSurface }]}
                 >
-                  Are you sure you want to permanently delete this square?
+                  Are you sure you want to permanently delete this session? This
+                  cannot be undone.
                 </Text>
-                <View
-                  style={{ flexDirection: "row", justifyContent: "flex-end" }}
-                >
+                <View style={styles.modalActions}>
                   <Button
                     onPress={() =>
                       closeAnimatedDialog(setShowDeleteConfirm, deleteAnim)
                     }
-                    textColor={theme.colors.error}
+                    textColor={theme.colors.onSurfaceVariant}
                   >
                     Cancel
                   </Button>
@@ -2123,25 +1966,17 @@ const SquareScreen = ({ route }) => {
                           .eq("id", gridId);
 
                         Toast.show({
-                          type: "error",
-                          text1: `You've deleted ${title}!`,
+                          type: "success",
+                          text1: `Deleted ${title}`,
                           position: "bottom",
-                          visibilityTime: 2500,
                           bottomOffset: 60,
-                          text1Style: {
-                            fontSize: 16,
-                            fontWeight: "600",
-                            color: "#333",
-                            textAlign: "center",
-                          },
                         });
                         navigation.navigate("Main");
                       } catch (err) {
                         Sentry.captureException(err);
-                        console.error("Failed to delete square:", err);
                       }
                     }}
-                    textColor={theme.colors.primary}
+                    textColor={theme.colors.error}
                   >
                     Delete
                   </Button>
@@ -2155,248 +1990,326 @@ const SquareScreen = ({ route }) => {
   );
 };
 
+// ✨ Dynamic styles that depend on squareSize
+const getDynamicStyles = (squareSize: number) =>
+  StyleSheet.create({
+    square: {
+      width: squareSize,
+      height: squareSize,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 1,
+    },
+    axisText: {
+      fontSize: Math.min(16, squareSize * 0.55),
+      fontFamily: "Rubik_600SemiBold",
+      textAlign: "center",
+    },
+    teamLetter: {
+      fontSize: Math.min(18, squareSize * 0.65),
+      fontFamily: "Rubik_600SemiBold",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      lineHeight: squareSize,
+      textAlign: "center",
+    },
+    trophyEmoji: {
+      fontSize: Math.min(22, squareSize * 0.6),
+    },
+  });
+
 const styles = StyleSheet.create({
-  card: {
-    marginBottom: 16,
-    borderRadius: 12,
-    backgroundColor: colors.primaryBackground,
-    borderLeftWidth: 5,
-    borderWidth: 1.5,
-    borderLeftColor: colors.primary,
-    borderColor: "rgba(94, 96, 206, 0.4)",
+  // Header
+  headerButton: {
+    height: 36,
+    width: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Tab Bar
+  tabBar: {
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tabIndicator: {
+    backgroundColor: "#5e60ce",
+    height: 3,
+    borderRadius: 1.5,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontFamily: "Rubik_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  // Cards
+  modernCard: {
+    borderRadius: 16,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  square: {
-    width: squareSize,
-    height: squareSize,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  axisText: {
-    fontSize: Math.min(15, squareSize * 0.6),
-    fontWeight: "bold",
-    textAlign: "center",
-    fontFamily: "Sora",
-  },
-  row: { flexDirection: "row" },
-  teamLabel: {
-    fontSize: 20,
-    fontWeight: "bold",
-    fontFamily: "Sora",
-    textTransform: "uppercase",
-    textAlign: "center",
-    marginHorizontal: 2,
-  },
-  squareInfoText: {
-    fontSize: 14,
-    marginTop: 4,
-    marginBottom: 2,
-    fontFamily: "Sora",
-  },
-
-  winnerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-  },
-
-  winnerText: {
-    fontSize: 15,
-    fontWeight: "500",
-  },
-  quarterLabel: {
-    fontSize: 18,
-    marginBottom: 4,
-    fontFamily: "Rubik_600SemiBold",
-  },
-  teamColumn: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingRight: 5,
-  },
-  teamLetter: {
-    fontSize: Math.min(20, squareSize * 0.8),
-    fontWeight: "bold",
-    fontFamily: "Sora",
-    textTransform: "uppercase",
-  },
-  legendRow: { flexDirection: "row", alignItems: "center", marginVertical: 6 },
-  colorCircle: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "#000",
-  },
-  yAxisText: {
-    fontSize: 14,
-    fontWeight: "bold",
-    fontFamily: "Sora",
-    marginTop: 5,
-  },
-  deadlineContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  deadlineText: {
-    fontSize: 18,
-    color: "#000",
-  },
-  deadlineContainerCentered: {
-    alignItems: "center",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
     marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: "#5e60ce",
   },
-  deadlineLabel: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#444",
-    fontFamily: "Sora",
+  cardTitle: {
+    fontSize: 20,
+    fontFamily: "Anton_400Regular",
+    letterSpacing: 0.5,
+    marginBottom: 16,
+    textTransform: "uppercase",
   },
-  deadlineValue: {
-    fontSize: 16,
-    color: "#333",
-    marginTop: 4,
-    fontFamily: "Rubik_400Regular",
-  },
-  titleCard: {
-    marginBottom: 24,
-    backgroundColor: colors.highlightBackground,
-    marginHorizontal: 8,
+
+  // Team Header
+  teamHeader: {
     borderRadius: 16,
-    borderWidth: 1,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: "#5e60ce",
   },
-  titleText: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#222",
-    textAlign: "center",
-  },
-  vsText: {
-    fontSize: 16,
-    color: "#888",
-    marginVertical: 4,
-    fontWeight: "600",
-  },
-  playerRow: {
-    flexDirection: "row",
+  teamInfo: {
     alignItems: "center",
     marginBottom: 12,
   },
-  playerText: {
-    fontSize: 16,
-    marginLeft: 10,
+  teamName: {
+    fontSize: 18,
+    fontFamily: "Anton_400Regular",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
-  winnerCard: {
-    backgroundColor: colors.highlightBackground,
+  vsText: {
+    fontSize: 12,
+    fontFamily: "Rubik_500Medium",
+    marginVertical: 4,
+    letterSpacing: 1,
+  },
+  deadlineChip: {
+    alignSelf: "center",
+  },
+
+  // Grid
+  gridCard: {
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.neutralBorder,
-    marginBottom: 16,
     elevation: 2,
-    borderLeftWidth: 5,
-    borderLeftColor: colors.primary,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: "#5e60ce",
   },
-  teamTitleCard: {
-    backgroundColor: colors.highlightBackground,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.neutralBorder,
-    marginBottom: 16,
-    elevation: 2,
-  },
-  scoreColumn: {
-    flexDirection: "column",
-    justifyContent: "space-between",
+  gridHeader: {
+    alignItems: "center",
     marginBottom: 8,
   },
-  scoreText: {
+  axisLabel: {
+    fontSize: 16,
+    fontFamily: "Rubik_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  gridContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  yAxisLabel: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingRight: 4,
+    minWidth: 28,
+  },
+  gridWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectedSquare: {
+    shadowColor: "#5e60ce",
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  row: {
+    flexDirection: "row",
+  },
+  statsFooter: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    gap: 12,
+  },
+  statItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  statLabel: {
     fontSize: 14,
-    color: "#555",
+    fontFamily: "Rubik_400Regular",
+  },
+  statValue: {
+    fontSize: 16,
+    fontFamily: "Rubik_600SemiBold",
+  },
+
+  // Players Tab
+  playerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  colorIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    marginRight: 12,
+    borderWidth: 2,
+  },
+  playerName: {
+    fontSize: 16,
+    fontFamily: "Rubik_600SemiBold",
+    marginBottom: 2,
+  },
+  playerSubtext: {
+    fontSize: 13,
+    fontFamily: "Rubik_400Regular",
+  },
+  squaresList: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+    marginTop: 4,
+  },
+  statsColumn: {
+    alignItems: "flex-end",
+    gap: 6,
+  },
+  betChip: {
+    height: 28,
+  },
+  winChip: {
+    height: 28,
+  },
+  chipText: {
+    fontSize: 12,
+    fontFamily: "Rubik_600SemiBold",
+  },
+
+  // Winners Tab
+  resultCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: "#5e60ce",
+  },
+  resultHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+    gap: 12,
+  },
+  quarterNumber: {
+    fontSize: 18,
+    fontFamily: "Anton_400Regular",
+    backgroundColor: "rgba(94, 96, 206, 0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  scoreText: {
+    fontSize: 15,
+    fontFamily: "Rubik_500Medium",
+    flex: 1,
+  },
+  squareText: {
+    fontSize: 13,
+    fontFamily: "Rubik_400Regular",
+    marginBottom: 8,
   },
   winnerInfo: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  winnerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.primaryText,
-    textAlign: "center",
-  },
-  teamRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginVertical: 4,
-    justifyContent: "center",
-  },
-  teamLogo: {
-    width: 28,
-    height: 28,
-    marginRight: 8,
-  },
-  playerName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#222",
-    fontFamily: "Sora",
-  },
-  playerSubtext: {
-    fontSize: 13,
-    color: "#666",
-    marginTop: 2,
-    fontFamily: "Sora",
-  },
-  tabSectionTitle: {
-    fontSize: 22,
-    color: colors.primaryText,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    fontFamily: "Anton_400Regular",
-    paddingTop: 4,
-  },
-  sessionTitleCard: {
-    marginBottom: 12,
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderWidth: 1.25,
-    borderColor: "rgba(94, 96, 206, 0.3)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  titleContent: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 8,
-    marginBottom: 2,
   },
-  sessionTitle: {
-    fontSize: 22,
-    fontFamily: "SoraBold",
-    fontWeight: "700",
-    textAlign: "center",
+  winnerDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
-  sessionSubtitle: {
-    fontSize: 16,
-    color: "#666",
-    fontFamily: "Sora",
-    textAlign: "center",
+  winnerText: {
+    fontSize: 14,
+    fontFamily: "Rubik_600SemiBold",
+    color: "#4CAF50",
+  },
+  noWinnerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  noWinnerText: {
+    fontSize: 14,
+    fontFamily: "Rubik_500Medium",
+    color: "#999",
+  },
+
+  // Empty States
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
+  },
+  emptyText: {
+    fontSize: 15,
+    fontFamily: "Rubik_400Regular",
+    marginTop: 12,
+  },
+
+  // Modals
+  modalContent: {
+    borderRadius: 16,
+    marginHorizontal: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: "Rubik_600SemiBold",
+    marginBottom: 12,
+  },
+  modalDivider: {
+    height: 1,
+    marginBottom: 16,
+  },
+  modalText: {
+    fontSize: 15,
+    fontFamily: "Rubik_400Regular",
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
   },
 });
 

@@ -3,29 +3,21 @@ import {
   View,
   Text,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
-  TouchableWithoutFeedback,
-  Keyboard,
+  Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { RouteProp, useRoute } from "@react-navigation/native";
-import {
-  Card,
-  Chip,
-  TextInput as PaperInput,
-  useTheme,
-} from "react-native-paper";
+import { TextInput as PaperInput, useTheme, Button } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { scheduleNotifications } from "../utils/notifications";
 import NotificationsModal from "../components/NotificationsModal";
 import { supabase } from "../lib/supabase";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import PerSquareSettingsModal from "../components/PerSquareSettingsModal";
 import { useFonts, Anton_400Regular } from "@expo-google-fonts/anton";
 import {
@@ -66,27 +58,27 @@ const CreateSquareScreen = ({ navigation }) => {
   const [deadline, setDeadline] = useState(new Date());
   const [selectedColor, setSelectedColor] = useState(null);
   const [randomizeAxis, setRandomizeAxis] = useState(true);
-  const [maxSelections, setMaxSelections] = useState("");
+  const [maxSelections, setMaxSelections] = useState("100");
   const [pricePerSquare, setPricePerSquare] = useState(0);
   const [eventId, setEventId] = useState("");
-  const [step, setStep] = useState(0);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [showPicker, setShowPicker] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
     quarterResults: false,
     playerJoined: false,
     gameUpdated: false,
   });
+
   const [fontsLoaded] = useFonts({
     Anton_400Regular,
     Rubik_400Regular,
     Rubik_500Medium,
     Rubik_600SemiBold,
   });
-  const insets = useSafeAreaInsets();
 
   const route =
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
@@ -101,17 +93,15 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.team1Abbr) setTeam1Abbr(params.team1Abbr);
     if (params.team2Abbr) setTeam2Abbr(params.team2Abbr);
     if (params.league) setLeague(params.league);
-
     if (params.deadline) setDeadline(new Date(params.deadline));
     if (params.inputTitle) setInputTitle(params.inputTitle);
     if (params.username) setUsername(params.username);
     setMaxSelections(
-      params.maxSelections !== undefined ? String(params.maxSelections) : "100"
+      params.maxSelections !== undefined ? String(params.maxSelections) : "100",
     );
     if (params.selectedColor) setSelectedColor(params.selectedColor);
     if (params.eventId) setEventId(params.eventId);
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
-    if (params.league) setLeague(params.league);
   }, [route.params]);
 
   const generateShuffledArray = () => {
@@ -123,26 +113,33 @@ const CreateSquareScreen = ({ navigation }) => {
     return arr;
   };
 
-  // const fetchGameInfo = async (eventId: string) => {
-  //   if (!eventId) return null;
-  //   try {
-  //     const res = await fetch(
-  //       `https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=${eventId}`
-  //     );
-  //     if (!res.ok) throw new Error("Failed to fetch game info");
-  //     return await res.json();
-  //   } catch (err) {
-  //     console.error("Failed to fetch ESPN game info:", err);
-  //     return null;
-  //   }
-  // };
-
   const createSquareSession = async () => {
-    Keyboard.dismiss();
+    if (!inputTitle.trim()) {
+      Alert.alert("Missing Info", "Please enter a game title");
+      return;
+    }
+    if (!username.trim()) {
+      Alert.alert("Missing Info", "Please enter your username");
+      return;
+    }
+    if (!team1 || !team2) {
+      Alert.alert("Missing Info", "Please select a game");
+      return;
+    }
+    if (!selectedColor) {
+      Alert.alert("Missing Info", "Please choose your color");
+      return;
+    }
+
+    setLoading(true);
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const xAxis = randomizeAxis
@@ -152,40 +149,20 @@ const CreateSquareScreen = ({ navigation }) => {
         ? generateShuffledArray()
         : [...Array(10).keys()];
 
-      // const eventData = await fetchGameInfo(eventId);
-
-      // const league = eventData?.header?.league?.abbreviation;
-      // const comp = eventData?.header?.competitions?.[0];
-      // const home = comp?.competitors?.find((c) => c.homeAway === "home");
-      // const away = comp?.competitors?.find((c) => c.homeAway === "away");
-
-      // const resolvedTeam1 =
-      //   league === "NCAAF" ? home?.team?.abbreviation ?? team1 : team1;
-      // const resolvedTeam2 =
-      //   league === "NCAAF" ? away?.team?.abbreviation ?? team2 : team2;
-
-      // const fullTeam1 = home?.team?.displayName ?? "";
-      // const fullTeam2 = away?.team?.displayName ?? "";
-
-      const resolvedTeam1 = team1;
-      const resolvedTeam2 = team2;
-      const fullTeam1 = route.params?.team1FullName ?? "";
-      const fullTeam2 = route.params?.team2FullName ?? "";
-
       const { data, error } = await supabase
         .from("squares")
         .insert([
           {
-            title: inputTitle,
-            team1: resolvedTeam1,
-            team2: resolvedTeam2,
+            title: inputTitle.trim(),
+            team1: team1,
+            team2: team2,
             deadline,
             created_by: user.id,
             players: [
               {
                 userId: user.id,
-                username,
-                color: selectedColor || "#000000",
+                username: username.trim(),
+                color: selectedColor,
                 notifySettings,
                 amount_owed: 0,
               },
@@ -199,8 +176,8 @@ const CreateSquareScreen = ({ navigation }) => {
             axis_hidden: hideAxisUntilDeadline,
             randomize_axis: randomizeAxis,
             price_per_square: pricePerSquare,
-            team1_full_name: fullTeam1,
-            team2_full_name: fullTeam2,
+            team1_full_name: team1FullName,
+            team2_full_name: team2FullName,
             team1_abbr: team1Abbr,
             team2_abbr: team2Abbr,
             league: league,
@@ -211,569 +188,540 @@ const CreateSquareScreen = ({ navigation }) => {
 
       if (error) {
         console.error("Error inserting into Supabase:", error);
+        Alert.alert("Error", "Failed to create game. Please try again.");
+        setLoading(false);
         return;
       }
 
       if (notifySettings.deadlineReminders || notifySettings.quarterResults) {
         await scheduleNotifications(deadline, data.id, notifySettings);
       }
-      console.log(
-        "team1FullName: ",
-        team1FullName,
-        " / team2FullName ",
-        team2FullName
-      );
+
       navigation.navigate("SquareScreen", {
         gridId: data.id,
-        inputTitle,
-        username,
+        inputTitle: inputTitle.trim(),
+        username: username.trim(),
         deadline,
         xAxis,
         yAxis,
         eventId,
         hideAxisUntilDeadline,
         pricePerSquare,
-        team1_full_name: fullTeam1,
-        team2_full_name: fullTeam2,
+        team1_full_name: team1FullName,
+        team2_full_name: team2FullName,
       });
     } catch (error) {
       console.error("Error creating grid:", error);
+      Alert.alert("Error", "Failed to create game. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const isFormValid = inputTitle && username && team1 && team2 && selectedColor;
-
-  const renderStepIndicator = () => (
-    <View style={styles.progressRow}>
-      <Text style={[styles.stepLabel, step === 0 && styles.activeStep]}>
-        1. Game
-      </Text>
-      <Text style={[styles.stepLabel, step === 1 && styles.activeStep]}>
-        2. Info
-      </Text>
-    </View>
-  );
-
-  const renderStepOne = () => (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Card
-        style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
-      >
-        <Text
-          style={[
-            styles.title,
-            {
-              fontSize: 22,
-              letterSpacing: 1,
-              fontFamily: "Anton_400Regular",
-              color: theme.colors.primary,
-              textTransform: "uppercase",
-            },
-          ]}
-        >
-          Create Your Square
-        </Text>
-
-        <PaperInput
-          label="Enter Your Square Title"
-          value={inputTitle}
-          onChangeText={setInputTitle}
-          mode="outlined"
-          style={styles.input}
-        />
-
-        <TouchableOpacity
-          onPress={() =>
-            navigation.navigate("GamePickerScreen", {
-              team1,
-              team2,
-              deadline: deadline.toISOString(),
-              inputTitle,
-              username,
-              maxSelections,
-              selectedColor,
-            })
-          }
-          style={[
-            styles.gameCard,
-            { backgroundColor: theme.colors.elevation.level1 },
-          ]}
-        >
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              marginBottom: 4,
-              fontFamily: "Rubik_500Medium",
-            }}
-          >
-            {team1 && team2 ? `${team1} vs ${team2}` : "Game Selection"}
-          </Text>
-          <View style={styles.gameCardRow}>
-            <Text
-              style={{
-                color: theme.colors.onSurface,
-                fontFamily: "Rubik_400Regular",
-              }}
-            >
-              {team1 && team2
-                ? `Click here to select a different game`
-                : `Click here to select your game`}
-            </Text>
-            <Icon
-              name="chevron-forward"
-              size={20}
-              color={theme.colors.onSurface}
-            />
-          </View>
-        </TouchableOpacity>
-        <Text
-          style={{
-            color: theme.colors.onSurface,
-            fontWeight: "600",
-            marginBottom: 10,
-            fontSize: 18,
-            fontFamily: "Rubik_600SemiBold",
-          }}
-        >
-          Settings Per Square
-        </Text>
-
-        <TouchableOpacity
-          onPress={() => setPerSquareModalVisible(true)}
-          style={[
-            styles.gameCard,
-            { backgroundColor: theme.colors.elevation.level1 },
-          ]}
-        >
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              marginBottom: 4,
-              fontFamily: "Rubik_500Medium",
-            }}
-          >
-            {maxSelections
-              ? `Max Amount of Squares Per Player: ${maxSelections}`
-              : "No Maximum"}
-          </Text>
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              marginBottom: 4,
-              fontFamily: "Rubik_400Regular",
-            }}
-          >
-            {pricePerSquare
-              ? `Price Per Square: $${pricePerSquare.toFixed(2)}`
-              : "No Price Per Square Selected"}
-          </Text>
-          <View style={styles.gameCardRow}>
-            <Text
-              style={{
-                color: theme.colors.onSurface,
-                fontFamily: "Rubik_400Regular",
-              }}
-            >
-              Click here to edit these settings
-            </Text>
-            <Icon
-              name="chevron-forward"
-              size={20}
-              color={theme.colors.onSurface}
-            />
-          </View>
-        </TouchableOpacity>
-
-        <Text
-          style={{
-            color: theme.colors.onSurface,
-            fontWeight: "600",
-            marginBottom: 10,
-            fontSize: 18,
-            fontFamily: "Rubik_600SemiBold",
-          }}
-        >
-          Final Deadline
-        </Text>
-        <TouchableOpacity
-          onPress={() => setShowPicker(true)}
-          style={[
-            styles.gameCard,
-            { backgroundColor: theme.colors.elevation.level1 },
-          ]}
-        >
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              marginBottom: 4,
-              fontFamily: "Rubik_500Medium",
-            }}
-          >
-            {deadline.toLocaleString()}
-          </Text>
-          <View style={styles.gameCardRow}>
-            <Text
-              style={{
-                color: theme.colors.onSurface,
-                fontFamily: "Rubik_400Regular",
-              }}
-            >
-              Click here to change your deadline
-            </Text>
-            <Icon
-              name="chevron-forward"
-              size={20}
-              color={theme.colors.onSurface}
-            />
-          </View>
-        </TouchableOpacity>
-
-        <DeadlinePickerModal
-          visible={showPicker}
-          onDismiss={() => setShowPicker(false)}
-          date={deadline}
-          onConfirm={(date) => setDeadline(date)}
-        />
-
-        <Text
-          style={{
-            color: theme.colors.onSurface,
-            fontWeight: "600",
-            marginBottom: 10,
-            fontSize: 18,
-            fontFamily: "Rubik_600SemiBold",
-          }}
-        >
-          X & Y Axis
-        </Text>
-        <View style={styles.toggleRow}>
-          <Text style={{ color: theme.colors.onSurface, fontFamily: "Sora" }}>
-            Randomize Axis Numbers
-          </Text>
-          <Chip
-            mode="outlined"
-            selected={randomizeAxis}
-            onPress={() => setRandomizeAxis(!randomizeAxis)}
-            style={{
-              backgroundColor: randomizeAxis
-                ? theme.colors.primary
-                : theme.dark
-                ? "#2a2a2a"
-                : "#f0f0f0",
-              borderColor: randomizeAxis
-                ? theme.colors.primary
-                : theme.colors.outlineVariant,
-            }}
-            textStyle={{
-              color: randomizeAxis ? "#fff" : theme.colors.onSurface,
-              fontWeight: "600",
-              fontFamily: "Sora",
-            }}
-          >
-            {randomizeAxis ? "On" : "Off"}
-          </Chip>
-        </View>
-
-        <View style={styles.toggleRow}>
-          <Text style={{ color: theme.colors.onSurface, fontFamily: "Sora" }}>
-            Mask X & Y Axis Until Deadline
-          </Text>
-          <Chip
-            mode="outlined"
-            selected={hideAxisUntilDeadline}
-            onPress={() => setHideAxisUntilDeadline(!hideAxisUntilDeadline)}
-            style={{
-              backgroundColor: hideAxisUntilDeadline
-                ? theme.colors.primary
-                : theme.dark
-                ? "#2a2a2a"
-                : "#f0f0f0",
-              borderColor: hideAxisUntilDeadline
-                ? theme.colors.primary
-                : theme.colors.outlineVariant,
-            }}
-            textStyle={{
-              color: hideAxisUntilDeadline ? "#fff" : theme.colors.onSurface,
-              fontWeight: "600",
-              fontFamily: "Sora",
-            }}
-          >
-            {hideAxisUntilDeadline ? "On" : "Off"}
-          </Chip>
-        </View>
-      </Card>
-    </ScrollView>
-  );
-
-  const renderStepTwo = () => (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <Card
-        style={[styles.cardSection, { backgroundColor: theme.colors.surface }]}
-      >
-        <Text
-          style={[
-            styles.title,
-            {
-              fontSize: 22,
-              letterSpacing: 1,
-              fontFamily: "Anton_400Regular",
-              color: theme.colors.primary,
-              textTransform: "uppercase",
-            },
-          ]}
-        >
-          Create Your Square
-        </Text>
-        <PaperInput
-          label="Enter Your Username"
-          value={username}
-          onChangeText={setUsername}
-          mode="outlined"
-          style={styles.input}
-        />
-        <Text
-          style={{
-            color: theme.colors.onSurface,
-            fontWeight: "600",
-            marginBottom: 10,
-            fontSize: 18,
-            fontFamily: "Rubik_600SemiBold",
-          }}
-        >
-          Choose Your Color
-        </Text>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.colorScrollContainer}
-        >
-          <View style={styles.colorRowsContainer}>
-            {[0, 1].map((rowIndex) => (
-              <View key={rowIndex} style={styles.colorRow}>
-                {colors.colorOptions
-                  .slice(
-                    rowIndex * Math.ceil(colors.colorOptions.length / 2),
-                    (rowIndex + 1) * Math.ceil(colors.colorOptions.length / 2)
-                  )
-                  .map((color) => (
-                    <TouchableOpacity
-                      key={color}
-                      onPress={() => setSelectedColor(color)}
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        margin: 6,
-                        backgroundColor: color,
-                        borderWidth: selectedColor === color ? 4 : 0,
-                        borderColor:
-                          selectedColor === color ? "#5e60ce" : "transparent",
-                        shadowColor:
-                          selectedColor === color ? "#5e60ce" : "transparent",
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowOpacity: selectedColor === color ? 0.9 : 0,
-                        shadowRadius: selectedColor === color ? 8 : 0,
-                        elevation: selectedColor === color ? 6 : 0,
-                      }}
-                    />
-                  ))}
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-        <TouchableOpacity
-          onPress={() => setNotifModalVisible(true)}
-          style={[
-            styles.gameCard,
-            { backgroundColor: theme.colors.elevation.level1 },
-          ]}
-        >
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              marginBottom: 4,
-              fontFamily: "Rubik_500Medium",
-            }}
-          >
-            Notification Preferences
-          </Text>
-
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              {[
-                notifySettings.deadlineReminders,
-                notifySettings.quarterResults,
-                notifySettings.playerJoined,
-                notifySettings.gameUpdated,
-              ].some(Boolean) ? (
-                <>
-                  <Text
-                    style={{
-                      color: theme.colors.onSurfaceVariant,
-                      fontSize: 13,
-                      marginBottom: 2,
-                    }}
-                  >
-                    You currently get notifications for:
-                  </Text>
-                  {[
-                    notifySettings.deadlineReminders && "• Deadline Reminders",
-                    notifySettings.quarterResults && "• Quarter Results",
-                    notifySettings.playerJoined && "• New Player Joining",
-                    notifySettings.gameUpdated && "• Game Updated By Manager",
-                  ]
-                    .filter(Boolean)
-                    .map((item, index) => (
-                      <Text
-                        key={index}
-                        style={{
-                          color: theme.colors.primary,
-                          fontWeight: "600",
-                          fontSize: 13,
-                        }}
-                      >
-                        {item}
-                      </Text>
-                    ))}
-                </>
-              ) : (
-                <Text
-                  style={{
-                    color: theme.colors.onSurface,
-                    marginBottom: 4,
-                    fontFamily: "Rubik_400Regular",
-                  }}
-                >
-                  Click here to add notifications
-                </Text>
-              )}
-            </View>
-
-            <Icon
-              name="chevron-forward"
-              size={20}
-              color={theme.colors.onSurface}
-              style={{ marginLeft: 12 }}
-            />
-          </View>
-        </TouchableOpacity>
-      </Card>
-    </ScrollView>
-  );
+  const isFormValid =
+    inputTitle.trim() && username.trim() && team1 && team2 && selectedColor;
 
   return (
     <LinearGradient
-      colors={theme.dark ? ["#1e1e1e", "#121212"] : ["#fdfcf9", "#e0e7ff"]}
+      colors={
+        theme.dark ? ["#121212", "#1d1d1d", "#2b2b2d"] : ["#fdfcf9", "#e0e7ff"]
+      }
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
     >
-      <SafeAreaView style={styles.container}>
-        {/* <Text
-          style={[
-            styles.title,
-            {
-              fontSize: 22,
-              letterSpacing: 1,
-              fontFamily: "Anton_400Regular",
-              color: theme.colors.primary,
-              textTransform: "uppercase",
-            },
-          ]}
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
         >
-          Create a New Square
-        </Text> */}
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={{ flex: 1 }}>
-              <ScrollView
-                contentContainerStyle={{ paddingBottom: 100 }}
-                keyboardShouldPersistTaps="handled"
-              >
-                {step === 0 ? renderStepOne() : renderStepTwo()}
-              </ScrollView>
-              <View
-                style={{
-                  position: "absolute",
-                  bottom: insets.bottom + 40,
-                  left: 0,
-                  right: 0,
-                  alignItems: "center",
-                  zIndex: 3,
-                }}
-              >
-                {renderStepIndicator()}
-              </View>
-              <View
-                style={[
-                  styles.buttonContainer,
-                  {
-                    backgroundColor: theme.colors.surface,
-                    shadowColor: theme.dark ? "#000" : "#aaa",
-                    position: "absolute",
-                    bottom: -40,
-                    left: 0,
-                    right: 0,
-                    paddingBottom: insets.bottom + 12,
-                    zIndex: 2,
-                  },
-                ]}
-              >
+          {/* Header */}
+          <View style={styles.header}>
+            <MaterialIcons
+              name="add-box"
+              size={48}
+              color={theme.colors.primary}
+            />
+            <Text
+              style={[styles.headerTitle, { color: theme.colors.onBackground }]}
+            >
+              Create Your Square
+            </Text>
+            <Text
+              style={[
+                styles.headerSubtitle,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Customize your square's settings
+            </Text>
+          </View>
+
+          {/* Game Title */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Game Title *
+            </Text>
+            <PaperInput
+              mode="outlined"
+              value={inputTitle}
+              onChangeText={setInputTitle}
+              placeholder="e.g., Super Bowl Squares 2025"
+              style={[styles.input, { backgroundColor: theme.colors.surface }]}
+              maxLength={50}
+            />
+            <Text
+              style={[
+                styles.helperText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              {inputTitle.length}/50 characters
+            </Text>
+          </View>
+
+          {/* Username */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Your Username *
+            </Text>
+            <PaperInput
+              mode="outlined"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Enter your display name"
+              style={[styles.input, { backgroundColor: theme.colors.surface }]}
+              maxLength={20}
+            />
+          </View>
+
+          {/* Game Selection */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Select Game *
+            </Text>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate("GamePickerScreen", {
+                  team1,
+                  team2,
+                  deadline: deadline.toISOString(),
+                  inputTitle,
+                  username,
+                  maxSelections,
+                  selectedColor,
+                })
+              }
+              style={[
+                styles.selectButton,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor:
+                    team1 && team2
+                      ? theme.colors.primary
+                      : theme.dark
+                        ? "#444"
+                        : "#ddd",
+                  borderWidth: team1 && team2 ? 2 : 1,
+                },
+              ]}
+            >
+              {team1 && team2 ? (
+                <View style={styles.selectedGameInfo}>
+                  <View style={styles.selectedTeams}>
+                    <Text
+                      style={[
+                        styles.selectedTeamName,
+                        { color: theme.colors.onBackground },
+                      ]}
+                    >
+                      {team1FullName || team1}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.vsText,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      vs
+                    </Text>
+                    <Text
+                      style={[
+                        styles.selectedTeamName,
+                        { color: theme.colors.onBackground },
+                      ]}
+                    >
+                      {team2FullName || team2}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[styles.changeText, { color: theme.colors.primary }]}
+                  >
+                    Change Game
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.selectButtonContent}>
+                  <MaterialIcons
+                    name="sports-football"
+                    size={32}
+                    color={theme.colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.selectButtonText,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Choose a Game
+                  </Text>
+                  <Text
+                    style={[
+                      styles.selectButtonSubtext,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    Browse upcoming games
+                  </Text>
+                </View>
+              )}
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={theme.colors.onSurfaceVariant}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Color Selection */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Your Color *
+            </Text>
+            <View style={styles.colorGrid}>
+              {colors.colorOptions.map((color) => (
                 <TouchableOpacity
-                  onPress={() => setStep(Math.max(step - 1, 0))}
+                  key={color}
+                  onPress={() => setSelectedColor(color)}
                   style={[
-                    styles.cancelButton,
-                    { backgroundColor: theme.colors.error },
-                    step === 0 && { opacity: 0.5 },
+                    styles.colorButton,
+                    {
+                      backgroundColor: color,
+                      borderWidth: selectedColor === color ? 3 : 0,
+                      borderColor: theme.colors.primary,
+                      transform: [{ scale: selectedColor === color ? 1.1 : 1 }],
+                    },
                   ]}
-                  disabled={step === 0}
                 >
-                  <Text style={styles.buttonText}>Back</Text>
+                  {selectedColor === color && (
+                    <MaterialIcons
+                      name="check"
+                      size={20}
+                      color="#fff"
+                      style={styles.checkIcon}
+                    />
+                  )}
                 </TouchableOpacity>
-                {step === 0 ? (
-                  <TouchableOpacity
-                    onPress={() => setStep(1)}
+              ))}
+            </View>
+          </View>
+
+          {/* Settings Card */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Game Settings
+            </Text>
+
+            {/* Per Square Settings */}
+            <TouchableOpacity
+              onPress={() => setPerSquareModalVisible(true)}
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="settings"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
                     style={[
-                      styles.saveButton,
-                      { backgroundColor: theme.colors.primary },
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
                     ]}
                   >
-                    <Text style={styles.buttonText}>More</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    onPress={createSquareSession}
+                    Square Limits & Pricing
+                  </Text>
+                  <Text
                     style={[
-                      styles.saveButton,
-                      { backgroundColor: theme.colors.primary },
-                      { opacity: isFormValid ? 1 : 0.5 },
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
                     ]}
-                    disabled={!isFormValid}
                   >
-                    <Text style={styles.buttonText}>Create Square</Text>
-                  </TouchableOpacity>
-                )}
+                    Max: {maxSelections} squares • ${pricePerSquare.toFixed(2)}{" "}
+                    each
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name="chevron-right"
+                  size={24}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Deadline */}
+            <TouchableOpacity
+              onPress={() => setShowPicker(true)}
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="schedule"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Deadline
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {deadline.toLocaleDateString()} at{" "}
+                    {deadline.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name="chevron-right"
+                  size={24}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Axis Settings */}
+            <View
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="grid-on"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Randomize Numbers
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {randomizeAxis ? "Random order" : "Sequential (0-9)"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setRandomizeAxis(!randomizeAxis)}
+                  style={[
+                    styles.toggleButton,
+                    {
+                      backgroundColor: randomizeAxis
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#444"
+                          : "#ddd",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      {
+                        color: randomizeAxis ? "#fff" : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {randomizeAxis ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+
+            <View
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="visibility-off"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Hide Numbers Until Deadline
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {hideAxisUntilDeadline ? "Hidden" : "Visible"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() =>
+                    setHideAxisUntilDeadline(!hideAxisUntilDeadline)
+                  }
+                  style={[
+                    styles.toggleButton,
+                    {
+                      backgroundColor: hideAxisUntilDeadline
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#444"
+                          : "#ddd",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      {
+                        color: hideAxisUntilDeadline
+                          ? "#fff"
+                          : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {hideAxisUntilDeadline ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Notifications */}
+            <TouchableOpacity
+              onPress={() => setNotifModalVisible(true)}
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="notifications"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Notifications
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {Object.values(notifySettings).filter(Boolean).length}{" "}
+                    active
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name="chevron-right"
+                  size={24}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Create Button */}
+          <Button
+            mode="contained"
+            onPress={createSquareSession}
+            loading={loading}
+            disabled={loading || !isFormValid}
+            style={styles.createButton}
+            contentStyle={styles.createButtonContent}
+            labelStyle={styles.createButtonLabel}
+          >
+            {loading ? "Creating..." : "Create Game"}
+          </Button>
+
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.cancelButton}
+          >
+            <Text
+              style={[
+                styles.cancelButtonText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </SafeAreaView>
+
+      {/* Modals */}
+      <DeadlinePickerModal
+        visible={showPicker}
+        onDismiss={() => setShowPicker(false)}
+        date={deadline}
+        onConfirm={(date) => setDeadline(date)}
+      />
+
       <NotificationsModal
         visible={notifModalVisible}
         onDismiss={() => setNotifModalVisible(false)}
         settings={notifySettings}
         onSave={(settings) => setNotifySettings(settings)}
       />
+
       <PerSquareSettingsModal
         visible={perSquareModalVisible}
         onDismiss={() => setPerSquareModalVisible(false)}
@@ -787,118 +735,160 @@ const CreateSquareScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20 },
-  title: {
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 24,
+    paddingTop: 8,
+  },
+  headerTitle: {
     fontSize: 24,
-    fontWeight: "bold",
-    fontFamily: "Rubik_600SemiBold",
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 8,
   },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 10,
-    fontFamily: "Rubik_600SemiBold",
+  headerSubtitle: {
+    fontSize: 15,
+    textAlign: "center",
   },
-  input: { marginBottom: 15 },
-  cardSection: {
-    marginTop: 8,
-    borderRadius: 12,
-    marginBottom: 20,
-    padding: 16,
-    borderLeftWidth: 5,
-    borderLeftColor: colors.primary,
-    borderWidth: 1.5,
-    borderColor: "rgba(94, 96, 206, 0.4)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+  section: {
+    marginBottom: 24,
   },
-  toggleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginVertical: 5,
-    maxWidth: 350,
-  },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    padding: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#ccc",
-    elevation: 8,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginRight: 10,
-    fontFamily: "Rubik_600SemiBold",
-  },
-  saveButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    fontFamily: "Rubik_600SemiBold",
-  },
-  buttonText: {
-    color: "#fff",
+  label: {
     fontSize: 16,
-    fontWeight: "bold",
-    fontFamily: "Rubik_600SemiBold",
+    fontWeight: "600",
+    marginBottom: 8,
   },
-  progressRow: {
+  input: {
+    marginBottom: 4,
+  },
+  helperText: {
+    fontSize: 12,
+    textAlign: "right",
+  },
+  selectButton: {
+    borderRadius: 12,
+    padding: 16,
     flexDirection: "row",
-    justifyContent: "center",
-    marginVertical: 6,
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 2,
   },
-  stepLabel: {
+  selectButtonContent: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  selectButtonText: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 12,
+  },
+  selectButtonSubtext: {
     fontSize: 14,
-    color: "#999",
-    marginHorizontal: 12,
-    fontFamily: "Rubik_600SemiBold",
+    marginTop: 4,
   },
-  activeStep: {
-    fontWeight: "bold",
-    color: "#5e60ce",
-    fontFamily: "Rubik_600SemiBold",
+  selectedGameInfo: {
+    flex: 1,
   },
-  colorScrollContainer: { paddingVertical: 10 },
-  colorRowsContainer: { marginBottom: 10 },
-  colorRow: {
+  selectedTeams: {
     flexDirection: "row",
-    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
     flexWrap: "wrap",
   },
-  gameCard: {
-    paddingVertical: 12,
-    paddingLeft: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    marginBottom: 15,
+  selectedTeamName: {
+    fontSize: 16,
+    fontWeight: "700",
   },
-  gameCardRow: {
+  vsText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  changeText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  colorGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingVertical: 8,
+  },
+  colorButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
     alignItems: "center",
   },
-  deadlinePickerButton: {
+  checkIcon: {
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  settingCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     borderWidth: 1,
-    borderRadius: 10,
-    borderColor: "#e0e0e0",
-    padding: 12,
-    marginBottom: 15,
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  settingCardContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  settingInfo: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  settingValue: {
+    fontSize: 13,
+  },
+  toggleButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 16,
+    minWidth: 50,
+    alignItems: "center",
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  createButton: {
+    marginTop: 8,
+  },
+  createButtonContent: {
+    paddingVertical: 8,
+  },
+  createButtonLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  cancelButton: {
+    alignSelf: "center",
+    marginTop: 16,
+    padding: 12,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 

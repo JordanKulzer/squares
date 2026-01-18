@@ -2,20 +2,20 @@ import "dotenv/config";
 
 export default {
   expo: {
-    name: "Squares",
+    name: "My Squares!",
     slug: "squares",
-    version: "1.7.3",
+    version: "1.7.4",
     orientation: "portrait",
-    icon: "./assets/icons/squares-logo-white.png",
+    icon: "./assets/icons/My_Squares_new_logo_transparent1_new_new.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     jsEngine: "jsc",
     scheme: "squaresgame",
     deepLinks: ["squaresgame://"],
     splash: {
-      image: "./assets/icons/squares-logo.png",
+      image: "./assets/icons/My_Squares_new_logo_white1.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff",
+      backgroundColor: "#5e60ce",
     },
     ios: {
       bundleIdentifier: "com.jkulzer.squaresgame",
