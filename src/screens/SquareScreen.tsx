@@ -664,7 +664,10 @@ const SquareScreen = ({ route }) => {
   }, []);
 
   useEffect(() => {
-    if (!eventId || !deadlineValue) return;
+    if (!eventId || !deadlineValue) {
+      if (!scoresLoaded) setScoresLoaded(true);
+      return;
+    }
 
     let manualOverride = false;
 

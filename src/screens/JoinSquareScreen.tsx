@@ -16,6 +16,7 @@ import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
 import Icon from "react-native-vector-icons/Ionicons";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import NotificationsModal from "../components/NotificationsModal";
 import {
   scheduleNotifications,
@@ -81,6 +82,7 @@ const JoinSquareScreen = () => {
     gameUpdated: false,
   });
   const [league, setLeague] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
@@ -146,6 +148,8 @@ const JoinSquareScreen = () => {
       return;
     }
 
+    setIsJoining(true);
+
     try {
       const { data: square, error: fetchError } = await supabase
         .from("squares")
@@ -156,13 +160,15 @@ const JoinSquareScreen = () => {
       if (fetchError || !square) {
         console.error("Failed to fetch existing players:", fetchError);
         alert("Failed to join. Could not fetch session.");
+        setIsJoining(false);
         return;
       }
 
       const existingPlayers = square.players || [];
 
       if (existingPlayers.some((p) => p.userId === user.id)) {
-        alert("You’ve already joined this session.");
+        alert("You've already joined this session.");
+        setIsJoining(false);
         return;
       }
 
@@ -185,6 +191,14 @@ const JoinSquareScreen = () => {
       if (updateError) {
         console.error("Update failed:", updateError);
         alert("Failed to join square.");
+        setIsJoining(false);
+        return;
+      }
+
+      if (!updatedSquare || updatedSquare.length === 0) {
+        console.warn("No rows updated — gridId may not match.");
+        alert("Failed to join — session may not exist.");
+        setIsJoining(false);
         return;
       }
 
@@ -196,32 +210,49 @@ const JoinSquareScreen = () => {
       if (rpcError) {
         console.error("Failed to update player_ids array:", rpcError);
         alert("Joined the session, but failed to update player_ids.");
-      }
-
-      if (!updatedSquare || updatedSquare.length === 0) {
-        console.warn("No rows updated — gridId may not match.");
-        alert("Failed to join — session may not exist.");
+        setIsJoining(false);
         return;
       }
 
+      // Schedule notifications and send join notification
       if (notifySettings.deadlineReminders && deadline) {
         const deadlineDate = new Date(deadline);
         await scheduleNotifications(deadlineDate, gridId, notifySettings);
       }
       await sendPlayerJoinedNotification(gridId, username);
 
-      navigation.navigate("SquareScreen", {
+      // Verify the data was written by polling until we see ourselves in the player list
+      let verified = false;
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        const { data: verifySquare } = await supabase
+          .from("squares")
+          .select("players, player_ids")
+          .eq("id", gridId)
+          .single();
+
+        if (verifySquare?.players?.some((p) => p.userId === user.id) &&
+            verifySquare?.player_ids?.includes(user.id)) {
+          verified = true;
+          break;
+        }
+      }
+
+      // Navigate to SquareScreen - use replace to prevent going back to join screen
+      navigation.replace("SquareScreen", {
         gridId,
         inputTitle,
         username,
         deadline,
-        pricePerSquare,
         eventId: "",
+        pricePerSquare,
         league,
       });
     } catch (err) {
       console.error("Unexpected error:", err);
       alert("Something went wrong when trying to join.");
+      setIsJoining(false);
     }
   };
 
@@ -232,236 +263,199 @@ const JoinSquareScreen = () => {
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
     >
-      <SafeAreaView style={styles.container}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <SafeAreaView style={styles.container} edges={["bottom"]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={{ flex: 1 }}>
-              <ScrollView
-                contentContainerStyle={{ flexGrow: 1 }}
-                keyboardShouldPersistTaps="handled"
-              >
-                <Text
-                  style={[styles.title, { color: theme.colors.onBackground }]}
-                >
-                  Welcome to {inputTitle}
-                </Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <MaterialIcons
+              name="group-add"
+              size={48}
+              color={theme.colors.primary}
+            />
+            <Text
+              style={[styles.headerTitle, { color: theme.colors.onBackground }]}
+            >
+              Join {inputTitle}
+            </Text>
+            <Text
+              style={[
+                styles.headerSubtitle,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Set up your preferences to join this game
+            </Text>
+          </View>
 
-                <Card
-                  style={[
-                    styles.card,
-                    { backgroundColor: theme.colors.surface },
-                  ]}
-                >
-                  <Card.Content>
-                    <PaperInput
-                      label="Your Username"
-                      value={username}
-                      onChangeText={setUsername}
-                      mode="outlined"
-                      style={styles.input}
-                    />
+          {/* Username */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Your Username *
+            </Text>
+            <PaperInput
+              mode="outlined"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="Enter your display name"
+              style={[styles.input, { backgroundColor: theme.colors.surface }]}
+              maxLength={20}
+            />
+          </View>
 
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        color:
-                          theme.colors.onSurfaceVariant ||
-                          theme.colors.onSurface,
-                        marginBottom: 8,
-                      }}
-                    >
-                      Choose a color to represent your selected squares.
-                    </Text>
-
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.colorScrollContainer}
-                    >
-                      <View style={styles.colorRowsContainer}>
-                        {[0, 1].map((rowIndex) => (
-                          <View key={rowIndex} style={styles.colorRow}>
-                            {availableColors
-                              .slice(
-                                rowIndex *
-                                  Math.ceil(availableColors.length / 2),
-                                (rowIndex + 1) *
-                                  Math.ceil(availableColors.length / 2)
-                              )
-                              .map((color) => (
-                                <TouchableOpacity
-                                  key={color}
-                                  onPress={() => setSelectedColor(color)}
-                                  style={{
-                                    width: 36,
-                                    height: 36,
-                                    borderRadius: 18,
-                                    margin: 6,
-                                    backgroundColor: color,
-                                    borderColor:
-                                      selectedColor === color
-                                        ? theme.colors.onBackground
-                                        : "#ccc",
-                                    borderWidth:
-                                      selectedColor === color ? 3 : 1,
-                                  }}
-                                />
-                              ))}
-                          </View>
-                        ))}
-                      </View>
-                    </ScrollView>
-                    <TouchableOpacity
-                      onPress={() => setNotifModalVisible(true)}
-                      style={[
-                        styles.gameCard,
-                        { backgroundColor: theme.colors.elevation.level1 },
-                      ]}
-                    >
-                      <Text
-                        style={{
-                          color: theme.colors.onSurface,
-                          marginBottom: 4,
-                        }}
-                      >
-                        Notification Preferences
-                      </Text>
-
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "flex-end",
-                        }}
-                      >
-                        <View style={{ flex: 1 }}>
-                          {[
-                            notifySettings.deadlineReminders,
-                            notifySettings.quarterResults,
-                            notifySettings.playerJoined,
-                            notifySettings.gameUpdated,
-                          ].some(Boolean) ? (
-                            <>
-                              <Text
-                                style={{
-                                  color: theme.colors.onSurfaceVariant,
-                                  fontSize: 13,
-                                  marginBottom: 2,
-                                }}
-                              >
-                                You currently get notifications for:
-                              </Text>
-                              {[
-                                notifySettings.deadlineReminders &&
-                                  "• Deadline Reminders",
-                                notifySettings.quarterResults &&
-                                  "• Quarter Results",
-                                notifySettings.playerJoined &&
-                                  "• New Player Joining",
-                                notifySettings.gameUpdated &&
-                                  "• Game Updated By Manager",
-                              ]
-                                .filter(Boolean)
-                                .map((item, index) => (
-                                  <Text
-                                    key={index}
-                                    style={{
-                                      color: theme.colors.primary,
-                                      fontWeight: "600",
-                                      fontSize: 13,
-                                    }}
-                                  >
-                                    {item}
-                                  </Text>
-                                ))}
-                            </>
-                          ) : (
-                            <Text
-                              style={{
-                                color: theme.colors.onSurface,
-                                marginBottom: 4,
-                              }}
-                            >
-                              Click here to add notifications
-                            </Text>
-                          )}
-                        </View>
-
-                        <Icon
-                          name="chevron-forward"
-                          size={20}
-                          color={theme.colors.onSurface}
-                          style={{ marginLeft: 12 }}
-                        />
-                      </View>
-                    </TouchableOpacity>
-                    {pricePerSquare != null && pricePerSquare > 0 && (
-                      <View style={{ marginTop: 12, marginBottom: 8 }}>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color:
-                              theme.colors.onSurfaceVariant ||
-                              theme.colors.onSurface,
-                            marginBottom: 8,
-                          }}
-                        >
-                          The price per square for this game is:
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 15,
-                            fontFamily: "SoraBold",
-                            color: theme.colors.primary,
-                          }}
-                        >
-                          ${pricePerSquare.toFixed(2)} per square
-                        </Text>
-                      </View>
-                    )}
-                  </Card.Content>
-                </Card>
-              </ScrollView>
-
-              <View
-                style={[
-                  styles.buttonContainer,
-                  {
-                    backgroundColor: theme.colors.surface,
-                    shadowColor: theme.dark ? "#000" : "#aaa",
-                  },
-                ]}
-              >
+          {/* Color Selection */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Your Color *
+            </Text>
+            <View style={styles.colorGrid}>
+              {availableColors.map((color) => (
                 <TouchableOpacity
-                  onPress={() => navigation.goBack()}
+                  key={color}
+                  onPress={() => setSelectedColor(color)}
                   style={[
-                    styles.cancelButton,
-                    { backgroundColor: theme.colors.error },
-                  ]}
-                >
-                  <Text style={styles.buttonText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={joinSquare}
-                  disabled={!username || !selectedColor}
-                  style={[
-                    styles.saveButton,
+                    styles.colorButton,
                     {
-                      backgroundColor: theme.colors.primary,
-                      opacity: !username || !selectedColor ? 0.4 : 1,
+                      backgroundColor: color,
+                      borderWidth: selectedColor === color ? 3 : 0,
+                      borderColor: theme.colors.primary,
+                      transform: [{ scale: selectedColor === color ? 1.1 : 1 }],
                     },
                   ]}
                 >
-                  <Text style={styles.buttonText}>Join Square</Text>
+                  {selectedColor === color && (
+                    <MaterialIcons
+                      name="check"
+                      size={20}
+                      color="#fff"
+                      style={styles.checkIcon}
+                    />
+                  )}
                 </TouchableOpacity>
-              </View>
+              ))}
             </View>
-          </TouchableWithoutFeedback>
-        </KeyboardAvoidingView>
+          </View>
+
+          {/* Game Settings */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Game Settings
+            </Text>
+
+            {/* Notifications */}
+            <TouchableOpacity
+              onPress={() => setNotifModalVisible(true)}
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="notifications"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Notifications
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {Object.values(notifySettings).filter(Boolean).length}{" "}
+                    active
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name="chevron-right"
+                  size={24}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* Price Per Square */}
+            {pricePerSquare != null && pricePerSquare > 0 && (
+              <View
+                style={[
+                  styles.settingCard,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                <View style={styles.settingCardContent}>
+                  <MaterialIcons
+                    name="attach-money"
+                    size={24}
+                    color={theme.colors.primary}
+                  />
+                  <View style={styles.settingInfo}>
+                    <Text
+                      style={[
+                        styles.settingTitle,
+                        { color: theme.colors.onBackground },
+                      ]}
+                    >
+                      Price Per Square
+                    </Text>
+                    <Text
+                      style={[
+                        styles.settingValue,
+                        { color: theme.colors.primary, fontWeight: "700" },
+                      ]}
+                    >
+                      ${pricePerSquare.toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Join Button */}
+          <TouchableOpacity
+            onPress={joinSquare}
+            disabled={!username || !selectedColor || isJoining}
+            style={[
+              styles.joinButton,
+              {
+                backgroundColor: theme.colors.primary,
+                opacity: !username || !selectedColor || isJoining ? 0.4 : 1,
+              },
+            ]}
+          >
+            <Text style={styles.joinButtonText}>
+              {isJoining ? "Joining..." : "Join Game"}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.cancelButtonContainer}
+          >
+            <Text
+              style={[
+                styles.cancelButtonText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Cancel
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </SafeAreaView>
+
       <NotificationsModal
         visible={notifModalVisible}
         onDismiss={() => setNotifModalVisible(false)}
@@ -473,77 +467,108 @@ const JoinSquareScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  title: {
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 24,
+    paddingTop: 8,
+  },
+  headerTitle: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  headerSubtitle: {
+    fontSize: 15,
     textAlign: "center",
-    marginVertical: 20,
-    paddingHorizontal: 10,
   },
-  card: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    borderLeftWidth: 5,
-    borderLeftColor: colors.primary,
-    borderWidth: 1.5,
-    borderColor: "rgba(94, 96, 206, 0.4)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
+  section: {
+    marginBottom: 24,
   },
-  gameCard: {
-    paddingVertical: 12,
-    paddingLeft: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e0e0e0",
-    marginBottom: 15,
-  },
-  input: {
-    marginBottom: 15,
-  },
-  sectionHeader: {
+  label: {
     fontSize: 16,
     fontWeight: "600",
     marginBottom: 8,
   },
-  colorScrollContainer: { paddingVertical: 10 },
-  colorRowsContainer: { marginBottom: 10 },
-  colorRow: {
+  input: {
+    marginBottom: 4,
+  },
+  colorGrid: {
     flexDirection: "row",
-    justifyContent: "center",
     flexWrap: "wrap",
+    gap: 12,
+    paddingVertical: 8,
   },
-  buttonContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  colorButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  checkIcon: {
+    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  settingCard: {
+    borderRadius: 12,
     padding: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#ccc",
-    elevation: 8,
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
   },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+  settingCardContent: {
+    flexDirection: "row",
     alignItems: "center",
-    marginRight: 10,
+    gap: 12,
   },
-  saveButton: {
+  settingInfo: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
   },
-
-  buttonText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  settingTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  settingValue: {
+    fontSize: 13,
+  },
+  joinButton: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 8,
+    shadowColor: "#5e60ce",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  joinButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  cancelButtonContainer: {
+    alignSelf: "center",
+    marginTop: 16,
+    padding: 12,
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
 });
 
 export default JoinSquareScreen;
