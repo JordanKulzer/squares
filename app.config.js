@@ -6,7 +6,7 @@ export default {
     slug: "squares",
     version: "1.7.4",
     orientation: "portrait",
-    icon: "./assets/icons/My_Squares_new_logo_transparent1_new_new.png",
+    icon: "./assets/icons/1024.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     jsEngine: "jsc",
