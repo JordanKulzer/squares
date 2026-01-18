@@ -53,15 +53,24 @@ import SkeletonLoader from "../components/SkeletonLoader";
 // ✨ Square size calculation - moved to component level for proper recalculation
 const getSquareSize = () => {
   const screenWidth = Dimensions.get("window").width;
+  const screenHeight = Dimensions.get("window").height;
+
+  // Detect if device is likely a tablet (iPad)
+  const isTablet = screenWidth >= 768 || screenHeight >= 768;
+
   // Account for all horizontal spacing:
   // - Card padding left/right: 16 (from paddingHorizontal: 8 on both sides)
   // - Y-axis labels: ~30px
   // - Container margins: 32 (16 per side)
   // - Safety buffer for borders/shadows: 8
-  const availableWidth = screenWidth - 86;
+  const availableWidth = screenWidth - (isTablet ? 120 : 86);
   const calculatedSize = availableWidth / 11; // 11 columns (1 axis + 10 squares)
-  // Ensure minimum usability (22px) while fitting on screen (max 44px for larger devices)
-  return Math.max(30, Math.min(52, calculatedSize));
+
+  // iPad: Allow larger squares (30-80px), Phone: smaller range (30-52px)
+  const minSize = 30;
+  const maxSize = isTablet ? 80 : 52;
+
+  return Math.max(minSize, Math.min(maxSize, calculatedSize));
 };
 
 const splitTeamName = (teamName) => {
@@ -170,8 +179,21 @@ const SquareScreen = ({ route }) => {
     Rubik_600SemiBold,
   });
 
-  // ✨ Calculate square size dynamically inside component
-  const squareSize = useMemo(() => getSquareSize(), []);
+  // ✨ Calculate square size dynamically inside component with orientation support
+  const [dimensions, setDimensions] = useState({
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+  });
+
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setDimensions({ width: window.width, height: window.height });
+    });
+
+    return () => subscription?.remove();
+  }, []);
+
+  const squareSize = useMemo(() => getSquareSize(), [dimensions]);
 
   // ✨ Generate dynamic styles based on calculated square size
   const dynamicStyles = useMemo(
@@ -1410,7 +1432,7 @@ const SquareScreen = ({ route }) => {
                           { color: theme.colors.onSurface },
                         ]}
                       >
-                        Q{i + 1}
+                        {i < 4 ? `Q${i + 1}` : `OT${i - 3}`}
                       </Text>
                       <Text
                         style={[
@@ -1533,7 +1555,7 @@ const SquareScreen = ({ route }) => {
               >
                 <View style={styles.teamInfo}>
                   <Text
-                    style={[styles.teamName, { color: theme.colors.onSurface }]}
+                    style={[styles.teamName, { color: theme.colors.primary }]}
                   >
                     {fullTeam1}
                   </Text>
@@ -1546,7 +1568,7 @@ const SquareScreen = ({ route }) => {
                     VS
                   </Text>
                   <Text
-                    style={[styles.teamName, { color: theme.colors.onSurface }]}
+                    style={[styles.teamName, { color: theme.colors.primary }]}
                   >
                     {fullTeam2}
                   </Text>
@@ -2086,7 +2108,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   teamName: {
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: "Anton_400Regular",
     textTransform: "uppercase",
     letterSpacing: 0.5,
