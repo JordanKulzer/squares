@@ -6,7 +6,7 @@ export default {
     slug: "squares",
     version: "1.7.4",
     orientation: "portrait",
-    icon: "./assets/icons/1024.png",
+    icon: "./assets/icons/New_New_Splash_Logo.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     jsEngine: "jsc",
@@ -15,7 +15,7 @@ export default {
     splash: {
       image: "./assets/icons/My_Squares_new_logo_white1.png",
       resizeMode: "contain",
-      backgroundColor: "#5e60ce",
+      // backgroundColor: "#5e60ce",
     },
     ios: {
       bundleIdentifier: "com.jkulzer.squaresgame",
