@@ -174,6 +174,19 @@ const App: React.FC = () => {
         ])) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
 
         const data = result?.data;
+        const error = result?.error;
+
+        // Handle invalid refresh token errors (e.g., deleted account)
+        if (error) {
+          console.warn("⚠️ [Auth] Session error:", error.message);
+          if (error.message?.includes("Invalid Refresh Token") ||
+              error.message?.includes("Refresh Token Not Found")) {
+            console.log("🗑️ [Auth] Invalid refresh token detected, clearing session");
+            await supabase.auth.signOut();
+            return null;
+          }
+        }
+
         if (data?.session) {
           console.log("✅ [Auth] Session found in local storage");
           return data.session;
@@ -188,6 +201,13 @@ const App: React.FC = () => {
           );
           await wait(2000);
           return safeGetSession(attempt + 1);
+        }
+        // Handle AuthApiError for invalid refresh tokens
+        if (err.message?.includes("Invalid Refresh Token") ||
+            err.message?.includes("Refresh Token Not Found")) {
+          console.log("🗑️ [Auth] Invalid refresh token in catch, clearing session");
+          await supabase.auth.signOut();
+          return null;
         }
         console.warn("⚠️ [Auth] getSession failed:", err.message);
         return null;

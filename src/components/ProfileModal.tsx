@@ -96,10 +96,10 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
 
   const deleteUserData = async (uid) => {
     try {
+      // Delete related data but NOT the users table (using soft delete instead)
       const tables = [
         { table: "players", key: "user_id" },
         { table: "selections", key: "user_id" },
-        { table: "users", key: "id" },
       ];
       for (const { table, key } of tables) {
         await supabase.from(table).delete().eq(key, uid);
@@ -113,12 +113,30 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
   };
 
   const deleteAccount = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.auth.admin.deleteUser(user.id);
-    await deleteUserData(user.id);
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError || !user) throw new Error("User not found");
+
+      // Mark account as deleted (soft delete) - prevents re-login
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", user.id);
+
+      if (updateError) throw updateError;
+
+      // Delete user data from database
+      await deleteUserData(user.id);
+
+      // Sign out user (cannot delete auth user from client without admin privileges)
+      // Note: User can technically log back in but will be blocked by deleted_at check
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (error) {
+      console.error("Error deleting account:", error);
+    }
   };
 
   const surfaceColor = theme.colors.surface;

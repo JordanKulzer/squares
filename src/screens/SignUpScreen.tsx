@@ -59,19 +59,10 @@ const SignupScreen = ({ navigation }) => {
 
       if (signUpError) throw signUpError;
 
-      const userId = data?.user?.id;
-      if (userId) {
-        const { error: insertError } = await supabase.from("users").insert([
-          {
-            id: userId,
-            email,
-            first_name: firstName,
-          },
-        ]);
-        if (insertError) throw insertError;
-      }
+      // User record is now created automatically by database trigger
+      console.log("User signed up successfully:", data?.user?.id);
     } catch (err: any) {
-      console.log("Signup error:", err?.message || err);
+      console.error("Signup error:", err?.message || err);
 
       if (err.message?.includes("User already registered")) {
         setError("Email already in use or invalid.");

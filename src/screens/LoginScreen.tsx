@@ -61,7 +61,7 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     setError("");
     try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({
+      const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -71,6 +71,30 @@ const LoginScreen = ({ navigation }) => {
           setError("Incorrect email or password.");
         } else {
           setError("Login failed. Try again.");
+        }
+        return;
+      }
+
+      // Check if account has been deleted (only if RLS policies allow)
+      if (data.user) {
+        try {
+          const { data: userData, error: userError } = await supabase
+            .from("users")
+            .select("deleted_at")
+            .eq("id", data.user.id)
+            .maybeSingle();
+
+          // Only check deleted_at if we successfully got user data
+          // If userError exists (RLS blocking), skip the check and allow login
+          if (!userError && userData && userData.deleted_at) {
+            console.log("Account was deleted at:", userData.deleted_at);
+            await supabase.auth.signOut();
+            setError("This account has been deleted. Please contact support if this is an error.");
+            return;
+          }
+        } catch (err) {
+          // If deleted check fails (e.g., RLS not configured), allow login to proceed
+          console.log("Could not check deleted status, proceeding with login");
         }
       }
     } catch (err) {

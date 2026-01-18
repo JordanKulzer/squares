@@ -82,24 +82,42 @@ const AppDrawerContent = ({
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-      if (userError || !user) throw new Error("User not found");
+      if (userError || !user) {
+        console.error("User error:", userError);
+        throw new Error("User not found");
+      }
 
-      // Delete from users table
-      const { error: deleteError } = await supabase
+      console.log("Deleting account for user:", user.id);
+
+      // Mark account as deleted (soft delete) - prevents re-login
+      const { data: updateData, error: updateError } = await supabase
         .from("users")
-        .delete()
-        .eq("id", user.id);
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", user.id)
+        .select();
 
-      if (deleteError) throw deleteError;
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw updateError;
+      }
 
-      // Sign out user (since we cannot delete auth user from client)
-      await supabase.auth.signOut();
+      console.log("Account marked as deleted:", updateData);
+
+      // Delete user data from all related tables
+      await supabase.from("players").delete().eq("user_id", user.id);
+      await supabase.from("selections").delete().eq("user_id", user.id);
+
+      console.log("User data deleted, signing out");
+
+      // Sign out user (cannot delete auth user from client without admin)
+      // Note: User can technically log back in but will be blocked by deleted_at check
+      await supabase.auth.signOut({ scope: 'global' });
       onLogout();
     } catch (error) {
       console.error("Error deleting account:", error);
       Alert.alert(
         "Error",
-        "Failed to delete account. Please try again later or contact support.",
+        `Failed to delete account: ${error.message || "Unknown error"}`,
       );
     }
   };
