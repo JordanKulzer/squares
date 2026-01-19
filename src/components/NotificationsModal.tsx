@@ -27,9 +27,9 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
   const theme = useTheme();
   const [localSettings, setLocalSettings] = useState<NotificationSettings>({
     deadlineReminders: false,
-    quarterResults: false,
     playerJoined: false,
-    gameUpdated: false,
+    playerLeft: false,
+    squareDeleted: false,
   });
   const [isSaving, setIsSaving] = useState(false);
   const originalSettings = useRef<NotificationSettings | null>(null);
@@ -40,9 +40,9 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
       setLocalSettings(
         settings || {
           deadlineReminders: false,
-          quarterResults: false,
           playerJoined: false,
-          gameUpdated: false,
+          playerLeft: false,
+          squareDeleted: false,
         }
       );
     }
@@ -142,8 +142,12 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
               label: "Someone joins my session (Managers only)",
             },
             {
-              key: "gameUpdated",
-              label: "Game info updated by Manager",
+              key: "playerLeft",
+              label: "Someone leaves the session (Managers only)",
+            },
+            {
+              key: "squareDeleted",
+              label: "Session is deleted by the owner",
             },
           ].map((item) => (
             <View

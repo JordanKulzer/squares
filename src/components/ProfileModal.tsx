@@ -10,6 +10,7 @@ import {
 import { Modal, Portal, Button, TextInput, useTheme } from "react-native-paper";
 import { supabase } from "../lib/supabase";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
 
 const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
   const theme = useTheme();
@@ -86,12 +87,30 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase
+    if (!user) {
+      console.error("No user found when updating name");
+      return false;
+    }
+
+    // Use upsert to create the user row if it doesn't exist
+    const { data, error } = await supabase
       .from("users")
-      .update({ first_name: newName.trim() })
-      .eq("id", user.id);
+      .upsert(
+        {
+          id: user.id,
+          first_name: newName.trim(),
+          email: user.email,
+        },
+        { onConflict: "id" }
+      )
+      .select();
+
+    if (error) {
+      console.error("Failed to update name:", error);
+      return false;
+    }
     setFirstName(newName.trim());
+    return true;
   };
 
   const deleteUserData = async (uid) => {
@@ -395,8 +414,23 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               <Button
                 onPress={async () => {
                   if (!newName.trim()) return;
-                  await updateUserName();
-                  onNameChange?.();
+                  const success = await updateUserName();
+                  if (success) {
+                    onNameChange?.();
+                    Toast.show({
+                      type: "success",
+                      text1: "Name updated",
+                      position: "bottom",
+                      bottomOffset: 60,
+                    });
+                  } else {
+                    Toast.show({
+                      type: "error",
+                      text1: "Failed to update name",
+                      position: "bottom",
+                      bottomOffset: 60,
+                    });
+                  }
                   setShowEditName(false);
                 }}
                 labelStyle={{ fontFamily: "Sora" }}

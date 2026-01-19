@@ -68,9 +68,9 @@ const CreateSquareScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
-    quarterResults: false,
     playerJoined: false,
-    gameUpdated: false,
+    playerLeft: false,
+    squareDeleted: false,
   });
 
   const [fontsLoaded] = useFonts({
@@ -193,7 +193,7 @@ const CreateSquareScreen = ({ navigation }) => {
         return;
       }
 
-      if (notifySettings.deadlineReminders || notifySettings.quarterResults) {
+      if (notifySettings.deadlineReminders) {
         await scheduleNotifications(deadline, data.id, notifySettings);
       }
 

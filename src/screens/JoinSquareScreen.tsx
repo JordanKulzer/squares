@@ -77,9 +77,9 @@ const JoinSquareScreen = () => {
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
-    quarterResults: false,
     playerJoined: false,
-    gameUpdated: false,
+    playerLeft: false,
+    squareDeleted: false,
   });
   const [league, setLeague] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
@@ -219,7 +219,7 @@ const JoinSquareScreen = () => {
         const deadlineDate = new Date(deadline);
         await scheduleNotifications(deadlineDate, gridId, notifySettings);
       }
-      await sendPlayerJoinedNotification(gridId, username);
+      await sendPlayerJoinedNotification(gridId, username, inputTitle);
 
       // Verify the data was written by polling until we see ourselves in the player list
       let verified = false;

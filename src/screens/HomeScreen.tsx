@@ -11,19 +11,26 @@ import {
   TouchableOpacity,
   View,
   ScrollView,
+  Animated,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { IconButton, useTheme } from "react-native-paper";
+import { IconButton, useTheme, Portal, Modal, Button } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
 import colors from "../../assets/constants/colorOptions";
-import { Animated } from "react-native";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Toast from "react-native-toast-message";
+import {
+  cancelDeadlineNotifications,
+  sendPlayerLeftNotification,
+  sendSquareDeletedNotification,
+} from "../utils/notifications";
 
 const HomeScreen = () => {
   const navigation =
@@ -48,6 +55,14 @@ const HomeScreen = () => {
     Record<string, number>
   >({});
   const [now, setNow] = useState(new Date());
+  const [editMode, setEditMode] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    item: any;
+    isOwner: boolean;
+  }>({ visible: false, item: null, isOwner: false });
+  const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -61,11 +76,12 @@ const HomeScreen = () => {
           data: { user },
         } = await supabase.auth.getUser();
         if (!user) return;
+        setUserId(user.id);
 
         const { data, error } = await supabase
           .from("squares")
           .select(
-            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids"
+            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids, game_completed, created_by"
           )
           .contains("player_ids", [user.id]);
 
@@ -171,7 +187,7 @@ const HomeScreen = () => {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerStyle: {
-        backgroundColor: theme.colors.surface, // dynamically changes!
+        backgroundColor: theme.colors.surface,
       },
       headerRight: () => (
         <IconButton
@@ -187,14 +203,18 @@ const HomeScreen = () => {
 
   const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? "" : "s"}`;
 
-  const formatCountdown = (deadlineLike?: string | Date) => {
+  const formatCountdown = (deadlineLike?: string | Date, gameCompleted?: boolean) => {
     if (!deadlineLike) return "Ended";
     const d = new Date(deadlineLike);
     const diff = d.getTime() - now.getTime();
 
     if (isNaN(d.getTime())) return "Ended";
     if (diff <= 0) {
-      return `Deadline ended on ${d.toLocaleDateString()}`;
+      // Deadline has passed
+      if (gameCompleted) {
+        return "Game Completed";
+      }
+      return "Game in Progress";
     }
 
     let ms = diff;
@@ -209,7 +229,7 @@ const HomeScreen = () => {
     if (hours > 0 || days > 0) parts.push(plural(hours, "hr"));
     parts.push(plural(mins, "min"));
 
-    return `Deadline ends in ${parts.join(" ")}`;
+    return `Deadline in ${parts.join(" ")}`;
   };
 
   const isNewUser = !loading && userGames.length === 0;
@@ -220,6 +240,132 @@ const HomeScreen = () => {
   const welcomeSubtitle = isNewUser
     ? "Let's get started by joining or creating a square."
     : "Ready to play your next square?";
+
+  const closeAllSwipeables = () => {
+    Object.values(swipeableRefs.current).forEach((ref) => ref?.close());
+  };
+
+  const handleLeaveSquare = async (item: any) => {
+    if (!userId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("squares")
+        .select("player_ids, players, selections, title")
+        .eq("id", item.id)
+        .single();
+
+      if (error || !data) {
+        Toast.show({
+          type: "error",
+          text1: "Session not found",
+          position: "bottom",
+          bottomOffset: 60,
+        });
+        return;
+      }
+
+      const updatedPlayerIds = (data.player_ids || []).filter(
+        (id: string) => id !== userId
+      );
+      const updatedPlayers = (data.players || []).filter(
+        (p: any) => p.userId !== userId
+      );
+      const updatedSelections = (data.selections || []).filter(
+        (sel: any) => sel.userId !== userId
+      );
+
+      await supabase
+        .from("squares")
+        .update({
+          players: updatedPlayers,
+          player_ids: updatedPlayerIds,
+          selections: updatedSelections,
+        })
+        .eq("id", item.id);
+
+      if (updatedPlayers.length === 0) {
+        await supabase.from("squares").delete().eq("id", item.id);
+      } else {
+        const currentPlayer = item.players?.find((p: any) => p.userId === userId);
+        await sendPlayerLeftNotification(
+          item.id,
+          currentPlayer?.username || "Unknown",
+          data.title || item.title
+        );
+      }
+
+      await cancelDeadlineNotifications();
+
+      setUserGames((prev) => prev.filter((g: any) => g.id !== item.id));
+
+      Toast.show({
+        type: "info",
+        text1: `Left ${item.title}`,
+        position: "bottom",
+        bottomOffset: 60,
+      });
+    } catch (err) {
+      console.error("Error leaving square:", err);
+      Toast.show({
+        type: "error",
+        text1: "Failed to leave session",
+        position: "bottom",
+        bottomOffset: 60,
+      });
+    }
+  };
+
+  const handleDeleteSquare = async (item: any) => {
+    try {
+      await sendSquareDeletedNotification(item.id, item.title, item.players || []);
+
+      await supabase.from("squares").delete().eq("id", item.id);
+
+      await cancelDeadlineNotifications();
+
+      setUserGames((prev) => prev.filter((g: any) => g.id !== item.id));
+
+      Toast.show({
+        type: "success",
+        text1: `Deleted ${item.title}`,
+        position: "bottom",
+        bottomOffset: 60,
+      });
+    } catch (err) {
+      console.error("Error deleting square:", err);
+      Toast.show({
+        type: "error",
+        text1: "Failed to delete session",
+        position: "bottom",
+        bottomOffset: 60,
+      });
+    }
+  };
+
+  const renderRightActions = (item: any, isOwner: boolean) => {
+    return (
+      <TouchableOpacity
+        style={[
+          styles.swipeAction,
+          { backgroundColor: isOwner ? "#f44336" : "#FF9800" },
+        ]}
+        onPress={() => {
+          closeAllSwipeables();
+          setConfirmModal({ visible: true, item, isOwner });
+        }}
+      >
+        <MaterialIcons
+          name={isOwner ? "delete" : "exit-to-app"}
+          size={24}
+          color="#fff"
+        />
+        <Text style={styles.swipeActionText}>
+          {isOwner ? "Delete" : "Leave"}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <LinearGradient
@@ -291,19 +437,40 @@ const HomeScreen = () => {
             <Text style={styles.buttonText}>Join By Code</Text>
           </TouchableOpacity>
         </View>
-        <Text
+        <View
           style={{
-            fontSize: 16,
-            fontWeight: "600",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
             marginTop: 15,
             marginBottom: 10,
             marginHorizontal: 10,
-            fontFamily: "Rubik_600SemiBold",
-            color: theme.colors.onBackground,
           }}
         >
-          Your Squares
-        </Text>
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "600",
+              fontFamily: "Rubik_600SemiBold",
+              color: theme.colors.onBackground,
+            }}
+          >
+            Your Squares
+          </Text>
+          {userGames.length > 0 && (
+            <TouchableOpacity onPress={() => setEditMode(!editMode)}>
+              <Text
+                style={{
+                  color: theme.colors.primary,
+                  fontSize: 14,
+                  fontFamily: "Rubik_500Medium",
+                }}
+              >
+                {editMode ? "Done" : "Edit"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {loading ? (
           <Text style={{ color: theme.colors.onBackground }}>Loading...</Text>
@@ -328,14 +495,19 @@ const HomeScreen = () => {
               const deadline = item.deadline
                 ? new Date(item.deadline).getTime()
                 : null;
-              const now = Date.now();
+              const nowMs = Date.now();
+              const isGameCompleted = item.game_completed;
+              const isPast = deadline && deadline < nowMs;
+              const isOwner = item.created_by === userId;
 
               let borderColor = theme.colors.primary; // default: future
               if (deadline) {
-                if (deadline < now) {
-                  borderColor = theme.colors.error; // past
-                } else if (deadline - now < 24 * 60 * 60 * 1000) {
-                  borderColor = "#f5c542"; // about to end (yellow)
+                if (isGameCompleted) {
+                  borderColor = "#4CAF50"; // green for completed
+                } else if (isPast) {
+                  borderColor = "#FF9800"; // orange for in progress
+                } else if (deadline - nowMs < 24 * 60 * 60 * 1000) {
+                  borderColor = "#f5c542"; // yellow for about to end
                 }
               }
               return (
@@ -351,56 +523,87 @@ const HomeScreen = () => {
                     ],
                   }}
                 >
-                  <TouchableOpacity
-                    style={[
-                      styles.gameCard,
-                      {
-                        backgroundColor: theme.colors.surface,
-                        borderLeftColor: borderColor,
-                        borderColor: borderColor,
-                      },
-                    ]}
-                    onPress={() => {
-                      navigation.navigate("SquareScreen", {
-                        gridId: item.id,
-                        inputTitle: item.title,
-                        username: item.username,
-                        deadline: item.deadline,
-                        eventId: item.eventId,
-                        disableAnimation: true,
-                        pricePerSquare: item.price_per_square || 0,
-                        league: item.league || "NFL",
-                      });
+                  <Swipeable
+                    ref={(ref) => {
+                      swipeableRefs.current[item.id] = ref;
                     }}
+                    renderRightActions={() => renderRightActions(item, isOwner)}
+                    overshootRight={false}
+                    friction={2}
                   >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
+                    <TouchableOpacity
+                      style={[
+                        styles.gameCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderLeftColor: borderColor,
+                          borderColor: borderColor,
+                        },
+                      ]}
+                      onPress={() => {
+                        if (editMode) {
+                          setConfirmModal({ visible: true, item, isOwner });
+                        } else {
+                          navigation.navigate("SquareScreen", {
+                            gridId: item.id,
+                            inputTitle: item.title,
+                            username: item.username,
+                            deadline: item.deadline,
+                            eventId: item.eventId,
+                            disableAnimation: true,
+                            pricePerSquare: item.price_per_square || 0,
+                            league: item.league || "NFL",
+                          });
+                        }
                       }}
                     >
-                      <View>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text
-                            numberOfLines={1}
-                            ellipsizeMode="tail"
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        {editMode && (
+                          <MaterialIcons
+                            name="remove-circle"
+                            size={24}
+                            color={isOwner ? "#f44336" : "#FF9800"}
+                            style={{ marginRight: 12 }}
+                          />
+                        )}
+                        <View style={{ flex: 1 }}>
+                          <View
                             style={{
-                              fontSize: 16,
-                              fontWeight: "600",
-                              color: theme.colors.onBackground,
-                              fontFamily: "SoraBold",
-                              flexShrink: 1,
-                              marginRight: 8,
+                              flexDirection: "row",
+                              alignItems: "center",
                             }}
                           >
-                            {item.title}
-                          </Text>
+                            <Text
+                              numberOfLines={1}
+                              ellipsizeMode="tail"
+                              style={{
+                                fontSize: 16,
+                                fontWeight: "600",
+                                color: theme.colors.onBackground,
+                                fontFamily: "SoraBold",
+                                flexShrink: 1,
+                                marginRight: 8,
+                              }}
+                            >
+                              {item.title}
+                            </Text>
+                            <Text
+                              style={{
+                                fontSize: 14,
+                                color: theme.colors.onSurface,
+                                fontFamily: "Rubik_500Medium",
+                              }}
+                            >
+                              {item.player_ids?.length || 0} players •{" "}
+                              {selectionCounts[item.id] || 0} selected
+                            </Text>
+                          </View>
                           <Text
                             style={{
                               fontSize: 14,
@@ -408,29 +611,21 @@ const HomeScreen = () => {
                               fontFamily: "Rubik_500Medium",
                             }}
                           >
-                            {item.player_ids?.length || 0} players •{" "}
-                            {selectionCounts[item.id] || 0} selected
+                            {" "}
+                            {formatCountdown(item.deadline, item.game_completed)}
                           </Text>
                         </View>
-                        <Text
-                          style={{
-                            fontSize: 14,
-                            color: theme.colors.onSurface,
-                            fontFamily: "Rubik_500Medium",
-                          }}
-                        >
-                          {" "}
-                          {formatCountdown(item.deadline)}
-                        </Text>
-                      </View>
 
-                      <MaterialIcons
-                        name="chevron-right"
-                        size={24}
-                        color={theme.colors.onSurfaceVariant}
-                      />
-                    </View>
-                  </TouchableOpacity>
+                        {!editMode && (
+                          <MaterialIcons
+                            name="chevron-right"
+                            size={24}
+                            color={theme.colors.onSurfaceVariant}
+                          />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  </Swipeable>
                 </Animated.View>
               );
             })}
@@ -449,20 +644,63 @@ const HomeScreen = () => {
             fetchFirstName();
           }}
         />
-        <TouchableOpacity
-          style={[
-            styles.howToButton,
-            {
-              backgroundColor: theme.colors.primary,
-              marginBottom: 20,
-              marginTop: 20,
-              alignSelf: "center",
-            },
-          ]}
-          onPress={() => navigation.navigate("HowToScreen")}
-        >
-          <Text style={styles.howToText}>How To Play</Text>
-        </TouchableOpacity>
+
+        {/* Confirmation Modal for Leave/Delete */}
+        <Portal>
+          <Modal
+            visible={confirmModal.visible}
+            onDismiss={() => setConfirmModal({ visible: false, item: null, isOwner: false })}
+            contentContainerStyle={{ backgroundColor: "transparent" }}
+          >
+            <View
+              style={[
+                styles.dialogCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.dark ? "#444" : "#ccc",
+                },
+              ]}
+            >
+              <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+                {confirmModal.isOwner ? "Delete Session" : "Leave Session"}
+              </Text>
+              <View
+                style={{
+                  height: 1,
+                  backgroundColor: theme.dark ? "#333" : "#eee",
+                  marginBottom: 20,
+                }}
+              />
+              <Text style={[styles.modalSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+                {confirmModal.isOwner
+                  ? `Are you sure you want to permanently delete "${confirmModal.item?.title}"? This cannot be undone.`
+                  : `Are you sure you want to leave "${confirmModal.item?.title}"? Your squares will be removed.`}
+              </Text>
+              <View style={styles.modalButtonRow}>
+                <Button onPress={() => setConfirmModal({ visible: false, item: null, isOwner: false })}>
+                  Cancel
+                </Button>
+                <Button
+                  onPress={async () => {
+                    const item = confirmModal.item;
+                    const isOwner = confirmModal.isOwner;
+                    setConfirmModal({ visible: false, item: null, isOwner: false });
+                    if (isOwner) {
+                      await handleDeleteSquare(item);
+                    } else {
+                      await handleLeaveSquare(item);
+                    }
+                  }}
+                  mode="text"
+                  textColor={theme.colors.error}
+                  labelStyle={{ fontSize: 16 }}
+                >
+                  {confirmModal.isOwner ? "Delete" : "Leave"}
+                </Button>
+              </View>
+            </View>
+          </Modal>
+        </Portal>
       </View>
     </LinearGradient>
   );
@@ -504,17 +742,48 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  howToButton: {
-    marginTop: 15,
-    alignSelf: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+  swipeAction: {
+    justifyContent: "center",
+    alignItems: "center",
+    width: 80,
+    height: "100%",
+    borderRadius: 16,
+    marginLeft: 8,
   },
-  howToText: {
+  swipeActionText: {
     color: "#fff",
+    fontSize: 12,
+    fontFamily: "Rubik_500Medium",
+    marginTop: 4,
+  },
+  dialogCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderLeftWidth: 5,
+    borderLeftColor: colors.primary,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    marginHorizontal: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  modalTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontWeight: "700",
+    marginBottom: 10,
     fontFamily: "Rubik_600SemiBold",
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    marginBottom: 20,
+    fontFamily: "Rubik_400Regular",
+  },
+  modalButtonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
   },
 });

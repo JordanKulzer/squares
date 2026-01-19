@@ -27,81 +27,113 @@ const HowToPlay = () => {
         <Text
           style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
         >
-          Objective
+          What is Squares?
         </Text>
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          Squares is a fun game based on live sports events. Players select
-          squares on a 10×10 grid, where each axis represents the last digit of
-          a team's score. If your square matches the actual score at the end of
-          a quarter, you win!
+          Squares is a popular game played during football games (NFL, college, etc.).
+          It's a fun way to add excitement to watching sports with friends and family,
+          with chances to win at the end of each quarter!
         </Text>
 
         <Text
           style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
         >
-          How It Works
+          The Grid
         </Text>
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          1. Create or join a game session tied to a live sports event.{"\n"}
-          2. Pick a username and a player color{"\n"}
-          3. Select available squares before the game starts. You may be limited
-          by either a max number of squares or a price-per-square system.{"\n"}
-          4. Once the deadline passes, grid numbers are revealed.{"\n"}
-          5. Winners are determined at the end of each quarter based on the live
-          score digits.{"\n"}
-          6. You'll receive optional notifications when new players join, the
-          deadline is near, or quarter winners are announced.
+          The game uses a 10x10 grid (100 squares total). Each row and column is
+          labeled with a number from 0-9:{"\n\n"}
+          • The top row represents one team's score (last digit){"\n"}
+          • The left column represents the other team's score (last digit){"\n\n"}
+          These numbers are hidden until the game's deadline passes, so picking
+          squares is completely random and fair!
         </Text>
 
         <Text
           style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
         >
-          Scoring Example
+          How to Play
         </Text>
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          If the home team has 13 and the away team has 7, the winning square
-          would be where the X-axis is 3 and the Y-axis is 7.
+          1. Create a new session or join one using a code from a friend{"\n\n"}
+          2. Choose your username and pick a color to identify yourself on the grid{"\n\n"}
+          3. Tap on empty squares to claim them before the deadline (game start time){"\n\n"}
+          4. Once the deadline passes, the random numbers (0-9) are revealed on each axis{"\n\n"}
+          5. Watch the game! At the end of each quarter, check if you won
         </Text>
 
         <Text
           style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
         >
-          Optional Restraints
+          How Winners Are Determined
         </Text>
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          Each session could be restricted by the following if desired:{"\n"}-
-          **Max Squares Per Player**: Players can pick up to a fixed number of
-          squares.{"\n"}- **Price Per Square**: Players pay a set amount for
-          each square they select. The app automatically tracks the total owed
-          per person.
+          At the end of each quarter, look at the last digit of each team's score.{"\n\n"}
+          Example: If the score is Patriots 17, Chiefs 14:{"\n"}
+          • Patriots last digit = 7{"\n"}
+          • Chiefs last digit = 4{"\n"}
+          • The winning square is where 7 and 4 intersect{"\n\n"}
+          There's a winner at the end of Q1, Q2, Q3, Q4, and any overtime periods!
         </Text>
 
         <Text
           style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
         >
-          Tips
+          Session Options
         </Text>
         <Text
           style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
         >
-          - Spread your picks across the board to increase your chances.{"\n"}-
-          Enable notifications to stay updated with quarter results and game
-          progress.
+          When creating a session, you can set optional limits:{"\n\n"}
+          • Max Squares: Limit how many squares each player can pick (ensures everyone
+          gets a fair chance){"\n\n"}
+          • Price Per Square: Set a buy-in amount per square. The app tracks how much
+          each player owes based on their picks. Winnings are split among quarter winners.
+        </Text>
+
+        <Text
+          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
+        >
+          Notifications
+        </Text>
+        <Text
+          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
+        >
+          Stay in the loop with optional notifications:{"\n\n"}
+          • Deadline reminders before the game starts{"\n"}
+          • When someone joins your session{"\n"}
+          • When someone leaves your session{"\n"}
+          • When a session you're in gets deleted
+        </Text>
+
+        <Text
+          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
+        >
+          Tips for New Players
+        </Text>
+        <Text
+          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
+        >
+          • Pick your squares early - popular sessions fill up fast!{"\n\n"}
+          • Spread your picks around the grid rather than clustering them together{"\n\n"}
+          • Some numbers are statistically more common in football scores (0, 7, 3, 4)
+          but since numbers are randomly assigned, every square has an equal chance{"\n\n"}
+          • Share the session code with friends to fill up your grid!
         </Text>
 
         <TouchableOpacity
           style={[styles.backButton, { backgroundColor: theme.colors.primary }]}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backText}>Back to Home</Text>
+          <Text style={styles.backText}>Done</Text>
         </TouchableOpacity>
       </ScrollView>
     </LinearGradient>

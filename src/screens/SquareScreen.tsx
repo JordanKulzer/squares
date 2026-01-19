@@ -36,8 +36,10 @@ import SessionOptionsModal from "../components/SessionOptionsModal";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  checkQuarterEndNotification,
   scheduleNotifications,
+  sendPlayerLeftNotification,
+  sendSquareDeletedNotification,
+  cancelDeadlineNotifications,
 } from "../utils/notifications";
 import { supabase } from "../lib/supabase";
 import { API_BASE_URL } from "../utils/apiConfig";
@@ -300,7 +302,7 @@ const SquareScreen = ({ route }) => {
 
   const [index, setIndex] = useState(0);
   const [routes] = useState([
-    { key: "squares", title: "Grid" },
+    { key: "squares", title: "Square" },
     { key: "players", title: "Players" },
     { key: "winners", title: "Results" },
   ]);
@@ -514,6 +516,7 @@ const SquareScreen = ({ route }) => {
             manual: prev?.[i]?.manual ?? q.manual ?? false,
           }));
         });
+
       }
       if (data.selections && xAxis.length && yAxis.length) {
         if (isTeam1Home !== null) {
@@ -570,6 +573,11 @@ const SquareScreen = ({ route }) => {
         if (error || !data) return;
 
         setManualOverride(!!data.manual_override);
+
+        // Load persisted game_completed status from database
+        if (data.game_completed) {
+          setGameCompleted(true);
+        }
 
         const colorMapping = {};
         const nameMapping = {};
@@ -714,17 +722,30 @@ const SquareScreen = ({ route }) => {
           setScoresLoaded(true);
         }
 
-        const myNotifySettings = players.find(
-          (p) => p.userId === userId,
-        )?.notifySettings;
-
-        if (myNotifySettings) {
-          await checkQuarterEndNotification(game, gridId, myNotifySettings);
-        }
-
         const apiScores = game?.quarterScores ?? [];
         const isCompleted = game?.completed ?? false;
-        setGameCompleted(isCompleted);
+
+        // Infer completion: if all 4 quarters have scores and deadline was 1+ hour ago
+        const allQuartersHaveScores =
+          apiScores.length >= 4 &&
+          apiScores.slice(0, 4).every(
+            (q: { home: number | null; away: number | null }) =>
+              q.home !== null && q.away !== null
+          );
+        const oneHourAgo = Date.now() - 60 * 60 * 1000;
+        const gameStartedOverOneHourAgo = deadlineValue && deadlineValue.getTime() < oneHourAgo;
+        const inferredCompleted = allQuartersHaveScores && gameStartedOverOneHourAgo;
+
+        // Only update gameCompleted if API says it's complete OR we can infer it
+        // Don't overwrite a true value with false (preserves DB-loaded state)
+        if (isCompleted || inferredCompleted) {
+          setGameCompleted(true);
+          // Persist to database
+          await supabase
+            .from("squares")
+            .update({ game_completed: true })
+            .eq("id", gridId);
+        }
 
         const homeAbbrev = game?.team2_abbr?.toLowerCase();
         setIsTeam1Home(homeAbbrev === team1.toLowerCase());
@@ -818,8 +839,9 @@ const SquareScreen = ({ route }) => {
     const notifySettings = players.find((p) => p.userId === userId)
       ?.notifySettings ?? {
       deadlineReminders: false,
-      quarterResults: false,
       playerJoined: false,
+      playerLeft: false,
+      squareDeleted: false,
     };
 
     if (!selectedDate || selectedDate.getTime() === deadlineValue?.getTime())
@@ -1454,7 +1476,7 @@ const SquareScreen = ({ route }) => {
                         { color: theme.colors.onSurfaceVariant },
                       ]}
                     >
-                      Square: ({square[0]}, {square[1]})
+                      Square: ({square[1]}, {square[0]})
                     </Text>
 
                     {isWinner ? (
@@ -1577,29 +1599,37 @@ const SquareScreen = ({ route }) => {
                   </Text>
                 </View>
 
-                {/* Deadline Chip */}
+                {/* Deadline/Status Chip */}
                 {deadlineValue && (
                   <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                     <Chip
-                      icon="timer"
+                      icon={gameCompleted ? "check-circle" : isAfterDeadline ? "sports-football" : "timer"}
                       mode="flat"
                       style={[
                         styles.deadlineChip,
                         {
-                          backgroundColor: isAfterDeadline
-                            ? theme.colors.errorContainer
-                            : theme.colors.secondaryContainer,
+                          backgroundColor: gameCompleted
+                            ? "#e8f5e9"
+                            : isAfterDeadline
+                              ? theme.colors.secondaryContainer
+                              : theme.colors.secondaryContainer,
                         },
                       ]}
                       textStyle={{
                         fontFamily: "Rubik_600SemiBold",
                         fontSize: 13,
-                        color: isAfterDeadline
-                          ? theme.colors.error
-                          : theme.colors.onSecondaryContainer,
+                        color: gameCompleted
+                          ? "#2e7d32"
+                          : isAfterDeadline
+                            ? theme.colors.onSecondaryContainer
+                            : theme.colors.onSecondaryContainer,
                       }}
                     >
-                      {formatTimeLeft(deadlineValue, now)}
+                      {gameCompleted
+                        ? "Game Completed"
+                        : isAfterDeadline
+                          ? "Game in Progress"
+                          : formatTimeLeft(deadlineValue, now)}
                     </Chip>
                   </Animated.View>
                 )}
@@ -1912,7 +1942,17 @@ const SquareScreen = ({ route }) => {
                             .from("squares")
                             .delete()
                             .eq("id", gridId);
+                        } else {
+                          // Notify the owner that a player left
+                          await sendPlayerLeftNotification(
+                            gridId,
+                            currentUsername,
+                            data.title || title
+                          );
                         }
+
+                        // Cancel any scheduled deadline notifications for this session
+                        await cancelDeadlineNotifications();
 
                         Toast.show({
                           type: "info",
@@ -1985,10 +2025,16 @@ const SquareScreen = ({ route }) => {
                     onPress={async () => {
                       closeAnimatedDialog(setShowDeleteConfirm, deleteAnim);
                       try {
+                        // Notify players before deleting via push notifications
+                        await sendSquareDeletedNotification(gridId, title, players);
+
                         await supabase
                           .from("squares")
                           .delete()
                           .eq("id", gridId);
+
+                        // Cancel any scheduled deadline notifications
+                        await cancelDeadlineNotifications();
 
                         Toast.show({
                           type: "success",
