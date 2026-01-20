@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(adb devices:*)",
+      "Bash(test:*)",
+      "Bash(adb kill-server:*)",
+      "Bash(adb start-server:*)",
+      "Bash(emulator -list-avds:*)",
+      "Bash(adb reconnect:*)",
+      "Bash(npm run android:*)",
+      "Bash(npx expo start:*)",
+      "Bash(gradle --stop:*)",
+      "Bash(npx expo prebuild:*)"
+    ]
+  }
+}
