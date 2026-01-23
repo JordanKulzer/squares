@@ -48,11 +48,6 @@ export default {
             deploymentTarget: "16.4",
             useModularHeaders: true,
           },
-          android: {
-            compileSdkVersion: 33,
-            targetSdkVersion: 33,
-            buildToolsVersion: "33.0.0",
-          },
         },
       ],
       [
