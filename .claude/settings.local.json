@@ -10,7 +10,10 @@
       "Bash(npm run android:*)",
       "Bash(npx expo start:*)",
       "Bash(gradle --stop:*)",
-      "Bash(npx expo prebuild:*)"
+      "Bash(npx expo prebuild:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
