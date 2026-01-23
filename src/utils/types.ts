@@ -1,4 +1,5 @@
 export type RootStackParamList = {
+  FriendsScreen: undefined;
   CreateSquareScreen: undefined;
   JoinSquareScreen:
     | {

@@ -13,7 +13,9 @@
       "Bash(npx expo prebuild:*)",
       "Bash(git checkout:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(del \"\\\\?\\\\c:\\\\Users\\\\jbkul\\\\Projects\\\\squares\\\\nul\")",
+      "Bash(find:*)"
     ]
   }
 }

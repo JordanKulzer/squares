@@ -29,6 +29,7 @@ import Toast from "react-native-toast-message";
 import { getToastConfig } from "./src/components/ToastConfig";
 import GamePickerScreen from "./src/screens/GamePickerScreen";
 import HowToScreen from "./src/screens/HowToScreen";
+import FriendsScreen from "./src/screens/FriendsScreen";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
 import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 import { registerPushToken } from "./src/utils/registerPushToken";
@@ -402,6 +403,11 @@ const App: React.FC = () => {
                     name: "SquareScreen",
                     component: SquareScreen,
                     title: null,
+                  },
+                  {
+                    name: "FriendsScreen",
+                    component: FriendsScreen,
+                    title: "Friends",
                   },
                 ].map(({ name, component, title }) => (
                   <Stack.Screen

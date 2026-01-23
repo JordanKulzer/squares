@@ -438,6 +438,7 @@ const SessionOptionsModal = ({
         visible={showInviteModal}
         onDismiss={() => setShowInviteModal(false)}
         gridId={gridId}
+        sessionTitle={currentTitle}
       />
     </>
   );

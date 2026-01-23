@@ -11,12 +11,15 @@ const isDevClient = process.env.APP_ENV !== "production";
  * Call the Supabase Edge Function to send push notifications
  */
 const callPushNotificationEdgeFunction = async (payload: {
-  type: "player_joined" | "player_left" | "square_deleted";
-  gridId: string;
-  sessionTitle: string;
+  type: "player_joined" | "player_left" | "square_deleted" | "friend_request" | "friend_accepted" | "game_invite";
+  gridId?: string;
+  sessionTitle?: string;
   triggerUserId: string;
-  triggerUsername: string;
+  triggerUsername?: string;
   players?: Array<{ userId: string; notifySettings?: NotificationSettings }>;
+  targetUserId?: string;
+  targetPushToken?: string;
+  recipients?: Array<{ id: string; push_token: string | null; first_name: string | null }>;
 }) => {
   try {
     const { data, error } = await supabase.functions.invoke("send-push-notification", {
@@ -235,5 +238,105 @@ export const cancelDeadlineNotifications = async () => {
     }
   } catch (e) {
     console.warn("cancelDeadlineNotifications error:", e);
+  }
+};
+
+/**
+ * Send push notification when a friend request is sent
+ */
+export const sendFriendRequestNotification = async (
+  targetUserId: string,
+  targetPushToken: string | null
+) => {
+  try {
+    if (!targetPushToken) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Get current user's name
+    const { data: profile } = await supabase
+      .from("users")
+      .select("first_name")
+      .eq("id", user.id)
+      .single();
+
+    await callPushNotificationEdgeFunction({
+      type: "friend_request",
+      triggerUserId: user.id,
+      triggerUsername: profile?.first_name || "Someone",
+      targetUserId,
+      targetPushToken,
+    });
+  } catch (e) {
+    console.warn("sendFriendRequestNotification error:", e);
+  }
+};
+
+/**
+ * Send push notification when a friend request is accepted
+ */
+export const sendFriendAcceptedNotification = async (
+  targetUserId: string,
+  targetPushToken: string | null
+) => {
+  try {
+    if (!targetPushToken) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Get current user's name
+    const { data: profile } = await supabase
+      .from("users")
+      .select("first_name")
+      .eq("id", user.id)
+      .single();
+
+    await callPushNotificationEdgeFunction({
+      type: "friend_accepted",
+      triggerUserId: user.id,
+      triggerUsername: profile?.first_name || "Someone",
+      targetUserId,
+      targetPushToken,
+    });
+  } catch (e) {
+    console.warn("sendFriendAcceptedNotification error:", e);
+  }
+};
+
+/**
+ * Send push notifications to invite friends to a game
+ */
+export const sendGameInviteNotification = async (
+  gridId: string,
+  sessionTitle: string,
+  recipients: Array<{ id: string; push_token: string | null; first_name: string | null }>
+) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Get current user's name
+    const { data: profile } = await supabase
+      .from("users")
+      .select("first_name")
+      .eq("id", user.id)
+      .single();
+
+    // Filter out recipients without push tokens
+    const validRecipients = recipients.filter(r => r.push_token);
+    if (validRecipients.length === 0) return;
+
+    await callPushNotificationEdgeFunction({
+      type: "game_invite",
+      gridId,
+      sessionTitle,
+      triggerUserId: user.id,
+      triggerUsername: profile?.first_name || "A friend",
+      recipients: validRecipients,
+    });
+  } catch (e) {
+    console.warn("sendGameInviteNotification error:", e);
   }
 };

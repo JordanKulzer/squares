@@ -22,14 +22,25 @@ interface Player {
   pushToken?: string;
 }
 
+interface Recipient {
+  id: string;
+  push_token: string | null;
+  first_name: string | null;
+}
+
 interface PushNotificationRequest {
-  type: "player_joined" | "player_left" | "square_deleted";
-  gridId: string;
-  sessionTitle: string;
+  type: "player_joined" | "player_left" | "square_deleted" | "friend_request" | "friend_accepted" | "game_invite";
+  gridId?: string;
+  sessionTitle?: string;
   triggerUserId: string;
-  triggerUsername: string;
+  triggerUsername?: string;
   // For square_deleted, we need the players list since the square will be deleted
   players?: Player[];
+  // For friend notifications
+  targetUserId?: string;
+  targetPushToken?: string;
+  // For game invites
+  recipients?: Recipient[];
 }
 
 interface ExpoPushMessage {
@@ -195,6 +206,46 @@ Deno.serve(async (req) => {
               body: `"${sessionTitle}" has been deleted by the owner`,
               sound: "default",
               data: { type: "square_deleted" },
+            });
+          }
+        }
+      }
+    } else if (type === "friend_request") {
+      // Send notification to the target user about incoming friend request
+      const { targetPushToken } = payload;
+      if (targetPushToken) {
+        messages.push({
+          to: targetPushToken,
+          title: "New Friend Request",
+          body: `${triggerUsername} wants to be your friend!`,
+          sound: "default",
+          data: { type: "friend_request", fromUserId: triggerUserId },
+        });
+      }
+    } else if (type === "friend_accepted") {
+      // Send notification that friend request was accepted
+      const { targetPushToken } = payload;
+      if (targetPushToken) {
+        messages.push({
+          to: targetPushToken,
+          title: "Friend Request Accepted",
+          body: `${triggerUsername} accepted your friend request!`,
+          sound: "default",
+          data: { type: "friend_accepted", fromUserId: triggerUserId },
+        });
+      }
+    } else if (type === "game_invite") {
+      // Send game invites to multiple friends
+      const { recipients } = payload;
+      if (recipients && recipients.length > 0) {
+        for (const recipient of recipients) {
+          if (recipient.push_token) {
+            messages.push({
+              to: recipient.push_token,
+              title: "Game Invite",
+              body: `${triggerUsername} invited you to join "${sessionTitle}"`,
+              sound: "default",
+              data: { type: "game_invite", gridId, fromUserId: triggerUserId },
             });
           }
         }

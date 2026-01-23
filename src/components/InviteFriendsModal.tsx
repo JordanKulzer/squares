@@ -1,20 +1,25 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, Share } from "react-native";
 import { Modal, Portal, Button, useTheme } from "react-native-paper";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import Toast from "react-native-toast-message";
 // import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
 import * as Sentry from "@sentry/react-native";
+import QuickInviteModal from "./QuickInviteModal";
 
 const InviteFriendsModal = ({
   visible,
   onDismiss,
   gridId,
+  sessionTitle,
 }: {
   visible: boolean;
   onDismiss: () => void;
   gridId: string;
+  sessionTitle?: string;
 }) => {
+  const [quickInviteVisible, setQuickInviteVisible] = useState(false);
   const theme = useTheme();
   const dividerColor = theme.dark ? "#333" : "#eee";
 
@@ -185,11 +190,39 @@ const InviteFriendsModal = ({
           icon="share-variant"
           mode="contained"
           onPress={handleShare}
-          style={{ marginBottom: 16 }}
+          style={{ marginBottom: 12 }}
           labelStyle={{ fontFamily: "Sora" }}
         >
           Share
         </Button>
+
+        <TouchableOpacity
+          onPress={() => {
+            onDismiss();
+            setTimeout(() => setQuickInviteVisible(true), 300);
+          }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 12,
+            backgroundColor: theme.dark ? "#2a2a2a" : "#f0f0f0",
+            borderRadius: 8,
+            marginBottom: 16,
+            gap: 8,
+          }}
+        >
+          <MaterialIcons name="people" size={20} color={theme.colors.primary} />
+          <Text
+            style={{
+              color: theme.colors.primary,
+              fontFamily: "Sora",
+              fontWeight: "600",
+            }}
+          >
+            Invite from Friends List
+          </Text>
+        </TouchableOpacity>
 
         <Button
           mode="text"
@@ -200,6 +233,13 @@ const InviteFriendsModal = ({
           Close
         </Button>
       </Modal>
+
+      <QuickInviteModal
+        visible={quickInviteVisible}
+        onDismiss={() => setQuickInviteVisible(false)}
+        gridId={gridId}
+        sessionTitle={sessionTitle || "Game"}
+      />
     </Portal>
   );
 };
