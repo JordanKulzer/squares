@@ -436,6 +436,14 @@ const HomeScreen = () => {
             <MaterialIcons name="vpn-key" size={20} color="#fff" />
             <Text style={styles.buttonText}>Join By Code</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            onPress={() => navigation.navigate("FriendsScreen")}
+          >
+            <MaterialIcons name="people" size={20} color="#fff" />
+            <Text style={styles.buttonText}>Friends</Text>
+          </TouchableOpacity>
         </View>
         <View
           style={{

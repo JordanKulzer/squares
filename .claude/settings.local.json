@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del \"\\\\?\\\\c:\\\\Users\\\\jbkul\\\\Projects\\\\squares\\\\nul\")",
+      "Bash(find:*)"
+    ]
+  }
+}
