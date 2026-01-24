@@ -495,11 +495,11 @@ const App: React.FC = () => {
                                 <Icon
                                   name="person-add"
                                   size={18}
-                                  color="#fff"
+                                  color={paperTheme.colors.onBackground}
                                 />
                                 <Text
                                   style={{
-                                    color: "#fff",
+                                    color: paperTheme.colors.onBackground,
                                     fontSize: 13,
                                     fontFamily: "Rubik_500Medium",
                                     marginLeft: 4,

@@ -34,8 +34,7 @@ export const getToastConfig = (isDarkMode: boolean) => {
           {
             backgroundColor,
             borderLeftColor,
-            borderColor: `${errorColor}66`,
-            //borderColor: "rgba(94, 96, 206, 0.4)",
+            borderColor: "rgba(94, 96, 206, 0.4)",
           },
         ]}
         contentContainerStyle={styles.contentContainer}
