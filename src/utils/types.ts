@@ -22,6 +22,7 @@ export type RootStackParamList = {
     league?: string;
   };
   HowToScreen: undefined;
+  ProfileScreen: undefined;
 };
 
 // utils/leagueMap.ts

@@ -21,8 +21,9 @@ import colors from "../../assets/constants/colorOptions";
 const SignupScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
+  const [username, setUsername] = useState("");
   const [error, setError] = useState("");
+  const [checkingUsername, setCheckingUsername] = useState(false);
 
   const theme = useTheme();
   const scheme = useColorScheme();
@@ -36,14 +37,61 @@ const SignupScreen = ({ navigation }) => {
     [theme.dark]
   );
 
+  const checkUsernameAvailable = async (usernameToCheck: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id')
+        .eq('username', usernameToCheck)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking username:', error);
+        return false;
+      }
+
+      return !data; // Available if no user found
+    } catch (err) {
+      console.error('checkUsernameAvailable error:', err);
+      return false;
+    }
+  };
+
   const handleSignup = async () => {
-    if (!firstName || !email || !password) {
+    if (!username || !email || !password) {
       setError("Please fill out all fields.");
+      return;
+    }
+
+    // Validate username format
+    if (username.length < 3) {
+      setError("Username must be at least 3 characters.");
+      return;
+    }
+
+    if (username.length > 20) {
+      setError("Username must be 20 characters or less.");
+      return;
+    }
+
+    // Only allow alphanumeric and underscores
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, and underscores.");
       return;
     }
 
     if (password.length < 6) {
       setError("Password is too short. It must be at least 6 characters.");
+      return;
+    }
+
+    // Check if username is available
+    setCheckingUsername(true);
+    const isAvailable = await checkUsernameAvailable(username);
+    setCheckingUsername(false);
+
+    if (!isAvailable) {
+      setError("Username is already taken. Please choose another.");
       return;
     }
 
@@ -53,7 +101,7 @@ const SignupScreen = ({ navigation }) => {
         email: email.trim(),
         password,
         options: {
-          data: { firstName },
+          data: { username },
         },
       });
 
@@ -103,10 +151,10 @@ const SignupScreen = ({ navigation }) => {
             </Text>
 
             <PaperInput
-              label="First Name"
+              label="Username"
               mode="outlined"
-              value={firstName}
-              onChangeText={setFirstName}
+              value={username}
+              onChangeText={setUsername}
               keyboardType="default"
               autoCapitalize="none"
               style={[styles.input, { backgroundColor: "transparent" }]}
@@ -118,10 +166,10 @@ const SignupScreen = ({ navigation }) => {
                 },
               }}
               right={
-                firstName ? (
+                username ? (
                   <PaperInput.Icon
                     icon="close"
-                    onPress={() => setFirstName("")}
+                    onPress={() => setUsername("")}
                     color={colors.primary}
                   />
                 ) : null

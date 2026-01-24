@@ -18,9 +18,9 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
   const slideAnim = useRef(new Animated.Value(800)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const [firstName, setFirstName] = useState("");
-  const [newName, setNewName] = useState("");
-  const [showEditName, setShowEditName] = useState(false);
+  const [username, setUsername] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [showEditUsername, setShowEditUsername] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showLogout, setShowLogout] = useState(false);
   const [totalWinnings, setTotalWinnings] = useState(0);
@@ -58,7 +58,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
     }
   }, [visible]);
 
-  useEffect(() => animateModal(editAnim, showEditName), [showEditName]);
+  useEffect(() => animateModal(editAnim, showEditUsername), [showEditUsername]);
   useEffect(() => animateModal(logoutAnim, showLogout), [showLogout]);
   useEffect(
     () => animateModal(deleteAnim, showConfirmDelete),
@@ -73,12 +73,12 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
 
     const { data } = await supabase
       .from("users")
-      .select("first_name, total_winnings")
+      .select("username, total_winnings")
       .eq("id", user.id)
       .maybeSingle();
 
     if (data) {
-      setFirstName(data.first_name || "");
+      setUsername(data.username || "");
       setTotalWinnings(data.total_winnings || 0);
     }
   };
@@ -88,7 +88,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
-      console.error("No user found when updating name");
+      console.error("No user found when updating username");
       return false;
     }
 
@@ -98,7 +98,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
       .upsert(
         {
           id: user.id,
-          first_name: newName.trim(),
+          username: newUsername.trim(),
           email: user.email,
         },
         { onConflict: "id" }
@@ -106,10 +106,10 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
       .select();
 
     if (error) {
-      console.error("Failed to update name:", error);
+      console.error("Failed to update username:", error);
       return false;
     }
-    setFirstName(newName.trim());
+    setUsername(newUsername.trim());
     return true;
   };
 
@@ -287,13 +287,13 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                   fontFamily: "Sora",
                 }}
               >
-                Name: {firstName}
+                Username: {username}
               </Text>
               <TouchableOpacity
                 onPress={() => {
-                  setNewName(firstName);
+                  setNewUsername(username);
                   onDismiss();
-                  setTimeout(() => setShowEditName(true), 300);
+                  setTimeout(() => setShowEditUsername(true), 300);
                 }}
               >
                 <Text
@@ -303,7 +303,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                     fontFamily: "Sora",
                   }}
                 >
-                  Edit Name
+                  Edit Username
                 </Text>
               </TouchableOpacity>
 
@@ -363,14 +363,14 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
 
       <Portal>
         <Modal
-          visible={showEditName}
+          visible={showEditUsername}
           onDismiss={() => {
             Animated.timing(editAnim, {
               toValue: 0,
               duration: 400,
               useNativeDriver: true,
             }).start(() => {
-              setShowEditName(false);
+              setShowEditUsername(false);
             });
           }}
         >
@@ -384,7 +384,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 fontFamily: "Sora",
               }}
             >
-              Edit Name
+              Edit Username
             </Text>
             <View
               style={{
@@ -395,43 +395,45 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
             />
             <TextInput
               mode="outlined"
-              value={newName}
-              onChangeText={setNewName}
-              placeholder="Enter new name"
+              value={newUsername}
+              onChangeText={setNewUsername}
+              placeholder="Enter new username"
               style={{
                 backgroundColor: theme.colors.background,
                 marginBottom: 12,
               }}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
             <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
               <Button
                 textColor={theme.colors.error}
-                onPress={() => setShowEditName(false)}
+                onPress={() => setShowEditUsername(false)}
                 labelStyle={{ fontFamily: "Sora" }}
               >
                 Close
               </Button>
               <Button
                 onPress={async () => {
-                  if (!newName.trim()) return;
+                  if (!newUsername.trim()) return;
                   const success = await updateUserName();
                   if (success) {
                     onNameChange?.();
                     Toast.show({
                       type: "success",
-                      text1: "Name updated",
+                      text1: "Username updated",
                       position: "bottom",
                       bottomOffset: 60,
                     });
                   } else {
                     Toast.show({
                       type: "error",
-                      text1: "Failed to update name",
+                      text1: "Failed to update username",
                       position: "bottom",
                       bottomOffset: 60,
                     });
                   }
-                  setShowEditName(false);
+                  setShowEditUsername(false);
                 }}
                 labelStyle={{ fontFamily: "Sora" }}
               >

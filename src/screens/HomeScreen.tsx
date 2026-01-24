@@ -18,8 +18,8 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { IconButton, useTheme, Portal, Modal, Button } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
-import ProfileModal from "../components/ProfileModal";
 import JoinSessionModal from "../components/JoinSessionModal";
+import SkeletonLoader from "../components/SkeletonLoader";
 import colors from "../../assets/constants/colorOptions";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -49,8 +49,7 @@ const HomeScreen = () => {
   const [userGames, setUserGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
-  const [profileVisible, setProfileVisible] = useState(false);
-  const [firstName, setFirstName] = useState("");
+  const [username, setUsername] = useState("");
   const [selectionCounts, setSelectionCounts] = useState<
     Record<string, number>
   >({});
@@ -92,7 +91,7 @@ const HomeScreen = () => {
 
         const squaresList = data
           .map((item) => {
-            const userPlayer = item.players?.find((p) => p.uid === user.id);
+            const userPlayer = item.players?.find((p) => p.userId === user.id);
             return {
               id: item.id,
               ...item,
@@ -156,7 +155,7 @@ const HomeScreen = () => {
     }, [])
   );
 
-  const fetchFirstName = async () => {
+  const fetchUsername = async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -165,23 +164,23 @@ const HomeScreen = () => {
     try {
       const { data, error } = await supabase
         .from("users")
-        .select("first_name")
+        .select("username")
         .eq("id", user.id)
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching user name:", error);
+        console.error("Error fetching username:", error);
         return;
       }
 
-      setFirstName(data?.first_name || "");
+      setUsername(data?.username || "");
     } catch (err) {
       console.error("Unexpected error:", err);
     }
   };
 
   useEffect(() => {
-    fetchFirstName();
+    fetchUsername();
   }, []);
 
   useLayoutEffect(() => {
@@ -193,7 +192,7 @@ const HomeScreen = () => {
         <IconButton
           icon="account-circle"
           size={24}
-          onPress={() => setProfileVisible(true)}
+          onPress={() => navigation.navigate("ProfileScreen")}
           iconColor={theme.colors.onBackground}
           style={{ marginRight: 8 }}
         />
@@ -234,8 +233,8 @@ const HomeScreen = () => {
 
   const isNewUser = !loading && userGames.length === 0;
   const welcomeTitle = isNewUser
-    ? `Welcome${firstName ? `, ${firstName}` : ""}!`
-    : `Welcome Back${firstName ? `, ${firstName}` : ""}!`;
+    ? `Welcome${username ? `, ${username}` : ""}!`
+    : `Welcome Back${username ? `, ${username}` : ""}!`;
 
   const welcomeSubtitle = isNewUser
     ? "Let's get started by joining or creating a square."
@@ -481,7 +480,7 @@ const HomeScreen = () => {
         </View>
 
         {loading ? (
-          <Text style={{ color: theme.colors.onBackground }}>Loading...</Text>
+          <SkeletonLoader variant="homeScreen" />
         ) : userGames.length === 0 ? (
           <Text
             style={{
@@ -643,14 +642,6 @@ const HomeScreen = () => {
         <JoinSessionModal
           visible={visible}
           onDismiss={() => setVisible(false)}
-        />
-        <ProfileModal
-          visible={profileVisible}
-          onDismiss={() => setProfileVisible(false)}
-          userGames={userGames}
-          onNameChange={() => {
-            fetchFirstName();
-          }}
         />
 
         {/* Confirmation Modal for Leave/Delete */}

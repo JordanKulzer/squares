@@ -25,7 +25,7 @@ interface Player {
 interface Recipient {
   id: string;
   push_token: string | null;
-  first_name: string | null;
+  username: string | null;
 }
 
 interface PushNotificationRequest {

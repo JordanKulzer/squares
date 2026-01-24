@@ -19,7 +19,7 @@ const callPushNotificationEdgeFunction = async (payload: {
   players?: Array<{ userId: string; notifySettings?: NotificationSettings }>;
   targetUserId?: string;
   targetPushToken?: string;
-  recipients?: Array<{ id: string; push_token: string | null; first_name: string | null }>;
+  recipients?: Array<{ id: string; push_token: string | null; username: string | null }>;
 }) => {
   try {
     const { data, error } = await supabase.functions.invoke("send-push-notification", {
@@ -254,17 +254,17 @@ export const sendFriendRequestNotification = async (
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Get current user's name
+    // Get current user's username
     const { data: profile } = await supabase
       .from("users")
-      .select("first_name")
+      .select("username")
       .eq("id", user.id)
       .single();
 
     await callPushNotificationEdgeFunction({
       type: "friend_request",
       triggerUserId: user.id,
-      triggerUsername: profile?.first_name || "Someone",
+      triggerUsername: profile?.username || "Someone",
       targetUserId,
       targetPushToken,
     });
@@ -286,17 +286,17 @@ export const sendFriendAcceptedNotification = async (
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Get current user's name
+    // Get current user's username
     const { data: profile } = await supabase
       .from("users")
-      .select("first_name")
+      .select("username")
       .eq("id", user.id)
       .single();
 
     await callPushNotificationEdgeFunction({
       type: "friend_accepted",
       triggerUserId: user.id,
-      triggerUsername: profile?.first_name || "Someone",
+      triggerUsername: profile?.username || "Someone",
       targetUserId,
       targetPushToken,
     });
@@ -311,16 +311,16 @@ export const sendFriendAcceptedNotification = async (
 export const sendGameInviteNotification = async (
   gridId: string,
   sessionTitle: string,
-  recipients: Array<{ id: string; push_token: string | null; first_name: string | null }>
+  recipients: Array<{ id: string; push_token: string | null; username: string | null }>
 ) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Get current user's name
+    // Get current user's username
     const { data: profile } = await supabase
       .from("users")
-      .select("first_name")
+      .select("username")
       .eq("id", user.id)
       .single();
 
@@ -333,7 +333,7 @@ export const sendGameInviteNotification = async (
       gridId,
       sessionTitle,
       triggerUserId: user.id,
-      triggerUsername: profile?.first_name || "A friend",
+      triggerUsername: profile?.username || "A friend",
       recipients: validRecipients,
     });
   } catch (e) {

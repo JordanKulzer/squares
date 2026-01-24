@@ -199,7 +199,7 @@ export const getFriends = async (): Promise<FriendWithProfile[]> => {
     // Fetch user profiles
     const { data: profiles } = await supabase
       .from('users')
-      .select('id, first_name, email, push_token')
+      .select('id, username, email, push_token')
       .in('id', friendIds);
 
     const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
@@ -214,7 +214,7 @@ export const getFriends = async (): Promise<FriendWithProfile[]> => {
         ...friendship,
         friend_id: friendId,
         user_id: user.id,
-        friend_first_name: profile?.first_name || null,
+        friend_username: profile?.username || null,
         friend_email: profile?.email || null,
         friend_push_token: profile?.push_token || null,
       };
@@ -248,7 +248,7 @@ export const getPendingRequests = async (): Promise<FriendRequest[]> => {
     const requesterIds = requests.map(r => r.user_id);
     const { data: profiles } = await supabase
       .from('users')
-      .select('id, first_name, email')
+      .select('id, username, email')
       .in('id', requesterIds);
 
     const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
@@ -256,7 +256,7 @@ export const getPendingRequests = async (): Promise<FriendRequest[]> => {
     return requests.map(request => ({
       ...request,
       status: 'pending' as const,
-      requester_first_name: profileMap.get(request.user_id)?.first_name || null,
+      requester_username: profileMap.get(request.user_id)?.username || null,
       requester_email: profileMap.get(request.user_id)?.email || null,
     }));
   } catch (err) {
@@ -368,11 +368,11 @@ export const searchUsers = async (query: string): Promise<UserSearchResult[]> =>
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return [];
 
-    // Search users by name or email (case insensitive)
+    // Search users by username or email (case insensitive)
     const { data: users, error } = await supabase
       .from('users')
-      .select('id, first_name, email')
-      .or(`first_name.ilike.%${query}%,email.ilike.%${query}%`)
+      .select('id, username, email')
+      .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
       .neq('id', user.id)
       .is('deleted_at', null)
       .limit(20);
@@ -411,7 +411,7 @@ export const searchUsers = async (query: string): Promise<UserSearchResult[]> =>
 
       return {
         id: u.id,
-        first_name: u.first_name,
+        username: u.username,
         email: u.email,
         friendship_status: friendshipStatus,
         friendship_id: friendship?.id || null,
@@ -445,16 +445,16 @@ export const getMyRankingOnFriendsList = async (friendId: string): Promise<MyRan
       return null;
     }
 
-    // Get friend's name
+    // Get friend's username
     const { data: friendProfile } = await supabase
       .from('users')
-      .select('first_name')
+      .select('username')
       .eq('id', friendId)
       .single();
 
     return {
       friend_id: friendId,
-      friend_name: friendProfile?.first_name || null,
+      friend_username: friendProfile?.username || null,
       my_ranking: friendship?.ranking || null,
     };
   } catch (err) {

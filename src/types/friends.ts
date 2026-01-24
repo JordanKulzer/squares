@@ -14,7 +14,7 @@ export interface Friend {
 
 // Friend with user profile data joined from users table
 export interface FriendWithProfile extends Friend {
-  friend_first_name: string | null;
+  friend_username: string | null;
   friend_email: string | null;
   friend_push_token: string | null;
 }
@@ -27,14 +27,14 @@ export interface FriendRequest {
   status: 'pending';
   created_at: string;
   // Requester's info
-  requester_first_name: string | null;
+  requester_username: string | null;
   requester_email: string | null;
 }
 
 // User search result for adding friends
 export interface UserSearchResult {
   id: string;
-  first_name: string | null;
+  username: string | null;
   email: string | null;
   // Relationship status with current user
   friendship_status: FriendStatus | 'none' | 'incoming_request';
@@ -50,6 +50,6 @@ export interface Top4Slot {
 // For checking your ranking on a friend's list
 export interface MyRankingInfo {
   friend_id: string;
-  friend_name: string | null;
+  friend_username: string | null;
   my_ranking: number | null; // null if not in their Top 4
 }

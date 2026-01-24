@@ -1,12 +1,22 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, Share } from "react-native";
-import { Modal, Portal, Button, useTheme } from "react-native-paper";
+import React, { useEffect, useState, useCallback } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Share,
+  FlatList,
+  StyleSheet,
+} from "react-native";
+import { Modal, Portal, Button, useTheme, Checkbox } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import Toast from "react-native-toast-message";
-// import QRCode from "react-native-qrcode-svg";
+import { getToastConfig } from "./ToastConfig";
 import * as Clipboard from "expo-clipboard";
 import * as Sentry from "@sentry/react-native";
-import QuickInviteModal from "./QuickInviteModal";
+import { getFriends, getTop4 } from "../lib/friends";
+import { FriendWithProfile } from "../types/friends";
+import { sendGameInviteNotification } from "../utils/notifications";
+import SkeletonLoader from "./SkeletonLoader";
 
 const InviteFriendsModal = ({
   visible,
@@ -19,12 +29,153 @@ const InviteFriendsModal = ({
   gridId: string;
   sessionTitle?: string;
 }) => {
-  const [quickInviteVisible, setQuickInviteVisible] = useState(false);
   const theme = useTheme();
-  const dividerColor = theme.dark ? "#333" : "#eee";
+  const [friends, setFriends] = useState<FriendWithProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const loadFriends = useCallback(async () => {
+    setLoading(true);
+    try {
+      // TODO: Remove mock data after testing
+      const mockFriends: FriendWithProfile[] = [
+        {
+          id: "1",
+          friend_id: "f1",
+          user_id: "u1",
+          friend_username: "Alex Johnson",
+          friend_email: "alex@test.com",
+          friend_push_token: null,
+          ranking: 1,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "2",
+          friend_id: "f2",
+          user_id: "u1",
+          friend_username: "Maria Garcia",
+          friend_email: "maria@test.com",
+          friend_push_token: null,
+          ranking: 2,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "3",
+          friend_id: "f3",
+          user_id: "u1",
+          friend_username: "James Wilson",
+          friend_email: "james@test.com",
+          friend_push_token: null,
+          ranking: 3,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "4",
+          friend_id: "f4",
+          user_id: "u1",
+          friend_username: "Emily Davis",
+          friend_email: "emily@test.com",
+          friend_push_token: null,
+          ranking: 4,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "5",
+          friend_id: "f5",
+          user_id: "u1",
+          friend_username: "Michael Brown",
+          friend_email: "michael@test.com",
+          friend_push_token: null,
+          ranking: null,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "6",
+          friend_id: "f6",
+          user_id: "u1",
+          friend_username: "Sarah Miller",
+          friend_email: "sarah@test.com",
+          friend_push_token: null,
+          ranking: null,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "7",
+          friend_id: "f7",
+          user_id: "u1",
+          friend_username: "David Anderson",
+          friend_email: "david@test.com",
+          friend_push_token: null,
+          ranking: null,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "8",
+          friend_id: "f8",
+          user_id: "u1",
+          friend_username: "Jessica Taylor",
+          friend_email: "jessica@test.com",
+          friend_push_token: null,
+          ranking: null,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "9",
+          friend_id: "f9",
+          user_id: "u1",
+          friend_username: "Chris Martinez",
+          friend_email: "chris@test.com",
+          friend_push_token: null,
+          ranking: null,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+        {
+          id: "10",
+          friend_id: "f10",
+          user_id: "u1",
+          friend_username: "Amanda White",
+          friend_email: "amanda@test.com",
+          friend_push_token: null,
+          ranking: null,
+          created_at: "",
+          status: "accepted",
+          accepted_at: "",
+        },
+      ];
+      setFriends(mockFriends);
+      // const friendsData = await getFriends();
+      // setFriends(friendsData);
+    } catch (err) {
+      console.error("Error loading friends:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (visible) {
+      loadFriends();
+      setSelectedIds(new Set());
+
       Sentry.addBreadcrumb({
         category: "modal",
         message: "InviteFriendsModal opened",
@@ -34,11 +185,86 @@ const InviteFriendsModal = ({
       if (!gridId) {
         Sentry.captureMessage(
           "InviteFriendsModal opened without gridId",
-          "warning"
+          "warning",
         );
       }
     }
-  }, [visible]);
+  }, [visible, loadFriends, gridId]);
+
+  const toggleSelection = (friendId: string) => {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(friendId)) {
+        newSet.delete(friendId);
+      } else {
+        newSet.add(friendId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAll = () => {
+    setSelectedIds(new Set(friends.map((f) => f.friend_id)));
+  };
+
+  const selectTop4 = async () => {
+    const top4Slots = await getTop4();
+    const top4Ids = top4Slots
+      .filter((slot) => slot.friend !== null)
+      .map((slot) => slot.friend!.friend_id);
+    setSelectedIds(new Set(top4Ids));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const handleSendInvites = async () => {
+    if (selectedIds.size === 0) {
+      Toast.show({
+        type: "error",
+        text1: "Select at least one friend",
+        position: "bottom",
+        bottomOffset: 60,
+      });
+      return;
+    }
+
+    setSending(true);
+    try {
+      const selectedFriends = friends.filter((f) =>
+        selectedIds.has(f.friend_id),
+      );
+
+      await sendGameInviteNotification(
+        gridId,
+        sessionTitle || "Game",
+        selectedFriends.map((f) => ({
+          id: f.friend_id,
+          push_token: f.friend_push_token,
+          username: f.friend_username,
+        })),
+      );
+
+      Toast.show({
+        type: "success",
+        text1: `Invites sent to ${selectedIds.size} friend${selectedIds.size > 1 ? "s" : ""}!`,
+        position: "bottom",
+        bottomOffset: 60,
+      });
+      onDismiss();
+    } catch (err) {
+      console.error("Error sending invites:", err);
+      Toast.show({
+        type: "error",
+        text1: "Failed to send invites",
+        position: "bottom",
+        bottomOffset: 60,
+      });
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleCopy = async () => {
     try {
@@ -84,164 +310,437 @@ const InviteFriendsModal = ({
     }
   };
 
-  // const RenderQRCode = ({ value }: { value: string }) => {
-  //   try {
-  //     if (!value) throw new Error("QR Code received empty value");
-  //     return <QRCode value={value} size={150} />;
-  //   } catch (err) {
-  //     Sentry.captureException(err);
-  //     return (
-  //       <Text style={{ color: "red", marginTop: 8 }}>
-  //         Error displaying QR code.
-  //       </Text>
-  //     );
-  //   }
-  // };
+  const getInitials = (name: string | null, email: string | null) => {
+    if (name) {
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    }
+    if (email) {
+      return email[0].toUpperCase();
+    }
+    return "?";
+  };
+
+  const renderFriend = ({ item }: { item: FriendWithProfile }) => {
+    const isSelected = selectedIds.has(item.friend_id);
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.friendCard,
+          {
+            backgroundColor: isSelected
+              ? theme.dark
+                ? "rgba(94, 96, 206, 0.2)"
+                : "rgba(94, 96, 206, 0.1)"
+              : theme.colors.surface,
+            borderColor: isSelected ? theme.colors.primary : "transparent",
+          },
+        ]}
+        onPress={() => toggleSelection(item.friend_id)}
+      >
+        <Checkbox
+          status={isSelected ? "checked" : "unchecked"}
+          onPress={() => toggleSelection(item.friend_id)}
+          color={theme.colors.primary}
+        />
+        <View
+          style={[
+            styles.avatarCircle,
+            { backgroundColor: theme.colors.primary },
+          ]}
+        >
+          <Text style={styles.avatarText}>
+            {getInitials(item.friend_username, item.friend_email)}
+          </Text>
+        </View>
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Text style={[styles.friendName, { color: theme.colors.onSurface }]}>
+            {item.friend_username ||
+              item.friend_email?.split("@")[0] ||
+              "Friend"}
+          </Text>
+          {/* ranking removed */}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Portal>
       <Modal
         visible={visible}
         onDismiss={onDismiss}
-        contentContainerStyle={{
-          backgroundColor: theme.colors.surface,
-          marginHorizontal: 24,
-          padding: 20,
-          borderRadius: 16,
-          borderWidth: 1.5,
-          borderColor: "rgba(94, 96, 206, 0.4)",
-          borderLeftWidth: 5,
-          borderLeftColor: theme.colors.primary,
-          elevation: 5,
-        }}
+        contentContainerStyle={[
+          styles.modalContainer,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: "rgba(94, 96, 206, 0.4)",
+            borderLeftColor: theme.colors.primary,
+            zIndex: 0,
+            elevation: 0,
+          },
+        ]}
       >
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "bold",
-            marginBottom: 12,
-            color: theme.colors.onSurface,
-            fontFamily: "SoraBold",
-          }}
-        >
-          Invite Friends
-        </Text>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+            Invite Friends
+          </Text>
+          <TouchableOpacity onPress={onDismiss}>
+            <MaterialIcons
+              name="close"
+              size={24}
+              color={theme.colors.onSurface}
+            />
+          </TouchableOpacity>
+        </View>
 
         <View
-          style={{
-            height: 1,
-            backgroundColor: dividerColor,
-            marginBottom: 20,
-          }}
+          style={[
+            styles.divider,
+            { backgroundColor: theme.dark ? "#333" : "#eee" },
+          ]}
         />
 
-        {/* <View style={{ alignItems: "center", marginBottom: 12 }}>
-          {typeof gridId === "string" && gridId.length > 0 ? (
-            <RenderQRCode value={gridId} />
-          ) : (
-            <Text style={{ color: theme.colors.error }}>
-              Error Creating QR Code
+        {/* Friends List Section */}
+        <Text style={[styles.sectionLabel, { color: theme.colors.onSurface }]}>
+          Send invites to friends
+        </Text>
+
+        {/* Quick Select Buttons */}
+        {friends.length > 0 && (
+          <View style={styles.quickSelectRow}>
+            <TouchableOpacity
+              style={[
+                styles.quickSelectBtn,
+                { backgroundColor: theme.dark ? "#333" : "#f0f0f0" },
+              ]}
+              onPress={selectAll}
+            >
+              <MaterialIcons
+                name="select-all"
+                size={16}
+                color={theme.colors.primary}
+              />
+              <Text
+                style={[
+                  styles.quickSelectText,
+                  { color: theme.colors.onSurface },
+                ]}
+              >
+                Select All
+              </Text>
+            </TouchableOpacity>
+            {selectedIds.size > 0 && (
+              <TouchableOpacity
+                style={[
+                  styles.quickSelectBtn,
+                  { backgroundColor: theme.dark ? "#333" : "#f0f0f0" },
+                ]}
+                onPress={clearSelection}
+              >
+                <MaterialIcons
+                  name="clear"
+                  size={16}
+                  color={theme.colors.error}
+                />
+                <Text
+                  style={[
+                    styles.quickSelectText,
+                    { color: theme.colors.onSurface },
+                  ]}
+                >
+                  Clear
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Friends List */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <SkeletonLoader variant="friendsList" />
+          </View>
+        ) : friends.length === 0 ? (
+          <View style={styles.emptyState}>
+            <MaterialIcons
+              name="people-outline"
+              size={40}
+              color={theme.colors.onSurfaceVariant}
+            />
+            <Text
+              style={[
+                styles.emptyText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              No friends yet
             </Text>
-          )}
-        </View> */}
+            <Text
+              style={[
+                styles.emptySubtext,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Add friends to quickly invite them
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={friends}
+            renderItem={renderFriend}
+            keyExtractor={(item) => item.id}
+            style={styles.friendsList}
+            showsVerticalScrollIndicator={true}
+          />
+        )}
 
-        <Text
-          style={{
-            marginBottom: 8,
-            color: theme.colors.onSurface,
-            fontFamily: "Sora",
-          }}
-        >
-          Copy and share this session ID:
-        </Text>
+        {/* Send Invites Button */}
+        {friends.length > 0 && (
+          <View style={styles.sendSection}>
+            <Text
+              style={[
+                styles.selectedCount,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              {selectedIds.size} selected
+            </Text>
+            <Button
+              mode="contained"
+              onPress={handleSendInvites}
+              loading={sending}
+              disabled={sending || selectedIds.size === 0}
+              icon="send"
+              style={{ minWidth: 140 }}
+              labelStyle={{ fontFamily: "Sora" }}
+            >
+              Send Invites
+            </Button>
+          </View>
+        )}
 
-        <TouchableOpacity
-          onPress={handleCopy}
-          style={{
-            padding: 10,
-            backgroundColor: theme.dark ? "#333" : "#f4f4f4",
-            borderRadius: 8,
-            marginBottom: 16,
-          }}
-        >
+        {/* Divider with "or" */}
+        <View style={styles.orDivider}>
+          <View
+            style={[
+              styles.orLine,
+              { backgroundColor: theme.dark ? "#333" : "#ddd" },
+            ]}
+          />
           <Text
-            style={{
-              textAlign: "center",
-              fontWeight: "600",
-              color: theme.colors.primary,
-              fontFamily: "Sora",
-            }}
+            style={[styles.orText, { color: theme.colors.onSurfaceVariant }]}
           >
-            {gridId || "Unavailable"}
+            or share manually
           </Text>
-        </TouchableOpacity>
+          <View
+            style={[
+              styles.orLine,
+              { backgroundColor: theme.dark ? "#333" : "#ddd" },
+            ]}
+          />
+        </View>
 
-        <Text
-          style={{
-            marginBottom: 8,
-            color: theme.colors.onSurface,
-            fontFamily: "Sora",
-          }}
-        >
-          Or share via:
-        </Text>
-
-        <Button
-          icon="share-variant"
-          mode="contained"
-          onPress={handleShare}
-          style={{ marginBottom: 12 }}
-          labelStyle={{ fontFamily: "Sora" }}
-        >
-          Share
-        </Button>
-
-        <TouchableOpacity
-          onPress={() => {
-            onDismiss();
-            setTimeout(() => setQuickInviteVisible(true), 300);
-          }}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 12,
-            backgroundColor: theme.dark ? "#2a2a2a" : "#f0f0f0",
-            borderRadius: 8,
-            marginBottom: 16,
-            gap: 8,
-          }}
-        >
-          <MaterialIcons name="people" size={20} color={theme.colors.primary} />
-          <Text
-            style={{
-              color: theme.colors.primary,
-              fontFamily: "Sora",
-              fontWeight: "600",
-            }}
+        {/* Share Options */}
+        <View style={styles.shareRow}>
+          <TouchableOpacity
+            onPress={handleCopy}
+            style={[
+              styles.shareButton,
+              { backgroundColor: theme.dark ? "#333" : "#f4f4f4" },
+            ]}
           >
-            Invite from Friends List
-          </Text>
-        </TouchableOpacity>
+            <MaterialIcons
+              name="content-copy"
+              size={20}
+              color={theme.colors.primary}
+            />
+            <Text
+              style={[styles.shareButtonText, { color: theme.colors.primary }]}
+            >
+              Copy ID
+            </Text>
+          </TouchableOpacity>
 
-        <Button
-          mode="text"
-          textColor={theme.colors.error}
-          onPress={onDismiss}
-          labelStyle={{ fontFamily: "Sora" }}
-        >
-          Close
-        </Button>
+          <TouchableOpacity
+            onPress={handleShare}
+            style={[
+              styles.shareButton,
+              { backgroundColor: theme.dark ? "#333" : "#f4f4f4" },
+            ]}
+          >
+            <MaterialIcons
+              name="share"
+              size={20}
+              color={theme.colors.primary}
+            />
+            <Text
+              style={[styles.shareButtonText, { color: theme.colors.primary }]}
+            >
+              Share Link
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {/* global Toast will be used and should appear above this modal */}
       </Modal>
-
-      <QuickInviteModal
-        visible={quickInviteVisible}
-        onDismiss={() => setQuickInviteVisible(false)}
-        gridId={gridId}
-        sessionTitle={sessionTitle || "Game"}
-      />
+      <View
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 9999,
+          pointerEvents: "box-none",
+        }}
+      >
+        <Toast
+          config={getToastConfig(theme.dark)}
+          position="bottom"
+          bottomOffset={60}
+        />
+      </View>
     </Portal>
   );
 };
 
 export default InviteFriendsModal;
+
+const styles = StyleSheet.create({
+  modalContainer: {
+    margin: 20,
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1.5,
+    borderLeftWidth: 5,
+    elevation: 8,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontFamily: "SoraBold",
+  },
+  divider: {
+    height: 1,
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontFamily: "Rubik_500Medium",
+    marginBottom: 12,
+  },
+  quickSelectRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  quickSelectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  quickSelectText: {
+    fontSize: 13,
+    fontFamily: "Rubik_500Medium",
+  },
+  loadingContainer: {
+    paddingVertical: 20,
+  },
+  friendsList: {
+    maxHeight: 300,
+  },
+  friendCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 8,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  avatarCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 13,
+    fontFamily: "SoraBold",
+  },
+  friendName: {
+    fontSize: 14,
+    fontFamily: "Rubik_500Medium",
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 24,
+  },
+  emptyText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontFamily: "Rubik_500Medium",
+  },
+  emptySubtext: {
+    marginTop: 4,
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+  },
+  sendSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.1)",
+  },
+  selectedCount: {
+    fontSize: 14,
+    fontFamily: "Rubik_400Regular",
+  },
+  orDivider: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 16,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+  },
+  orText: {
+    paddingHorizontal: 12,
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+  },
+  shareRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  shareButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  shareButtonText: {
+    fontSize: 14,
+    fontFamily: "Rubik_500Medium",
+  },
+});

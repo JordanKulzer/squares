@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   StatusBar,
+  Text,
 } from "react-native";
 import {
   NavigationContainer,
@@ -30,6 +31,8 @@ import { getToastConfig } from "./src/components/ToastConfig";
 import GamePickerScreen from "./src/screens/GamePickerScreen";
 import HowToScreen from "./src/screens/HowToScreen";
 import FriendsScreen from "./src/screens/FriendsScreen";
+import AddFriendsScreen from "./src/screens/AddFriendsScreen";
+import ProfileScreen from "./src/screens/ProfileScreen";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
 import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 import { registerPushToken } from "./src/utils/registerPushToken";
@@ -111,9 +114,13 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const extra: any = Constants.expoConfig?.extra ?? (Constants as any).manifest?.extra ?? {};
+    const extra: any =
+      Constants.expoConfig?.extra ?? (Constants as any).manifest?.extra ?? {};
     console.log("RUNTIME_SUPSABASE_URL:", extra.EXPO_PUBLIC_SUPABASE_URL);
-    console.log("RUNTIME_SUPABASE_ANON_KEY PRESN:", extra.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+    console.log(
+      "RUNTIME_SUPABASE_ANON_KEY PRESN:",
+      extra.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    );
     console.log("RUNTIME_API_BASE_URL:", extra.EXPO_PUBLIC_API_BASE_URL);
   }, []);
 
@@ -170,7 +177,7 @@ const App: React.FC = () => {
         const result = (await Promise.race([
           supabase.auth.getSession(),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("timeout")), 5000)
+            setTimeout(() => reject(new Error("timeout")), 5000),
           ),
         ])) as Awaited<ReturnType<typeof supabase.auth.getSession>>;
 
@@ -180,9 +187,13 @@ const App: React.FC = () => {
         // Handle invalid refresh token errors (e.g., deleted account)
         if (error) {
           console.warn("⚠️ [Auth] Session error:", error.message);
-          if (error.message?.includes("Invalid Refresh Token") ||
-              error.message?.includes("Refresh Token Not Found")) {
-            console.log("🗑️ [Auth] Invalid refresh token detected, clearing session");
+          if (
+            error.message?.includes("Invalid Refresh Token") ||
+            error.message?.includes("Refresh Token Not Found")
+          ) {
+            console.log(
+              "🗑️ [Auth] Invalid refresh token detected, clearing session",
+            );
             await supabase.auth.signOut();
             return null;
           }
@@ -198,15 +209,19 @@ const App: React.FC = () => {
       } catch (err: any) {
         if (err.message === "timeout" && attempt < 3) {
           console.log(
-            `⏳ [Auth] Supabase still initializing... retrying (${attempt})`
+            `⏳ [Auth] Supabase still initializing... retrying (${attempt})`,
           );
           await wait(2000);
           return safeGetSession(attempt + 1);
         }
         // Handle AuthApiError for invalid refresh tokens
-        if (err.message?.includes("Invalid Refresh Token") ||
-            err.message?.includes("Refresh Token Not Found")) {
-          console.log("🗑️ [Auth] Invalid refresh token in catch, clearing session");
+        if (
+          err.message?.includes("Invalid Refresh Token") ||
+          err.message?.includes("Refresh Token Not Found")
+        ) {
+          console.log(
+            "🗑️ [Auth] Invalid refresh token in catch, clearing session",
+          );
           await supabase.auth.signOut();
           return null;
         }
@@ -279,7 +294,7 @@ const App: React.FC = () => {
             setRecoveryMode(false);
           }
           setLoading(false);
-        }
+        },
       );
 
       return () => listener?.subscription.unsubscribe();
@@ -409,6 +424,16 @@ const App: React.FC = () => {
                     component: FriendsScreen,
                     title: "Friends",
                   },
+                  {
+                    name: "AddFriendsScreen",
+                    component: AddFriendsScreen,
+                    title: null,
+                  },
+                  {
+                    name: "ProfileScreen",
+                    component: ProfileScreen,
+                    title: "Profile",
+                  },
                 ].map(({ name, component, title }) => (
                   <Stack.Screen
                     key={name}
@@ -450,6 +475,41 @@ const App: React.FC = () => {
                           />
                         </TouchableOpacity>
                       ),
+                      headerRight:
+                        name === "FriendsScreen"
+                          ? () => (
+                              <TouchableOpacity
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  paddingHorizontal: 12,
+                                  paddingVertical: 6,
+                                  borderRadius: 20,
+                                  //backgroundColor: paperTheme.colors.primary,
+                                  marginRight: 8,
+                                }}
+                                onPress={() =>
+                                  navigation.navigate("AddFriendsScreen")
+                                }
+                              >
+                                <Icon
+                                  name="person-add"
+                                  size={18}
+                                  color="#fff"
+                                />
+                                <Text
+                                  style={{
+                                    color: "#fff",
+                                    fontSize: 13,
+                                    fontFamily: "Rubik_500Medium",
+                                    marginLeft: 4,
+                                  }}
+                                >
+                                  Add
+                                </Text>
+                              </TouchableOpacity>
+                            )
+                          : undefined,
                     })}
                   />
                 ))}

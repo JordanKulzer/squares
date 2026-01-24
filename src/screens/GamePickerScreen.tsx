@@ -121,8 +121,6 @@ const GamePickerScreen = () => {
   const [showCalendar, setShowCalendar] = useState(false);
   const selectedSport = gameType.toLowerCase(); // derived, no state
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const messageFade = useRef(new Animated.Value(1)).current;
-  const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
 
   const {
     inputTitle = "",
@@ -220,37 +218,6 @@ const GamePickerScreen = () => {
     setWeekStart(getStartOfWeek(gameType, 0));
   }, [gameType]);
 
-  const loadingMessages = [
-    `Loading...`,
-    // `I'm thinking...`,
-    // `This is awkward...`,
-    // `Almost there...`,
-    // `Loading the good stuff...`,
-    // `Good things come to those who wait...`,
-  ];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Fade out first
-      Animated.timing(messageFade, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }).start(() => {
-        // Change the message once fade-out completes
-        setCurrentMessageIndex((prev) => (prev + 1) % loadingMessages.length);
-
-        // Fade back in
-        Animated.timing(messageFade, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [loadingMessages.length]);
 
   const handleSelectGame = async (game) => {
     const res = await fetch(
@@ -570,22 +537,7 @@ const GamePickerScreen = () => {
             // ) :
             loading ? (
               <View style={{ flex: 1, paddingHorizontal: 16, marginTop: 24 }}>
-                <Animated.View style={{ opacity: fadeAnim }}>
-                  <Animated.View style={{ opacity: messageFade }}>
-                    <Text
-                      style={{
-                        color: theme.colors.onSurfaceVariant,
-                        fontSize: 16,
-                        marginBottom: 12,
-                        textAlign: "center",
-                        fontFamily: "Rubik_600SemiBold",
-                      }}
-                    >
-                      {loadingMessages[currentMessageIndex]}
-                    </Text>
-                  </Animated.View>
-                  <SkeletonLoader variant="gamePickerScreen" />
-                </Animated.View>
+                <SkeletonLoader variant="gamePickerScreen" />
               </View>
             ) : games.length === 0 ? (
               <Text

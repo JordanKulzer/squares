@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -6,45 +6,32 @@ import {
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
-  Animated,
-  TouchableWithoutFeedback,
-  TextInput as RNTextInput,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { Portal, useTheme } from "react-native-paper";
+import { useTheme } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
-import { searchUsers, sendFriendRequest, acceptFriendRequest } from "../lib/friends";
+import {
+  searchUsers,
+  sendFriendRequest,
+  acceptFriendRequest,
+} from "../lib/friends";
 import { UserSearchResult } from "../types/friends";
-import SkeletonLoader from "./SkeletonLoader";
+import SkeletonLoader from "../components/SkeletonLoader";
 
-interface AddFriendModalProps {
-  visible: boolean;
-  onDismiss: () => void;
-}
-
-const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) => {
+const AddFriendsScreen = ({ navigation }: any) => {
   const theme = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<UserSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
-  const translateY = useRef(new Animated.Value(600)).current;
 
-  useEffect(() => {
-    if (visible) {
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
-    } else {
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
+  const gradientColors = theme.dark
+    ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
+    : (["#fdfcf9", "#e0e7ff"] as const);
 
   const handleSearch = useCallback(async (query: string) => {
     setSearchQuery(query);
@@ -76,11 +63,10 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
           position: "bottom",
           bottomOffset: 60,
         });
-        // Update local state to show pending
-        setResults(prev =>
-          prev.map(r =>
-            r.id === user.id ? { ...r, friendship_status: "pending" } : r
-          )
+        setResults((prev) =>
+          prev.map((r) =>
+            r.id === user.id ? { ...r, friendship_status: "pending" } : r,
+          ),
         );
       } else {
         Toast.show({
@@ -108,11 +94,10 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
           position: "bottom",
           bottomOffset: 60,
         });
-        // Update local state to show accepted
-        setResults(prev =>
-          prev.map(r =>
-            r.id === user.id ? { ...r, friendship_status: "accepted" } : r
-          )
+        setResults((prev) =>
+          prev.map((r) =>
+            r.id === user.id ? { ...r, friendship_status: "accepted" } : r,
+          ),
         );
       }
     } finally {
@@ -122,12 +107,32 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
 
   const getInitials = (name: string | null, email: string | null) => {
     if (name) {
-      return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
     }
     if (email) {
       return email[0].toUpperCase();
     }
     return "?";
+  };
+
+  const formatEmail = (email: string | null) => {
+    if (!email) return "";
+    const [username, domain] = email.split("@");
+    if (!domain) return email;
+
+    // Show first 3 chars, mask middle, show last char before @
+    if (username.length <= 4) {
+      return `${username.slice(0, 2)}**@${domain}`;
+    }
+    const visibleStart = username.slice(0, 3);
+    const visibleEnd = username.slice(-1);
+    const maskedLength = Math.min(username.length - 4, 3);
+    return `${visibleStart}${"*".repeat(maskedLength)}${visibleEnd}@${domain}`;
   };
 
   const getStatusButton = (user: UserSearchResult) => {
@@ -136,22 +141,49 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
     switch (user.friendship_status) {
       case "accepted":
         return (
-          <View style={[styles.statusBadge, { backgroundColor: theme.colors.primary }]}>
-            <MaterialIcons name="check" size={16} color="#fff" style={styles.statusBadgeIcon} />
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: theme.colors.primary },
+            ]}
+          >
+            <MaterialIcons
+              name="check"
+              size={16}
+              color="#fff"
+              style={styles.statusBadgeIcon}
+            />
             <Text style={styles.statusText}>Friends</Text>
           </View>
         );
       case "pending":
         return (
-          <View style={[styles.statusBadge, { backgroundColor: theme.dark ? "#444" : "#e0e0e0" }]}>
-            <MaterialIcons name="schedule" size={16} color={theme.colors.onSurface} style={styles.statusBadgeIcon} />
-            <Text style={[styles.statusText, { color: theme.colors.onSurface }]}>Pending</Text>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: theme.dark ? "#444" : "#e0e0e0" },
+            ]}
+          >
+            <MaterialIcons
+              name="schedule"
+              size={16}
+              color={theme.colors.onSurface}
+              style={styles.statusBadgeIcon}
+            />
+            <Text
+              style={[styles.statusText, { color: theme.colors.onSurface }]}
+            >
+              Pending
+            </Text>
           </View>
         );
       case "incoming_request":
         return (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.actionButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
             onPress={() => handleAcceptRequest(user)}
             disabled={isLoading}
           >
@@ -159,7 +191,12 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <MaterialIcons name="check" size={16} color="#fff" style={styles.actionButtonIcon} />
+                <MaterialIcons
+                  name="check"
+                  size={16}
+                  color="#fff"
+                  style={styles.actionButtonIcon}
+                />
                 <Text style={styles.actionButtonText}>Accept</Text>
               </>
             )}
@@ -167,14 +204,22 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
         );
       case "blocked":
         return (
-          <View style={[styles.statusBadge, { backgroundColor: theme.colors.error }]}>
+          <View
+            style={[
+              styles.statusBadge,
+              { backgroundColor: theme.colors.error },
+            ]}
+          >
             <MaterialIcons name="block" size={16} color="#fff" />
           </View>
         );
       default:
         return (
           <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.actionButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
             onPress={() => handleSendRequest(user)}
             disabled={isLoading}
           >
@@ -182,7 +227,12 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <MaterialIcons name="person-add" size={16} color="#fff" style={styles.actionButtonIcon} />
+                <MaterialIcons
+                  name="person-add"
+                  size={16}
+                  color="#fff"
+                  style={styles.actionButtonIcon}
+                />
                 <Text style={styles.actionButtonText}>Add</Text>
               </>
             )}
@@ -194,7 +244,10 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
   const renderUser = ({ item }: { item: UserSearchResult }) => (
     <View style={[styles.userCard, { backgroundColor: theme.colors.surface }]}>
       <View
-        style={[styles.avatarCircle, { backgroundColor: theme.colors.secondary }]}
+        style={[
+          styles.avatarCircle,
+          { backgroundColor: theme.colors.secondary },
+        ]}
       >
         <Text style={styles.avatarText}>
           {getInitials(item.username, item.email)}
@@ -204,124 +257,52 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
         <Text style={[styles.userName, { color: theme.colors.onSurface }]}>
           {item.username || "User"}
         </Text>
-        <Text style={[styles.userEmail, { color: theme.colors.onSurfaceVariant }]}>
-          {item.email}
+        <Text
+          style={[styles.userEmail, { color: theme.colors.onSurfaceVariant }]}
+        >
+          {formatEmail(item.email)}
         </Text>
       </View>
       {getStatusButton(item)}
     </View>
   );
 
-  const handleClose = () => {
-    setSearchQuery("");
-    setResults([]);
-    onDismiss();
-  };
-
-  const surfaceColor = theme.colors.surface;
-  const onSurfaceColor = theme.colors.onSurface;
-  const dividerColor = theme.dark ? "#333" : "#eee";
-
   return (
-    <Portal>
-      {visible && (
-        <TouchableWithoutFeedback onPress={handleClose}>
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0,0,0,0.4)",
-            }}
-          />
-        </TouchableWithoutFeedback>
-      )}
-
-      <Animated.View
-        pointerEvents={visible ? "auto" : "none"}
-        style={{
-          transform: [{ translateY }],
-          backgroundColor: surfaceColor,
-          position: "absolute",
-          bottom: -35,
-          left: 0,
-          right: 0,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
-          paddingHorizontal: 20,
-          paddingTop: 24,
-          paddingBottom: 75,
-          maxHeight: "80%",
-          borderWidth: 1.5,
-          borderLeftWidth: 5,
-          borderBottomWidth: 0,
-          borderColor: "rgba(94, 96, 206, 0.4)",
-          borderLeftColor: theme.colors.primary,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 8,
-          elevation: 10,
-        }}
+    <LinearGradient colors={gradientColors} style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 20,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: onSurfaceColor,
-              fontFamily: "SoraBold",
-            }}
-          >
-            Add Friends
-          </Text>
-          <TouchableOpacity onPress={handleClose}>
-            <Text
-              style={{
-                fontSize: 14,
-                color: theme.colors.error,
-                fontFamily: "Sora",
-              }}
-            >
-              Close
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={{
-            height: 1,
-            backgroundColor: dividerColor,
-            marginBottom: 16,
-          }}
-        />
-
-        <View style={styles.searchContainer}>
-          <MaterialIcons name="search" size={20} color={theme.colors.onSurfaceVariant} style={styles.searchIcon} />
-          <RNTextInput
-            placeholder="Search by username or email..."
-            value={searchQuery}
-            onChangeText={handleSearch}
+        <View style={styles.searchSection}>
+          <View
             style={[
-              styles.searchInput,
-              {
-                color: theme.colors.onSurface,
-                borderColor: theme.dark ? "#444" : "#ddd",
-              },
+              styles.searchContainer,
+              { backgroundColor: theme.colors.surface },
             ]}
-            placeholderTextColor={theme.colors.onSurfaceVariant}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          >
+            <MaterialIcons
+              name="search"
+              size={20}
+              color={theme.colors.onSurfaceVariant}
+              style={styles.searchIcon}
+            />
+            <TextInput
+              placeholder="Search by username or email..."
+              value={searchQuery}
+              onChangeText={handleSearch}
+              style={[
+                styles.searchInput,
+                {
+                  color: theme.colors.onSurface,
+                },
+              ]}
+              placeholderTextColor={theme.colors.onSurfaceVariant}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+          </View>
         </View>
 
         {searching ? (
@@ -331,7 +312,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
             data={results}
             renderItem={renderUser}
             keyExtractor={(item) => item.id}
-            style={styles.resultsList}
+            contentContainerStyle={styles.resultsList}
             showsVerticalScrollIndicator={false}
           />
         ) : searchQuery.length >= 2 ? (
@@ -341,7 +322,12 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
               size={48}
               color={theme.colors.onSurfaceVariant}
             />
-            <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+            <Text
+              style={[
+                styles.emptyText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
               No users found
             </Text>
           </View>
@@ -352,42 +338,70 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
               size={48}
               color={theme.colors.onSurfaceVariant}
             />
-            <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+            <Text
+              style={[
+                styles.emptyText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
               Search for friends by username or email
             </Text>
           </View>
         )}
-      </Animated.View>
-    </Portal>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 };
 
-export default AddFriendModal;
+export default AddFriendsScreen;
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: "SoraBold",
+  },
+  searchSection: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 48,
   },
   searchIcon: {
     marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    height: 44,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
+    height: 48,
     fontFamily: "Rubik_400Regular",
     fontSize: 15,
   },
   loadingContainer: {
-    paddingVertical: 40,
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
   },
   resultsList: {
-    maxHeight: 300,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
   userCard: {
     flexDirection: "row",
@@ -447,8 +461,10 @@ const styles = StyleSheet.create({
     fontFamily: "Rubik_500Medium",
   },
   emptyState: {
+    flex: 1,
     alignItems: "center",
-    paddingVertical: 40,
+    justifyContent: "center",
+    paddingVertical: 60,
   },
   emptyText: {
     marginTop: 12,

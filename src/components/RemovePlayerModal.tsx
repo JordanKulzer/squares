@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert } from "react-native";
-import { Modal, Portal, Button, useTheme } from "react-native-paper";
+import { View, Text, TouchableOpacity, FlatList, Alert } from "react-native";
+import { Modal, Portal, Button, useTheme, Checkbox } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Toast from "react-native-toast-message";
 import { supabase } from "../lib/supabase";
@@ -19,6 +19,8 @@ const RemovePlayerModal = ({
     userId: string;
     username: string;
   } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [confirmMultipleVisible, setConfirmMultipleVisible] = useState(false);
 
   useEffect(() => {
     if (!visible) return;
@@ -57,6 +59,78 @@ const RemovePlayerModal = ({
     setConfirmVisible(true);
   };
 
+  const toggleSelection = (userId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(players.map((p) => p.userId)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleKickMultiple = async (idsToKick: string[]) => {
+    try {
+      const { data, error } = await supabase
+        .from("squares")
+        .select("players, player_ids, selections")
+        .eq("id", gridId)
+        .single();
+
+      if (error || !data) return;
+
+      const idSet = new Set(idsToKick);
+      const updatedPlayers = (data.players || []).filter(
+        (p) => !idSet.has(p.userId),
+      );
+      const updatedPlayerIds = (data.player_ids || []).filter(
+        (id) => !idSet.has(id),
+      );
+      const updatedSelections = (data.selections || []).filter(
+        (sel) => !idSet.has(sel.userId),
+      );
+
+      const { error: updateError } = await supabase
+        .from("squares")
+        .update({
+          players: updatedPlayers,
+          player_ids: updatedPlayerIds,
+          selections: updatedSelections,
+        })
+        .eq("id", gridId)
+        .single();
+
+      if (updateError) {
+        console.error("Error updating players:", updateError);
+        return;
+      }
+
+      Toast.show({
+        type: "info",
+        text1: "Players removed",
+        position: "bottom",
+        bottomOffset: 60,
+      });
+      if (triggerRefresh) triggerRefresh();
+      clearSelection();
+
+      const refetch = await supabase
+        .from("squares")
+        .select("players")
+        .eq("id", gridId)
+        .single();
+      if (!refetch.error && refetch.data?.players) {
+        setPlayers(
+          refetch.data.players.filter((p) => p.userId !== currentUserId),
+        );
+      }
+    } catch (err) {
+      console.error("Error kicking players:", err);
+    }
+  };
+
   const handleKick = async (uidToKick) => {
     try {
       const { data, error } = await supabase
@@ -69,10 +143,10 @@ const RemovePlayerModal = ({
 
       const updatedPlayers = data.players.filter((p) => p.userId !== uidToKick);
       const updatedPlayerIds = (data.player_ids || []).filter(
-        (id) => id !== uidToKick
+        (id) => id !== uidToKick,
       );
       const updatedSelections = (data.selections || []).filter(
-        (sel) => sel.userId !== uidToKick
+        (sel) => sel.userId !== uidToKick,
       );
 
       const { data: updateResult, error: updateError } = await supabase
@@ -106,12 +180,19 @@ const RemovePlayerModal = ({
 
       if (!refetch.error && refetch.data?.players) {
         setPlayers(
-          refetch.data.players.filter((p) => p.userId !== currentUserId)
+          refetch.data.players.filter((p) => p.userId !== currentUserId),
         );
       }
     } catch (err) {
       console.error("Error kicking player:", err);
     }
+  };
+
+  const confirmRemoveSelected = async () => {
+    setConfirmMultipleVisible(false);
+    if (selectedIds.size === 0) return;
+    await handleKickMultiple(Array.from(selectedIds));
+    onDismiss && onDismiss();
   };
   const dividerColor = theme.dark ? "#333" : "#eee";
 
@@ -121,103 +202,244 @@ const RemovePlayerModal = ({
         visible={visible}
         onDismiss={onDismiss}
         contentContainerStyle={{
-          backgroundColor: theme.colors.surface,
-          marginHorizontal: 24,
-          padding: 20,
+          margin: 20,
           borderRadius: 16,
+          padding: 24,
           borderWidth: 1.5,
-          borderColor: "rgba(94, 96, 206, 0.4)",
           borderLeftWidth: 5,
+          elevation: 8,
+          backgroundColor: theme.colors.surface,
+          borderColor: "rgba(94, 96, 206, 0.4)",
           borderLeftColor: theme.colors.primary,
         }}
       >
-        <Text
+        <View
           style={{
-            fontSize: 18,
-            fontWeight: "bold",
-            color: theme.colors.onSurface,
-            marginBottom: 12,
-            fontFamily: "SoraBold",
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16,
           }}
         >
-          Select Player To Remove
-        </Text>
+          <Text
+            style={{
+              fontSize: 20,
+              fontFamily: "SoraBold",
+              color: theme.colors.onSurface,
+            }}
+          >
+            Select Player(s) To Remove
+          </Text>
+          <TouchableOpacity onPress={onDismiss}>
+            <Icon name="close" size={24} color={theme.colors.onSurface} />
+          </TouchableOpacity>
+        </View>
+
         <View
           style={{
             height: 1,
-            backgroundColor: dividerColor,
-            marginBottom: 20,
+            marginBottom: 16,
+            backgroundColor: theme.dark ? "#333" : "#eee",
           }}
         />
-        <ScrollView>
-          {players.map((p) => (
-            <View
-              key={p.userId}
+        {players.length > 0 && (
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+            <TouchableOpacity
               style={{
                 flexDirection: "row",
-                justifyContent: "space-between",
                 alignItems: "center",
-                paddingVertical: 12,
-                paddingHorizontal: 8,
-                marginBottom: 12,
-                borderRadius: 12,
-                borderBottomWidth: 1,
-                borderBottomColor: dividerColor,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 20,
+                gap: 4,
+                backgroundColor: theme.dark ? "#333" : "#f0f0f0",
               }}
+              onPress={selectAll}
             >
-              <View style={{ flexDirection: "row", alignItems: "center" }}>
-                <View
-                  style={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: 12,
-                    backgroundColor: p.color || "#999",
-                    marginRight: 12,
-                    borderWidth: 1,
-                    borderColor: theme.dark ? "#333" : "#ccc",
-                  }}
-                />
-                <Text style={{ color: theme.colors.onSurface }}>
-                  {p.username || "Unnamed"}
-                </Text>
-              </View>
+              <Icon name="select-all" size={16} color={theme.colors.primary} />
+              <Text style={{ marginLeft: 6, color: theme.colors.onSurface }}>
+                Select All
+              </Text>
+            </TouchableOpacity>
+            {selectedIds.size > 0 && (
               <TouchableOpacity
-                onPress={() => confirmKick(p.userId, p.username)}
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  paddingVertical: 4,
-                  paddingHorizontal: 8,
-                  borderRadius: 8,
-                  backgroundColor: theme.dark
-                    ? "rgba(255, 0, 0, 0.1)"
-                    : "rgba(255, 0, 0, 0.05)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 20,
+                  gap: 4,
+                  backgroundColor: theme.dark ? "#333" : "#f0f0f0",
                 }}
+                onPress={clearSelection}
               >
-                <Icon
-                  name="person-remove"
-                  size={18}
-                  color={theme.colors.error}
-                />
-                <Text
-                  style={{
-                    color: theme.colors.error,
-                    fontSize: 14,
-                    marginLeft: 6,
-                    fontFamily: "Sora",
-                    fontWeight: "600",
-                  }}
-                >
-                  Remove
+                <Icon name="clear" size={16} color={theme.colors.error} />
+                <Text style={{ marginLeft: 6, color: theme.colors.onSurface }}>
+                  Clear
                 </Text>
               </TouchableOpacity>
-            </View>
-          ))}
-        </ScrollView>
+            )}
+          </View>
+        )}
 
-        <Button mode="text" onPress={onDismiss}>
-          Close
-        </Button>
+        {players.length === 0 ? (
+          <View style={{ alignItems: "center", paddingVertical: 24 }}>
+            <Icon
+              name="people-outline"
+              size={36}
+              color={theme.colors.onSurfaceVariant}
+            />
+            <Text
+              style={{
+                color: theme.colors.onSurfaceVariant,
+                marginTop: 8,
+                fontFamily: "Sora",
+              }}
+            >
+              No players to remove
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={players}
+            keyExtractor={(item) => item.userId}
+            style={{ maxHeight: 300 }}
+            showsVerticalScrollIndicator={true}
+            renderItem={({ item: p }) => {
+              const isSelected = selectedIds.has(p.userId);
+              return (
+                <TouchableOpacity
+                  onPress={() => toggleSelection(p.userId)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    padding: 8,
+                    borderRadius: 12,
+                    marginBottom: 8,
+                    borderWidth: 1,
+                    borderColor: isSelected
+                      ? theme.colors.primary
+                      : "transparent",
+                    backgroundColor: isSelected
+                      ? theme.dark
+                        ? "rgba(94,96,206,0.2)"
+                        : "rgba(94,96,206,0.1)"
+                      : theme.colors.surface,
+                  }}
+                >
+                  <Checkbox
+                    status={isSelected ? "checked" : "unchecked"}
+                    onPress={() => toggleSelection(p.userId)}
+                    color={theme.colors.primary}
+                  />
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: theme.colors.primary,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 13,
+                        fontFamily: "SoraBold",
+                      }}
+                    >
+                      {(p.username || "")
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()
+                        .slice(0, 2)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text
+                      style={{
+                        color: theme.colors.onSurface,
+                        fontFamily: "Rubik_500Medium",
+                      }}
+                    >
+                      {p.username || p.userId || "Player"}
+                    </Text>
+                  </View>
+                  {/* <TouchableOpacity
+                    onPress={() => confirmKick(p.userId, p.username)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingVertical: 4,
+                      paddingHorizontal: 8,
+                      borderRadius: 8,
+                      backgroundColor: theme.dark
+                        ? "rgba(255,0,0,0.1)"
+                        : "rgba(255,0,0,0.05)",
+                    }}
+                  >
+                    <Icon
+                      name="person-remove"
+                      size={18}
+                      color={theme.colors.error}
+                    />
+                    <Text
+                      style={{
+                        color: theme.colors.error,
+                        fontSize: 14,
+                        marginLeft: 6,
+                        fontFamily: "Sora",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Remove
+                    </Text>
+                  </TouchableOpacity> */}
+                </TouchableOpacity>
+              );
+            }}
+          />
+        )}
+
+        {players.length > 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginTop: 12,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: "rgba(0,0,0,0.05)",
+            }}
+          >
+            <Text style={{ color: theme.colors.onSurfaceVariant }}>
+              {selectedIds.size} selected
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Button
+                mode="contained"
+                onPress={() => setConfirmMultipleVisible(true)}
+                disabled={selectedIds.size === 0}
+                labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+                style={{ minWidth: 140, backgroundColor: theme.colors.error }}
+              >
+                Remove Selected
+              </Button>
+              {/* <Button mode="text" onPress={onDismiss}>
+                Close
+              </Button> */}
+            </View>
+          </View>
+        )}
+        {/* {players.length === 0 && (
+          <Button mode="text" onPress={onDismiss}>
+            Close
+          </Button>
+        )} */}
       </Modal>
       <Portal>
         <Modal
@@ -280,6 +502,72 @@ const RemovePlayerModal = ({
                   handleKick(pendingKick.userId);
                 }
                 setConfirmVisible(false);
+              }}
+              textColor={theme.colors.error}
+              labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+            >
+              Remove
+            </Button>
+          </View>
+        </Modal>
+        <Modal
+          visible={confirmMultipleVisible}
+          onDismiss={() => setConfirmMultipleVisible(false)}
+          contentContainerStyle={{
+            backgroundColor: theme.colors.surface,
+            marginHorizontal: 32,
+            padding: 24,
+            borderRadius: 16,
+            borderWidth: 1.5,
+            borderColor: "rgba(94, 96, 206, 0.4)",
+            borderLeftWidth: 5,
+            borderLeftColor: theme.colors.primary,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "bold",
+              color: theme.colors.onSurface,
+              marginBottom: 16,
+              fontFamily: "SoraBold",
+            }}
+          >
+            Confirm Removal
+          </Text>
+          <View
+            style={{
+              height: 1,
+              backgroundColor: dividerColor,
+              marginBottom: 20,
+            }}
+          />
+          <Text
+            style={{
+              color: theme.colors.onSurface,
+              marginBottom: 24,
+              fontFamily: "Sora",
+            }}
+          >
+            Are you sure you want to remove{" "}
+            <Text style={{ fontWeight: "bold" }}>
+              {selectedIds.size} selected player(s)
+              {selectedIds.size !== 1 ? "s" : ""}
+            </Text>{" "}
+            from the session?
+          </Text>
+
+          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+            <Button
+              onPress={() => setConfirmMultipleVisible(false)}
+              textColor={theme.colors.onSurface}
+              labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onPress={async () => {
+                await confirmRemoveSelected();
               }}
               textColor={theme.colors.error}
               labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}

@@ -13,6 +13,7 @@ import Toast from "react-native-toast-message";
 import { getFriends, getTop4 } from "../lib/friends";
 import { FriendWithProfile } from "../types/friends";
 import { sendGameInviteNotification } from "../utils/notifications";
+import SkeletonLoader from "./SkeletonLoader";
 
 interface QuickInviteModalProps {
   visible: boolean;
@@ -102,7 +103,7 @@ const QuickInviteModal: React.FC<QuickInviteModalProps> = ({
         selectedFriends.map((f) => ({
           id: f.friend_id,
           push_token: f.friend_push_token,
-          first_name: f.friend_first_name,
+          username: f.friend_username,
         }))
       );
 
@@ -163,12 +164,12 @@ const QuickInviteModal: React.FC<QuickInviteModalProps> = ({
           style={[styles.avatarCircle, { backgroundColor: theme.colors.primary }]}
         >
           <Text style={styles.avatarText}>
-            {getInitials(item.friend_first_name, item.friend_email)}
+            {getInitials(item.friend_username, item.friend_email)}
           </Text>
         </View>
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={[styles.friendName, { color: theme.colors.onSurface }]}>
-            {item.friend_first_name || item.friend_email?.split("@")[0] || "Friend"}
+            {item.friend_username || item.friend_email?.split("@")[0] || "Friend"}
           </Text>
           {item.ranking && (
             <View style={styles.rankingTag}>
@@ -238,9 +239,7 @@ const QuickInviteModal: React.FC<QuickInviteModalProps> = ({
         </View>
 
         {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
-          </View>
+          <SkeletonLoader variant="friendsList" />
         ) : friends.length === 0 ? (
           <View style={styles.emptyState}>
             <MaterialIcons

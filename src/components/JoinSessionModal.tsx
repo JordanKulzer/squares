@@ -37,18 +37,31 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
   }, [visible]);
 
   const handleJoin = async () => {
-    if (!sessionCode.trim()) return;
+    const trimmedCode = sessionCode.trim();
+
+    if (!trimmedCode) {
+      setError("Please enter a session code");
+      return;
+    }
 
     setLoadingSession(true);
     try {
       const { data, error: fetchError } = await supabase
         .from("squares")
         .select("title, deadline, players")
-        .eq("id", sessionCode.trim())
+        .eq("id", trimmedCode)
         .single();
 
       if (fetchError || !data) {
-        setError("Session not found.: " + fetchError?.message);
+        // Handle specific error cases with user-friendly messages
+        if (fetchError?.code === 'PGRST116') {
+          // PostgreSQL "no rows returned" error
+          setError("Session not found. Please check the code and try again.");
+        } else if (fetchError?.message?.includes('invalid input syntax for type uuid')) {
+          setError("Invalid session code format. Please check and try again.");
+        } else {
+          setError("Unable to find that session. Please verify the session code.");
+        }
         return;
       }
 
@@ -56,14 +69,14 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
 
       onDismiss();
       navigation.navigate("JoinSquareScreen", {
-        gridId: sessionCode.trim(),
+        gridId: trimmedCode,
         inputTitle: data.title,
         deadline: data.deadline,
         usedColors,
       });
     } catch (err) {
       console.error("Join session error:", err);
-      setError("Something went wrong.");
+      setError("An error occurred while joining. Please try again.");
     } finally {
       setLoadingSession(false);
     }

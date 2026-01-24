@@ -26,6 +26,22 @@ export const getToastConfig = (isDarkMode: boolean) => {
         text1Style={[styles.text, { color: textColor }]}
       />
     ),
+    success: (props) => (
+      <BaseToast
+        {...props}
+        style={[
+          styles.toastContainer,
+          {
+            backgroundColor,
+            borderLeftColor,
+            borderColor: `${errorColor}66`,
+            //borderColor: "rgba(94, 96, 206, 0.4)",
+          },
+        ]}
+        contentContainerStyle={styles.contentContainer}
+        text1Style={[styles.text, { color: textColor }]}
+      />
+    ),
     error: (props) => (
       <ErrorToast
         {...props}

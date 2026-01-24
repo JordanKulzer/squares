@@ -395,6 +395,31 @@ const SquareScreen = ({ route }) => {
     playerUsernames,
   ]);
 
+  // Save quarter_winners to database when they're calculated
+  useEffect(() => {
+    if (!quarterWinners || quarterWinners.length === 0) return;
+    if (!gridId) return;
+
+    // Only save if we have at least one completed quarter with scores
+    const hasCompletedQuarters = quarterScores.some(
+      (q) => q.home != null && q.away != null
+    );
+    if (!hasCompletedQuarters) return;
+
+    const saveQuarterWinners = async () => {
+      const { error } = await supabase
+        .from("squares")
+        .update({ quarter_winners: quarterWinners })
+        .eq("id", gridId);
+
+      if (error) {
+        console.error("Failed to save quarter_winners:", JSON.stringify(error, null, 2));
+      }
+    };
+
+    saveQuarterWinners();
+  }, [quarterWinners, gridId, quarterScores]);
+
   useEffect(() => {
     if (!quarterWinners?.length || !Object.keys(playerUsernames).length) return;
 
@@ -1497,14 +1522,13 @@ const SquareScreen = ({ route }) => {
                           ]}
                         />
                         <Text style={styles.winnerText}>
-                          {username} wins $
                           {pricePerSquare
-                            ? (
+                            ? `${username} wins $${(
                                 (pricePerSquare *
                                   Object.keys(squareColors).length) /
                                 quarterScores.length
-                              ).toFixed(2)
-                            : "0.00"}
+                              ).toFixed(2)}`
+                            : `${username} wins!`}
                         </Text>
                       </View>
                     ) : (
