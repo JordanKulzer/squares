@@ -6,6 +6,7 @@ import {
   StatusBar,
   Text,
 } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
   NavigationContainer,
   DefaultTheme,
@@ -32,6 +33,7 @@ import GamePickerScreen from "./src/screens/GamePickerScreen";
 import HowToScreen from "./src/screens/HowToScreen";
 import FriendsScreen from "./src/screens/FriendsScreen";
 import AddFriendsScreen from "./src/screens/AddFriendsScreen";
+import InviteFriendsScreen from "./src/screens/InviteFriendsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
 import ForgotPasswordScreen from "./src/screens/ForgotPassword";
@@ -345,7 +347,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar
         barStyle={isDarkTheme ? "light-content" : "dark-content"}
         backgroundColor={
@@ -428,6 +430,11 @@ const App: React.FC = () => {
                     name: "AddFriendsScreen",
                     component: AddFriendsScreen,
                     title: null,
+                  },
+                  {
+                    name: "InviteFriendsScreen",
+                    component: InviteFriendsScreen,
+                    title: "Invite Friends",
                   },
                   {
                     name: "ProfileScreen",
@@ -537,7 +544,7 @@ const App: React.FC = () => {
         </NavigationContainer>
         <Toast config={toastConfig} position="bottom" bottomOffset={60} />
       </PaperProvider>
-    </>
+    </GestureHandlerRootView>
   );
 };
 

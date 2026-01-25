@@ -13,9 +13,17 @@ import {
   ScrollView,
   Animated,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
+import ReanimatedSwipeable, {
+  SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { IconButton, useTheme, Portal, Modal, Button } from "react-native-paper";
+import {
+  IconButton,
+  useTheme,
+  Portal,
+  Modal,
+  Button,
+} from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import JoinSessionModal from "../components/JoinSessionModal";
@@ -31,6 +39,7 @@ import {
   sendPlayerLeftNotification,
   sendSquareDeletedNotification,
 } from "../utils/notifications";
+// import PendingInvitesSection from "../components/PendingInvitesSection";
 
 const HomeScreen = () => {
   const navigation =
@@ -61,7 +70,7 @@ const HomeScreen = () => {
     item: any;
     isOwner: boolean;
   }>({ visible: false, item: null, isOwner: false });
-  const swipeableRefs = useRef<Record<string, Swipeable | null>>({});
+  const swipeableRefs = useRef<Record<string, SwipeableMethods | null>>({});
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -80,7 +89,7 @@ const HomeScreen = () => {
         const { data, error } = await supabase
           .from("squares")
           .select(
-            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids, game_completed, created_by"
+            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids, game_completed, created_by",
           )
           .contains("player_ids", [user.id]);
 
@@ -112,7 +121,7 @@ const HomeScreen = () => {
           const squareSelections = square.selections || [];
 
           const userCount = squareSelections.filter(
-            (sel) => sel.userId === user.id
+            (sel) => sel.userId === user.id,
           ).length;
 
           counts[squareId] = userCount;
@@ -144,15 +153,15 @@ const HomeScreen = () => {
                 duration: 400,
                 useNativeDriver: true,
               }),
-            ])
-          )
+            ]),
+          ),
         ).start();
 
         setLoading(false);
       };
 
       fetchUserSquares();
-    }, [])
+    }, []),
   );
 
   const fetchUsername = async () => {
@@ -202,7 +211,10 @@ const HomeScreen = () => {
 
   const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? "" : "s"}`;
 
-  const formatCountdown = (deadlineLike?: string | Date, gameCompleted?: boolean) => {
+  const formatCountdown = (
+    deadlineLike?: string | Date,
+    gameCompleted?: boolean,
+  ) => {
     if (!deadlineLike) return "Ended";
     const d = new Date(deadlineLike);
     const diff = d.getTime() - now.getTime();
@@ -240,7 +252,7 @@ const HomeScreen = () => {
     ? "Let's get started by joining or creating a square."
     : "Ready to play your next square?";
 
-  const closeAllSwipeables = () => {
+  const closeAllReanimatedSwipeables = () => {
     Object.values(swipeableRefs.current).forEach((ref) => ref?.close());
   };
 
@@ -265,13 +277,13 @@ const HomeScreen = () => {
       }
 
       const updatedPlayerIds = (data.player_ids || []).filter(
-        (id: string) => id !== userId
+        (id: string) => id !== userId,
       );
       const updatedPlayers = (data.players || []).filter(
-        (p: any) => p.userId !== userId
+        (p: any) => p.userId !== userId,
       );
       const updatedSelections = (data.selections || []).filter(
-        (sel: any) => sel.userId !== userId
+        (sel: any) => sel.userId !== userId,
       );
 
       await supabase
@@ -286,11 +298,13 @@ const HomeScreen = () => {
       if (updatedPlayers.length === 0) {
         await supabase.from("squares").delete().eq("id", item.id);
       } else {
-        const currentPlayer = item.players?.find((p: any) => p.userId === userId);
+        const currentPlayer = item.players?.find(
+          (p: any) => p.userId === userId,
+        );
         await sendPlayerLeftNotification(
           item.id,
           currentPlayer?.username || "Unknown",
-          data.title || item.title
+          data.title || item.title,
         );
       }
 
@@ -317,7 +331,11 @@ const HomeScreen = () => {
 
   const handleDeleteSquare = async (item: any) => {
     try {
-      await sendSquareDeletedNotification(item.id, item.title, item.players || []);
+      await sendSquareDeletedNotification(
+        item.id,
+        item.title,
+        item.players || [],
+      );
 
       await supabase.from("squares").delete().eq("id", item.id);
 
@@ -350,7 +368,7 @@ const HomeScreen = () => {
           { backgroundColor: isOwner ? "#f44336" : "#FF9800" },
         ]}
         onPress={() => {
-          closeAllSwipeables();
+          closeAllReanimatedSwipeables();
           setConfirmModal({ visible: true, item, isOwner });
         }}
       >
@@ -444,6 +462,10 @@ const HomeScreen = () => {
             <Text style={styles.buttonText}>Friends</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Pending Game Invites */}
+        {/* <PendingInvitesSection /> */}
+
         <View
           style={{
             flexDirection: "row",
@@ -530,7 +552,7 @@ const HomeScreen = () => {
                     ],
                   }}
                 >
-                  <Swipeable
+                  <ReanimatedSwipeable
                     ref={(ref) => {
                       swipeableRefs.current[item.id] = ref;
                     }}
@@ -619,7 +641,10 @@ const HomeScreen = () => {
                             }}
                           >
                             {" "}
-                            {formatCountdown(item.deadline, item.game_completed)}
+                            {formatCountdown(
+                              item.deadline,
+                              item.game_completed,
+                            )}
                           </Text>
                         </View>
 
@@ -632,7 +657,7 @@ const HomeScreen = () => {
                         )}
                       </View>
                     </TouchableOpacity>
-                  </Swipeable>
+                  </ReanimatedSwipeable>
                 </Animated.View>
               );
             })}
@@ -648,7 +673,9 @@ const HomeScreen = () => {
         <Portal>
           <Modal
             visible={confirmModal.visible}
-            onDismiss={() => setConfirmModal({ visible: false, item: null, isOwner: false })}
+            onDismiss={() =>
+              setConfirmModal({ visible: false, item: null, isOwner: false })
+            }
             contentContainerStyle={{ backgroundColor: "transparent" }}
           >
             <View
@@ -660,7 +687,9 @@ const HomeScreen = () => {
                 },
               ]}
             >
-              <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+              <Text
+                style={[styles.modalTitle, { color: theme.colors.onSurface }]}
+              >
                 {confirmModal.isOwner ? "Delete Session" : "Leave Session"}
               </Text>
               <View
@@ -670,20 +699,37 @@ const HomeScreen = () => {
                   marginBottom: 20,
                 }}
               />
-              <Text style={[styles.modalSubtitle, { color: theme.colors.onSurfaceVariant }]}>
+              <Text
+                style={[
+                  styles.modalSubtitle,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
+              >
                 {confirmModal.isOwner
                   ? `Are you sure you want to permanently delete "${confirmModal.item?.title}"? This cannot be undone.`
                   : `Are you sure you want to leave "${confirmModal.item?.title}"? Your squares will be removed.`}
               </Text>
               <View style={styles.modalButtonRow}>
-                <Button onPress={() => setConfirmModal({ visible: false, item: null, isOwner: false })}>
+                <Button
+                  onPress={() =>
+                    setConfirmModal({
+                      visible: false,
+                      item: null,
+                      isOwner: false,
+                    })
+                  }
+                >
                   Cancel
                 </Button>
                 <Button
                   onPress={async () => {
                     const item = confirmModal.item;
                     const isOwner = confirmModal.isOwner;
-                    setConfirmModal({ visible: false, item: null, isOwner: false });
+                    setConfirmModal({
+                      visible: false,
+                      item: null,
+                      isOwner: false,
+                    });
                     if (isOwner) {
                       await handleDeleteSquare(item);
                     } else {

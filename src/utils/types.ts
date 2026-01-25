@@ -1,6 +1,10 @@
 export type RootStackParamList = {
   FriendsScreen: undefined;
   CreateSquareScreen: undefined;
+  InviteFriendsScreen: {
+    gridId: string;
+    sessionTitle: string;
+  };
   JoinSquareScreen:
     | {
         gridId: string;
@@ -10,6 +14,7 @@ export type RootStackParamList = {
       }
     | {
         sessionId: string;
+        inviteId?: string; // Optional: if coming from invite, mark as accepted after joining
       };
   SquareScreen: {
     gridId: string;

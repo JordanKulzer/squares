@@ -6,32 +6,43 @@ import {
   ScrollView,
   TouchableOpacity,
   Keyboard,
+  RefreshControl,
 } from "react-native";
 import { Button, TextInput, useTheme, Portal, Modal } from "react-native-paper";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
 import Toast from "react-native-toast-message";
 import { getToastConfig } from "../components/ToastConfig";
 import { LinearGradient } from "expo-linear-gradient";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import SkeletonLoader from "../components/SkeletonLoader";
+import PendingInvitesSection from "../components/PendingInvitesSection";
 
-const ProfileScreen = ({ navigation }) => {
+type Props = {
+  navigation: NativeStackNavigationProp<any>;
+};
+
+const ProfileScreen = ({ navigation }: Props) => {
   const theme = useTheme();
 
   const [username, setUsername] = useState("");
-  const [editingUsername, setEditingUsername] = useState(false);
+  const [email, setEmail] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [totalWinnings, setTotalWinnings] = useState(0);
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [quartersWon, setQuartersWon] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [friendsCount, setFriendsCount] = useState(0);
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [pwUpdating, setPwUpdating] = useState(false);
+  const [usernameUpdating, setUsernameUpdating] = useState(false);
   const [pwModalVisible, setPwModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -60,79 +71,102 @@ const ProfileScreen = ({ navigation }) => {
     fetchUserData();
   }, []);
 
-  const fetchUserData = async () => {
-    setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setLoading(false);
-      return;
+  const fetchUserData = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
     }
 
-    // Fetch user profile data
-    const { data } = await supabase
-      .from("users")
-      .select("username, total_winnings")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    const currentUsername = data?.username || "";
-
-    if (data) {
-      setUsername(currentUsername);
-      setNewUsername(currentUsername);
-      setTotalWinnings(data.total_winnings || 0);
-    }
-
-    // Fetch user's games directly from database
-    const { data: gamesData, error: gamesError } = await supabase
-      .from("squares")
-      .select("id, selections, game_completed, quarter_winners, players")
-      .contains("player_ids", [user.id]);
-
-    if (!gamesError && gamesData) {
-      setGamesPlayed(gamesData.length);
-
-      // Count quarters won across all games
-      // quarter_winners structure: [{ quarter: "1", username: "user1", square: [3, 7] }, ...]
-      // Note: Users can have different usernames in each game, so we need to find
-      // the user's in-game username from the players array
-      let totalQuartersWon = 0;
-      gamesData.forEach((game) => {
-        if (game.quarter_winners && Array.isArray(game.quarter_winners)) {
-          // Find this user's in-game username from the players array
-          const playerEntry = game.players?.find(
-            (p: any) => p.userId === user.id,
-          );
-          const inGameUsername = playerEntry?.username;
-
-          if (inGameUsername) {
-            const userWins = game.quarter_winners.filter(
-              (qw: any) =>
-                qw.username === inGameUsername && qw.username !== "No Winner",
-            );
-            totalQuartersWon += userWins.length;
-          }
-        }
-      });
-      setQuartersWon(totalQuartersWon);
-    }
-
-    // Fetch friends count for display
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      setEmail(user.email || "");
+
+      // Fetch user profile data
+      const { data, error: profileError } = await supabase
+        .from("users")
+        .select("username, total_winnings")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const currentUsername = data?.username || "";
+
+      if (data) {
+        setUsername(currentUsername);
+        setNewUsername(currentUsername);
+        setTotalWinnings(data.total_winnings || 0);
+      }
+
+      // Fetch user's games directly from database
+      const { data: gamesData, error: gamesError } = await supabase
+        .from("squares")
+        .select("id, selections, game_completed, quarter_winners, players")
+        .contains("player_ids", [user.id]);
+
+      if (gamesError) {
+        throw gamesError;
+      }
+
+      if (gamesData) {
+        setGamesPlayed(gamesData.length);
+
+        // Count quarters won across all games
+        // quarter_winners structure: [{ quarter: "1", username: "user1", square: [3, 7] }, ...]
+        // Note: Users can have different usernames in each game, so we need to find
+        // the user's in-game username from the players array
+        let totalQuartersWon = 0;
+        gamesData.forEach((game) => {
+          if (game.quarter_winners && Array.isArray(game.quarter_winners)) {
+            // Find this user's in-game username from the players array
+            const playerEntry = game.players?.find(
+              (p: any) => p.userId === user.id,
+            );
+            const inGameUsername = playerEntry?.username;
+
+            if (inGameUsername) {
+              const userWins = game.quarter_winners.filter(
+                (qw: any) =>
+                  qw.username === inGameUsername && qw.username !== "No Winner",
+              );
+              totalQuartersWon += userWins.length;
+            }
+          }
+        });
+        setQuartersWon(totalQuartersWon);
+      }
+
+      // Fetch friends count for display (count accepted friendships where user is either party)
       const friendsCountRes = await supabase
         .from("friends")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
+        .eq("status", "accepted")
+        .or(`user_id.eq.${user.id},friend_id.eq.${user.id}`);
       if (!friendsCountRes.error) {
         setFriendsCount(friendsCountRes.count || 0);
       }
     } catch (err) {
-      console.warn("Failed to fetch friends count", err);
+      console.error("Failed to fetch profile data:", err);
+      showToast({
+        type: "error",
+        text1: "Failed to load profile",
+        text2: "Pull down to retry",
+      });
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-
-    setLoading(false);
   };
 
   const updatePassword = async () => {
@@ -162,9 +196,10 @@ const ProfileScreen = ({ navigation }) => {
       if (error) {
         showToast({ type: "error", text1: "Failed to update password" });
       } else {
-        setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
+        setShowNewPassword(false);
+        setShowConfirmPassword(false);
         setPwModalVisible(false);
         showToast({ type: "success", text1: "Password updated" });
       }
@@ -229,33 +264,39 @@ const ProfileScreen = ({ navigation }) => {
       return;
     }
 
-    // Check if username is available
-    const isAvailable = await checkUsernameAvailable(newUsername.trim());
-    if (!isAvailable) {
-      showToast({ type: "error", text1: "Username is already taken" });
-      return;
+    setUsernameUpdating(true);
+
+    try {
+      // Check if username is available
+      const isAvailable = await checkUsernameAvailable(newUsername.trim());
+      if (!isAvailable) {
+        showToast({ type: "error", text1: "Username is already taken" });
+        return;
+      }
+
+      const { error } = await supabase
+        .from("users")
+        .upsert(
+          {
+            id: user.id,
+            username: newUsername.trim(),
+            email: user.email,
+          },
+          { onConflict: "id" },
+        )
+        .select();
+
+      if (error) {
+        showToast({ type: "error", text1: "Failed to update username" });
+        return;
+      }
+
+      setUsername(newUsername.trim());
+      setEditModalVisible(false);
+      showToast({ type: "success", text1: "Username updated" });
+    } finally {
+      setUsernameUpdating(false);
     }
-
-    const { error } = await supabase
-      .from("users")
-      .upsert(
-        {
-          id: user.id,
-          username: newUsername.trim(),
-          email: user.email,
-        },
-        { onConflict: "id" },
-      )
-      .select();
-
-    if (error) {
-      showToast({ type: "error", text1: "Failed to update username" });
-      return;
-    }
-
-    setUsername(newUsername.trim());
-    setEditModalVisible(false);
-    showToast({ type: "success", text1: "Username updated" });
   };
 
   const handleLogout = async () => {
@@ -266,7 +307,7 @@ const ProfileScreen = ({ navigation }) => {
     });
   };
 
-  const deleteUserData = async (uid) => {
+  const deleteUserData = async (uid: string) => {
     try {
       const tables = [
         { table: "players", key: "user_id" },
@@ -278,12 +319,13 @@ const ProfileScreen = ({ navigation }) => {
       await supabase.storage
         .from("avatars")
         .remove([`profileImages/${uid}.jpg`]);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to delete user data:", err.message);
     }
   };
 
-  const deleteAccount = async () => {
+  const confirmDeleteAccount = async () => {
+    setDeleteModalVisible(false);
     try {
       const {
         data: { user },
@@ -310,6 +352,16 @@ const ProfileScreen = ({ navigation }) => {
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as [string, string, ...string[]])
     : (["#fdfcf9", "#e0e7ff"] as [string, string]);
 
+  const getInitials = (name: string) => {
+    if (!name) return "?";
+    return name
+      .split(/[_\s]/)
+      .map((part) => part[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   if (loading) {
     return (
       <LinearGradient colors={gradientColors} style={{ flex: 1 }}>
@@ -325,159 +377,174 @@ const ProfileScreen = ({ navigation }) => {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => fetchUserData(true)}
+          />
+        }
       >
+        {/* Avatar Header */}
+        <View style={styles.avatarSection}>
+          <View
+            style={[
+              styles.avatarCircle,
+              { backgroundColor: theme.colors.primary },
+            ]}
+          >
+            <Text style={styles.avatarText}>{getInitials(username)}</Text>
+          </View>
+          <View style={styles.usernameRow}>
+            <Text
+              style={[styles.usernameText, { color: theme.colors.onSurface }]}
+            >
+              @{username || "username"}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setEditModalVisible(true)}
+              style={styles.editButton}
+            >
+              <MaterialIcons
+                name="edit"
+                size={18}
+                color={theme.colors.primary}
+              />
+            </TouchableOpacity>
+          </View>
+          {email ? (
+            <Text
+              style={[styles.emailText, { color: theme.colors.onSurfaceVariant }]}
+            >
+              {email}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* Stats Cards */}
+        <View style={styles.statsRow}>
+          <View
+            style={[
+              styles.statCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <Text style={[styles.statValue, { color: theme.colors.primary }]}>
+              {gamesPlayed}
+            </Text>
+            <Text
+              style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}
+            >
+              Played
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.statCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <Text style={[styles.statValue, { color: theme.colors.primary }]}>
+              {quartersWon}
+            </Text>
+            <Text
+              style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}
+            >
+              Won
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.statCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <Text style={[styles.statValue, { color: theme.colors.primary }]}>
+              ${totalWinnings.toFixed(2)}
+            </Text>
+            <Text
+              style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}
+            >
+              Winnings
+            </Text>
+          </View>
+        </View>
+
+        {/* Pending Game Invites */}
+        <PendingInvitesSection />
+
+        {/* Settings Card */}
         <View
           style={[
             styles.card,
             {
               backgroundColor: theme.colors.surface,
               borderColor: "rgba(94, 96, 206, 0.4)",
-
               borderLeftColor: theme.colors.primary,
             },
           ]}
         >
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, { color: theme.colors.onSurface }]}
-            >
-              Profile Information
-            </Text>
-
-            <View style={styles.infoRow}>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.label,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  Username
-                </Text>
-                <Text style={[styles.value, { color: theme.colors.onSurface }]}>
-                  {username || "Not set"}
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setEditModalVisible(true)}>
-                <MaterialIcons
-                  name="edit"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-              </TouchableOpacity>
-            </View>
-            {/* Change Password and Friends rows */}
-            <View style={{ marginTop: 12 }}>
-              <TouchableOpacity
-                style={styles.infoRow}
-                onPress={() => setPwModalVisible(true)}
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("FriendsScreen")}
+          >
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="people"
+                size={22}
+                color={theme.colors.primary}
+              />
+              <Text
+                style={[styles.settingsText, { color: theme.colors.onSurface }]}
               >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.label,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    Password
-                  </Text>
-                </View>
-                <MaterialIcons
-                  name="edit"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.infoRow, { marginTop: 12 }]}
-                onPress={() => navigation.navigate("FriendsScreen")}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.label,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    Friends
-                  </Text>
-                  <Text
-                    style={[styles.value, { color: theme.colors.onSurface }]}
-                  >
-                    {friendsCount} friend{friendsCount !== 1 ? "s" : ""}
-                  </Text>
-                </View>
-                <MaterialIcons
-                  name="chevron-right"
-                  size={28}
-                  color={theme.colors.onSurface}
-                />
-              </TouchableOpacity>
+                Friends
+              </Text>
             </View>
-          </View>
+            <View style={styles.settingsRight}>
+              <Text
+                style={[
+                  styles.settingsBadge,
+                  { color: theme.colors.onSurfaceVariant },
+                ]}
+              >
+                {friendsCount}
+              </Text>
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={theme.colors.onSurfaceVariant}
+              />
+            </View>
+          </TouchableOpacity>
 
           <View
             style={[
-              styles.divider,
+              styles.settingsDivider,
               { backgroundColor: theme.dark ? "#333" : "#eee" },
             ]}
           />
 
-          <View style={styles.section}>
-            <Text
-              style={[styles.sectionTitle, { color: theme.colors.onSurface }]}
-            >
-              Statistics
-            </Text>
-            <View style={styles.statsGrid}>
-              <View style={styles.statItem}>
-                <Text
-                  style={[
-                    styles.statLabel,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  Squares Played
-                </Text>
-                <Text
-                  style={[styles.statValue, { color: theme.colors.primary }]}
-                >
-                  {gamesPlayed}
-                </Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text
-                  style={[
-                    styles.statLabel,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  Won
-                </Text>
-                <Text
-                  style={[styles.statValue, { color: theme.colors.primary }]}
-                >
-                  {quartersWon}
-                </Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text
-                  style={[
-                    styles.statLabel,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  Total Winnings
-                </Text>
-                <Text
-                  style={[styles.statValue, { color: theme.colors.primary }]}
-                >
-                  {"$" + totalWinnings.toFixed(2)}
-                </Text>
-              </View>
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => setPwModalVisible(true)}
+          >
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="lock"
+                size={22}
+                color={theme.colors.primary}
+              />
+              <Text
+                style={[styles.settingsText, { color: theme.colors.onSurface }]}
+              >
+                Change Password
+              </Text>
             </View>
-          </View>
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color={theme.colors.onSurfaceVariant}
+            />
+          </TouchableOpacity>
         </View>
 
         <Button
@@ -493,7 +560,7 @@ const ProfileScreen = ({ navigation }) => {
         <Button
           icon="delete"
           mode="outlined"
-          onPress={deleteAccount}
+          onPress={() => setDeleteModalVisible(true)}
           textColor={theme.colors.error}
           style={[
             styles.deleteButton,
@@ -557,12 +624,15 @@ const ProfileScreen = ({ navigation }) => {
                 mode="text"
                 onPress={() => setEditModalVisible(false)}
                 textColor={theme.colors.onSurface}
+                disabled={usernameUpdating}
               >
                 Cancel
               </Button>
               <Button
                 mode="contained"
                 onPress={updateUsername}
+                loading={usernameUpdating}
+                disabled={usernameUpdating}
                 labelStyle={{ fontFamily: "Sora" }}
               >
                 Save
@@ -597,24 +667,36 @@ const ProfileScreen = ({ navigation }) => {
             <TextInput
               mode="outlined"
               placeholder="New password"
-              secureTextEntry
+              secureTextEntry={!showNewPassword}
               value={newPassword}
               onChangeText={setNewPassword}
               style={[
                 styles.input,
                 { backgroundColor: theme.colors.background },
               ]}
+              right={
+                <TextInput.Icon
+                  icon={showNewPassword ? "eye-off" : "eye"}
+                  onPress={() => setShowNewPassword(!showNewPassword)}
+                />
+              }
             />
             <TextInput
               mode="outlined"
               placeholder="Confirm new password"
-              secureTextEntry
+              secureTextEntry={!showConfirmPassword}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               style={[
                 styles.input,
                 { backgroundColor: theme.colors.background },
               ]}
+              right={
+                <TextInput.Icon
+                  icon={showConfirmPassword ? "eye-off" : "eye"}
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                />
+              }
             />
             <View
               style={{
@@ -640,6 +722,68 @@ const ProfileScreen = ({ navigation }) => {
               </Button>
             </View>
           </Modal>
+
+          <Modal
+            visible={deleteModalVisible}
+            onDismiss={() => setDeleteModalVisible(false)}
+            contentContainerStyle={{
+              marginHorizontal: 32,
+              padding: 20,
+              borderRadius: 12,
+              backgroundColor: theme.colors.surface,
+              borderWidth: 1.5,
+              borderColor: theme.colors.error,
+              borderLeftWidth: 5,
+              borderLeftColor: theme.colors.error,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+              <MaterialIcons name="warning" size={24} color={theme.colors.error} />
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontFamily: "SoraBold",
+                  marginLeft: 8,
+                  color: theme.colors.onSurface,
+                }}
+              >
+                Delete Account
+              </Text>
+            </View>
+            <Text
+              style={{
+                fontSize: 14,
+                fontFamily: "Rubik_400Regular",
+                color: theme.colors.onSurfaceVariant,
+                marginBottom: 20,
+              }}
+            >
+              Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                gap: 12,
+              }}
+            >
+              <Button
+                mode="text"
+                onPress={() => setDeleteModalVisible(false)}
+                textColor={theme.colors.onSurface}
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                onPress={confirmDeleteAccount}
+                buttonColor={theme.colors.error}
+                labelStyle={{ fontFamily: "Sora" }}
+              >
+                Delete
+              </Button>
+            </View>
+          </Modal>
           <Toast config={getToastConfig(theme.dark)} />
         </Portal>
       </ScrollView>
@@ -655,11 +799,81 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
+  // Avatar Header
+  avatarSection: {
+    alignItems: "center",
+    marginBottom: 24,
+    marginTop: 8,
+  },
+  avatarCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  avatarText: {
+    color: "#fff",
+    fontSize: 32,
+    fontFamily: "SoraBold",
+  },
+  usernameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  usernameText: {
+    fontSize: 18,
+    fontFamily: "Rubik_500Medium",
+  },
+  editButton: {
+    padding: 4,
+  },
+  emailText: {
+    fontSize: 14,
+    fontFamily: "Rubik_400Regular",
+    marginTop: 4,
+  },
+  // Stats Row
+  statsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+    marginTop: 4,
+  },
+  statValue: {
+    fontSize: 22,
+    fontFamily: "SoraBold",
+    marginTop: 4,
+  },
+  // Settings Card
   card: {
     borderRadius: 16,
     borderWidth: 1.5,
     borderLeftWidth: 5,
-    padding: 20,
+    padding: 4,
     marginBottom: 16,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -667,66 +881,40 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    fontFamily: "SoraBold",
-    marginBottom: 16,
-  },
-  infoRow: {
+  settingsRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
   },
-  label: {
-    fontSize: 14,
-    fontFamily: "Rubik_400Regular",
-    marginBottom: 4,
+  settingsLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  value: {
+  settingsRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  settingsText: {
     fontSize: 16,
     fontFamily: "Rubik_500Medium",
   },
-  editContainer: {
-    gap: 12,
+  settingsBadge: {
+    fontSize: 14,
+    fontFamily: "Rubik_400Regular",
   },
+  settingsDivider: {
+    height: 1,
+    marginHorizontal: 16,
+  },
+  // Form
   input: {
     marginBottom: 12,
   },
-  editActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 12,
-  },
-  button: {
-    minWidth: 80,
-  },
-  divider: {
-    height: 1,
-    marginVertical: 16,
-  },
-  statsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 16,
-  },
-  statItem: {
-    flex: 1,
-    minWidth: "30%",
-  },
-  statLabel: {
-    fontSize: 14,
-    fontFamily: "Rubik_400Regular",
-    marginBottom: 4,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: "700",
-    fontFamily: "SoraBold",
-  },
+  // Buttons
   logoutButton: {
     marginBottom: 12,
   },

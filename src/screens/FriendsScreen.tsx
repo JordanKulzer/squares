@@ -470,7 +470,6 @@ const styles = StyleSheet.create({
   friendName: {
     fontSize: 14,
     fontFamily: "Rubik_500Medium",
-    textAlign: "center",
   },
   friendSubtext: {
     fontSize: 12,

@@ -18,6 +18,27 @@ export const sendFriendRequest = async (friendId: string): Promise<{ success: bo
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false, error: 'Not authenticated' };
 
+    // Prevent sending friend request to yourself
+    if (friendId === user.id) {
+      return { success: false, error: 'Cannot send friend request to yourself' };
+    }
+
+    // Validate that the target user exists in the `users` table
+    const { data: targetUser, error: targetError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', friendId)
+      .maybeSingle();
+
+    if (targetError) {
+      console.error('Error validating target user:', targetError);
+      return { success: false, error: targetError.message };
+    }
+
+    if (!targetUser) {
+      return { success: false, error: 'User not found' };
+    }
+
     // Check if friendship already exists
     const { data: existing } = await supabase
       .from('friends')
@@ -46,6 +67,16 @@ export const sendFriendRequest = async (friendId: string): Promise<{ success: bo
       });
 
     if (error) {
+      // Handle FK violation (target user missing) or duplicate constraint
+      if (error.code === '23503') {
+        console.error('Foreign key violation inserting friends:', error);
+        return { success: false, error: 'Target user does not exist' };
+      }
+      if (error.code === '23505') {
+        console.warn('Duplicate friend relationship detected:', error);
+        return { success: false, error: 'Friend request already exists or you are already friends' };
+      }
+
       console.error('Error sending friend request:', error);
       return { success: false, error: error.message };
     }
@@ -369,13 +400,21 @@ export const searchUsers = async (query: string): Promise<UserSearchResult[]> =>
     if (!user) return [];
 
     // Search users by username or email (case insensitive)
-    const { data: users, error } = await supabase
+    // Filter out current user by both ID and email to handle ID mismatches
+    let queryBuilder = supabase
       .from('users')
       .select('id, username, email')
       .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
       .neq('id', user.id)
       .is('deleted_at', null)
       .limit(20);
+
+    // Also filter by email if available
+    if (user.email) {
+      queryBuilder = queryBuilder.neq('email', user.email);
+    }
+
+    const { data: users, error } = await queryBuilder;
 
     if (error || !users) {
       console.error('Error searching users:', error);

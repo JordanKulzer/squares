@@ -8,11 +8,13 @@ import {
   Animated,
 } from "react-native";
 import { Portal, Button, useTheme } from "react-native-paper";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
 import NotificationSettingsModal from "./NotificationsModal";
 import RemovePlayerModal from "./RemovePlayerModal";
 import EditGameModal from "./EditGameModal";
-import InviteFriendsModal from "./InviteFriendsModal";
+import { RootStackParamList } from "../utils/types";
 
 const SessionOptionsModal = ({
   visible,
@@ -50,7 +52,7 @@ const SessionOptionsModal = ({
   currentTitle: string;
 }) => {
   const theme = useTheme();
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [notifySettings, setNotifySettings] = useState(null);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(600)).current;
@@ -207,9 +209,10 @@ const SessionOptionsModal = ({
               mode="outlined"
               onPress={() => {
                 onDismiss();
-                setTimeout(() => {
-                  setShowInviteModal(true);
-                }, 300);
+                navigation.navigate("InviteFriendsScreen", {
+                  gridId,
+                  sessionTitle: currentTitle,
+                });
               }}
               style={{ marginBottom: 12 }}
               labelStyle={{
@@ -433,12 +436,6 @@ const SessionOptionsModal = ({
             console.error("Failed to save notify settings:", err);
           }
         }}
-      />
-      <InviteFriendsModal
-        visible={showInviteModal}
-        onDismiss={() => setShowInviteModal(false)}
-        gridId={gridId}
-        sessionTitle={currentTitle}
       />
     </>
   );

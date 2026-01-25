@@ -26,6 +26,7 @@ import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
 import { User } from "@supabase/supabase-js";
+import { acceptInvite } from "../lib/gameInvites";
 
 const JoinSquareScreen = () => {
   const navigation =
@@ -56,6 +57,7 @@ const JoinSquareScreen = () => {
   let paramTitle = "";
   let paramDeadline = "";
   let paramUsedColors: string[] = [];
+  let inviteId: string | undefined;
 
   if ("gridId" in params) {
     // normal join path
@@ -64,8 +66,9 @@ const JoinSquareScreen = () => {
     paramDeadline = params.deadline;
     paramUsedColors = params.usedColors ?? [];
   } else if ("sessionId" in params) {
-    // deep link path
+    // deep link path or invite acceptance
     gridId = params.sessionId;
+    inviteId = params.inviteId;
   }
 
   const [username, setUsername] = useState("");
@@ -237,6 +240,11 @@ const JoinSquareScreen = () => {
           verified = true;
           break;
         }
+      }
+
+      // If this was from an invite, mark it as accepted now that user has joined
+      if (inviteId) {
+        await acceptInvite(inviteId);
       }
 
       // Navigate to SquareScreen - use replace to prevent going back to join screen

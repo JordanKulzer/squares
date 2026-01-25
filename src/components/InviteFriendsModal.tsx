@@ -16,6 +16,7 @@ import * as Sentry from "@sentry/react-native";
 import { getFriends, getTop4 } from "../lib/friends";
 import { FriendWithProfile } from "../types/friends";
 import { sendGameInviteNotification } from "../utils/notifications";
+import { sendGameInvites } from "../lib/gameInvites";
 import SkeletonLoader from "./SkeletonLoader";
 
 const InviteFriendsModal = ({
@@ -38,132 +39,8 @@ const InviteFriendsModal = ({
   const loadFriends = useCallback(async () => {
     setLoading(true);
     try {
-      // TODO: Remove mock data after testing
-      const mockFriends: FriendWithProfile[] = [
-        {
-          id: "1",
-          friend_id: "f1",
-          user_id: "u1",
-          friend_username: "Alex Johnson",
-          friend_email: "alex@test.com",
-          friend_push_token: null,
-          ranking: 1,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "2",
-          friend_id: "f2",
-          user_id: "u1",
-          friend_username: "Maria Garcia",
-          friend_email: "maria@test.com",
-          friend_push_token: null,
-          ranking: 2,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "3",
-          friend_id: "f3",
-          user_id: "u1",
-          friend_username: "James Wilson",
-          friend_email: "james@test.com",
-          friend_push_token: null,
-          ranking: 3,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "4",
-          friend_id: "f4",
-          user_id: "u1",
-          friend_username: "Emily Davis",
-          friend_email: "emily@test.com",
-          friend_push_token: null,
-          ranking: 4,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "5",
-          friend_id: "f5",
-          user_id: "u1",
-          friend_username: "Michael Brown",
-          friend_email: "michael@test.com",
-          friend_push_token: null,
-          ranking: null,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "6",
-          friend_id: "f6",
-          user_id: "u1",
-          friend_username: "Sarah Miller",
-          friend_email: "sarah@test.com",
-          friend_push_token: null,
-          ranking: null,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "7",
-          friend_id: "f7",
-          user_id: "u1",
-          friend_username: "David Anderson",
-          friend_email: "david@test.com",
-          friend_push_token: null,
-          ranking: null,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "8",
-          friend_id: "f8",
-          user_id: "u1",
-          friend_username: "Jessica Taylor",
-          friend_email: "jessica@test.com",
-          friend_push_token: null,
-          ranking: null,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "9",
-          friend_id: "f9",
-          user_id: "u1",
-          friend_username: "Chris Martinez",
-          friend_email: "chris@test.com",
-          friend_push_token: null,
-          ranking: null,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-        {
-          id: "10",
-          friend_id: "f10",
-          user_id: "u1",
-          friend_username: "Amanda White",
-          friend_email: "amanda@test.com",
-          friend_push_token: null,
-          ranking: null,
-          created_at: "",
-          status: "accepted",
-          accepted_at: "",
-        },
-      ];
-      setFriends(mockFriends);
-      // const friendsData = await getFriends();
-      // setFriends(friendsData);
+      const friendsData = await getFriends();
+      setFriends(friendsData);
     } catch (err) {
       console.error("Error loading friends:", err);
     } finally {
@@ -236,6 +113,14 @@ const InviteFriendsModal = ({
         selectedIds.has(f.friend_id),
       );
 
+      // Store invites in database (for in-app display)
+      await sendGameInvites(
+        gridId,
+        sessionTitle || "Game",
+        selectedFriends.map((f) => f.friend_id),
+      );
+
+      // Send push notifications (existing functionality)
       await sendGameInviteNotification(
         gridId,
         sessionTitle || "Game",

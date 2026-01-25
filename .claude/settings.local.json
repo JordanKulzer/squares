@@ -15,7 +15,11 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(del \"\\\\?\\\\c:\\\\Users\\\\jbkul\\\\Projects\\\\squares\\\\nul\")",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx expo export:*)",
+      "Bash(npx eslint:*)",
+      "Bash(timeout:*)"
     ]
   }
 }
