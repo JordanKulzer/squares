@@ -28,6 +28,9 @@ export type RootStackParamList = {
   };
   HowToScreen: undefined;
   ProfileScreen: undefined;
+  EditSquareScreen: {
+    gridId: string;
+  };
 };
 
 // utils/leagueMap.ts

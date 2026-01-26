@@ -13,7 +13,6 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
 import NotificationSettingsModal from "./NotificationsModal";
 import RemovePlayerModal from "./RemovePlayerModal";
-import EditGameModal from "./EditGameModal";
 import { RootStackParamList } from "../utils/types";
 
 const SessionOptionsModal = ({
@@ -58,8 +57,6 @@ const SessionOptionsModal = ({
   const translateY = useRef(new Animated.Value(600)).current;
   const [showKickModal, setShowKickModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [showEditGameModal, setShowEditGameModal] = useState(false);
-  const [showScoreEditorModal, setShowScoreEditorModal] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -239,73 +236,22 @@ const SessionOptionsModal = ({
 
             {isOwner && (
               <>
-                {/* <Button
-                  icon="calendar"
-                  mode="outlined"
-                  onPress={() => {
-                    onDismiss();
-                    setTempDeadline(deadlineValue);
-                    setShowDeadlineModal(true);
-                  }}
-                  style={{
-                    marginBottom: 12,
-                    borderColor: theme.colors.primary,
-                    borderRadius: 20,
-                    paddingHorizontal: 12,
-                  }}
-                  labelStyle={{
-                    fontWeight: "600",
-                    color: theme.colors.primary,
-                    textTransform: "none",
-                    fontFamily: "Sora",
-                  }}
-                >
-                  Change Deadline
-                </Button> */}
-                {/* <Button
+                <Button
                   icon="pencil"
                   mode="outlined"
                   onPress={() => {
                     onDismiss();
-                    setTimeout(() => setShowEditGameModal(true), 300);
+                    navigation.navigate("EditSquareScreen", { gridId });
                   }}
-                  style={{
-                    marginBottom: 12,
-                    borderColor: theme.colors.primary,
-                    borderRadius: 20,
-                    paddingHorizontal: 12,
-                  }}
+                  style={{ marginBottom: 12 }}
                   labelStyle={{
                     fontWeight: "600",
-                    color: theme.colors.primary,
-                    textTransform: "none",
+                    color: onSurfaceColor,
                     fontFamily: "Sora",
                   }}
                 >
-                  Edit Game Info
+                  Edit Game Settings
                 </Button>
-                <Button
-                  icon="scoreboard-outline"
-                  mode="outlined"
-                  onPress={() => {
-                    onDismiss();
-                    setTimeout(() => setShowScoreEditorModal(true), 300);
-                  }}
-                  style={{
-                    marginBottom: 12,
-                    borderColor: theme.colors.primary,
-                    borderRadius: 20,
-                    paddingHorizontal: 12,
-                  }}
-                  labelStyle={{
-                    fontWeight: "600",
-                    color: theme.colors.primary,
-                    textTransform: "none",
-                    fontFamily: "Sora",
-                  }}
-                >
-                  Edit Scores / Winners
-                </Button> */}
 
                 <Button
                   icon="account-remove"
@@ -376,30 +322,6 @@ const SessionOptionsModal = ({
         currentUserId={currentUserId}
         triggerRefresh={triggerRefresh}
       />
-
-      {/* <EditGameModal
-        visible={showEditGameModal}
-        onDismiss={() => setShowEditGameModal(false)}
-        gridId={gridId}
-        currentTitle={currentTitle}
-        currentTeam1={team1}
-        currentTeam2={team2}
-        currentScores={quarterScores}
-        triggerRefresh={triggerRefresh}
-        currentDeadline={deadlineValue ? deadlineValue.toISOString() : null}
-        isOwner={isOwner}
-      />
-
-      <ScoreEditorModal
-        visible={showScoreEditorModal}
-        onDismiss={() => setShowScoreEditorModal(false)}
-        gridId={gridId}
-        team1={team1}
-        team2={team2}
-        quarterScores={quarterScores}
-        triggerRefresh={triggerRefresh}
-        isOwner={isOwner}
-      /> */}
 
       <NotificationSettingsModal
         visible={notifModalVisible}

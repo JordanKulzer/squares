@@ -35,6 +35,7 @@ import FriendsScreen from "./src/screens/FriendsScreen";
 import AddFriendsScreen from "./src/screens/AddFriendsScreen";
 import InviteFriendsScreen from "./src/screens/InviteFriendsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
+import EditSquareScreen from "./src/screens/EditSquareScreen";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
 import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 import { registerPushToken } from "./src/utils/registerPushToken";
@@ -440,6 +441,11 @@ const App: React.FC = () => {
                     name: "ProfileScreen",
                     component: ProfileScreen,
                     title: "Profile",
+                  },
+                  {
+                    name: "EditSquareScreen",
+                    component: EditSquareScreen,
+                    title: "Edit Game",
                   },
                 ].map(({ name, component, title }) => (
                   <Stack.Screen
