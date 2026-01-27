@@ -9,7 +9,7 @@ export default {
     icon: "./assets/icons/New_New_Splash_Logo.png",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
-    jsEngine: "jsc",
+    jsEngine: "hermes",
     scheme: "squaresgame",
     deepLinks: ["squaresgame://"],
     splash: {
