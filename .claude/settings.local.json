@@ -19,7 +19,8 @@
       "Bash(npx tsc:*)",
       "Bash(npx expo export:*)",
       "Bash(npx eslint:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(copy:*)"
     ]
   }
 }
