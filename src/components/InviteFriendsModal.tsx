@@ -181,7 +181,7 @@ const InviteFriendsModal = ({
         throw new Error("Attempted to share without gridId");
       }
 
-      const joinUrl = `squaresgame://session/${gridId}`;
+      const joinUrl = `https://squares-41599.web.app/session/${gridId}`;
       await Share.share({
         message: `Join my Squares game: ${joinUrl}`,
       });

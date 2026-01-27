@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.jkulzer.squaresgame",
+      "sha256_cert_fingerprints": [
+        "5E:9E:36:7A:68:C3:F9:35:9B:38:5B:68:E3:2A:5B:A3:A1:E7:E0:8B:07:35:C4:CB:A2:63:E1:B9:F6:A1:65:EA"
+      ]
+    }
+  }
+]

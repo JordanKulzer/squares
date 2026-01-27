@@ -20,6 +20,7 @@ export default {
     ios: {
       bundleIdentifier: "com.jkulzer.squaresgame",
       supportsTablet: true,
+      associatedDomains: ["applinks:squares-41599.web.app"],
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSUserNotificationUsageDescription:
@@ -33,6 +34,20 @@ export default {
       },
       permissions: ["android.permission.CAMERA"],
       package: "com.jkulzer.squaresgame",
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            {
+              scheme: "https",
+              host: "squares-41599.web.app",
+              pathPrefix: "/session/",
+            },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
     },
     web: {
       favicon: "./assets/icons/favicon.png",
