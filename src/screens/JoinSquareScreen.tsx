@@ -74,6 +74,7 @@ const JoinSquareScreen = () => {
   const [username, setUsername] = useState("");
   const [selectedColor, setSelectedColor] = useState(null);
   const [pricePerSquare, setPricePerSquare] = useState<number | null>(null);
+  const [blockMode, setBlockMode] = useState(false);
   const [inputTitle, setInputTitle] = useState(paramTitle || "");
   const [deadline, setDeadline] = useState(paramDeadline || null);
   const [usedColors, setUsedColors] = useState<string[]>(paramUsedColors || []);
@@ -104,7 +105,7 @@ const JoinSquareScreen = () => {
     const fetchSession = async () => {
       const { data: square, error } = await supabase
         .from("squares")
-        .select("title, deadline, price_per_square, id, league")
+        .select("title, deadline, price_per_square, id, league, block_mode")
         .eq("id", gridId)
         .single();
 
@@ -114,6 +115,7 @@ const JoinSquareScreen = () => {
         return;
       }
       setPricePerSquare(square.price_per_square || null);
+      setBlockMode(!!square.block_mode);
 
       setInputTitle(square.title || "Untitled");
       setDeadline(square.deadline || null);
@@ -415,7 +417,7 @@ const JoinSquareScreen = () => {
                         { color: theme.colors.onBackground },
                       ]}
                     >
-                      Price Per Square
+                      {blockMode ? "Price Per Block" : "Price Per Square"}
                     </Text>
                     <Text
                       style={[

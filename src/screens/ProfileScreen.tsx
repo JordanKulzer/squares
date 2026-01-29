@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   Keyboard,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { Button, TextInput, useTheme, Portal, Modal } from "react-native-paper";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
 import Toast from "react-native-toast-message";
 import { getToastConfig } from "../components/ToastConfig";
@@ -31,6 +33,7 @@ const ProfileScreen = ({ navigation }: Props) => {
   const [totalWinnings, setTotalWinnings] = useState(0);
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [quartersWon, setQuartersWon] = useState(0);
+  const [rawQuartersWon, setRawQuartersWon] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [friendsCount, setFriendsCount] = useState(0);
@@ -43,6 +46,11 @@ const ProfileScreen = ({ navigation }: Props) => {
   const [pwModalVisible, setPwModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [resetStatsModalVisible, setResetStatsModalVisible] = useState(false);
+  const [resetWinnings, setResetWinnings] = useState(false);
+  const [resetGames, setResetGames] = useState(false);
+  const [resetQuarters, setResetQuarters] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -67,9 +75,11 @@ const ProfileScreen = ({ navigation }: Props) => {
     }
   };
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserData();
+    }, []),
+  );
 
   const fetchUserData = async (isRefresh = false) => {
     if (isRefresh) {
@@ -93,7 +103,7 @@ const ProfileScreen = ({ navigation }: Props) => {
       // Fetch user profile data
       const { data, error: profileError } = await supabase
         .from("users")
-        .select("username, total_winnings")
+        .select("username, total_winnings, is_private, quarters_won_offset")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -107,6 +117,7 @@ const ProfileScreen = ({ navigation }: Props) => {
         setUsername(currentUsername);
         setNewUsername(currentUsername);
         setTotalWinnings(data.total_winnings || 0);
+        setIsPrivate(!!data.is_private);
       }
 
       // Fetch user's games directly from database
@@ -136,15 +147,18 @@ const ProfileScreen = ({ navigation }: Props) => {
             const inGameUsername = playerEntry?.username;
 
             if (inGameUsername) {
+              const trimmedName = inGameUsername.trim();
               const userWins = game.quarter_winners.filter(
                 (qw: any) =>
-                  qw.username === inGameUsername && qw.username !== "No Winner",
+                  qw.username?.trim() === trimmedName && qw.username !== "No Winner",
               );
               totalQuartersWon += userWins.length;
             }
           }
         });
-        setQuartersWon(totalQuartersWon);
+        setRawQuartersWon(totalQuartersWon);
+        const offset = data?.quarters_won_offset || 0;
+        setQuartersWon(Math.max(0, totalQuartersWon - offset));
       }
 
       // Fetch friends count for display (count accepted friendships where user is either party)
@@ -545,6 +559,121 @@ const ProfileScreen = ({ navigation }: Props) => {
               color={theme.colors.onSurfaceVariant}
             />
           </TouchableOpacity>
+
+          <View
+            style={[
+              styles.settingsDivider,
+              { backgroundColor: theme.dark ? "#333" : "#eee" },
+            ]}
+          />
+
+          {/* Private Account */}
+          <View style={styles.settingsRow}>
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="visibility-off"
+                size={22}
+                color={theme.colors.primary}
+              />
+              <View style={{ marginLeft: 12 }}>
+                <Text
+                  style={[styles.settingsText, { color: theme.colors.onSurface, marginLeft: 0 }]}
+                >
+                  Private Account
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: "Sora",
+                    color: theme.colors.onSurfaceVariant,
+                    marginTop: 2,
+                  }}
+                >
+                  Hide from search results
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              onPress={async () => {
+                const newValue = !isPrivate;
+                setIsPrivate(newValue);
+                try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) return;
+                  const { error: privacyError } = await supabase
+                    .from("users")
+                    .update({ is_private: newValue })
+                    .eq("id", user.id);
+                  if (privacyError) throw privacyError;
+                  showToast({
+                    type: "success",
+                    text1: newValue ? "Account set to private" : "Account set to public",
+                  });
+                } catch {
+                  setIsPrivate(!newValue);
+                  showToast({ type: "error", text1: "Failed to update privacy setting" });
+                }
+              }}
+              style={{
+                paddingHorizontal: 16,
+                paddingVertical: 6,
+                borderRadius: 16,
+                minWidth: 50,
+                alignItems: "center",
+                backgroundColor: isPrivate
+                  ? theme.colors.primary
+                  : theme.dark
+                    ? "#444"
+                    : "#ddd",
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: isPrivate ? "#fff" : theme.colors.onSurface,
+                }}
+              >
+                {isPrivate ? "ON" : "OFF"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View
+            style={[
+              styles.settingsDivider,
+              { backgroundColor: theme.dark ? "#333" : "#eee" },
+            ]}
+          />
+
+          {/* Reset Stats */}
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => {
+              setResetWinnings(false);
+              setResetGames(false);
+              setResetQuarters(false);
+              setResetStatsModalVisible(true);
+            }}
+          >
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="restart-alt"
+                size={22}
+                color={theme.colors.error}
+              />
+              <Text
+                style={[styles.settingsText, { color: theme.colors.error }]}
+              >
+                Reset Stats
+              </Text>
+            </View>
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color={theme.colors.onSurfaceVariant}
+            />
+          </TouchableOpacity>
         </View>
 
         <Button
@@ -784,6 +913,139 @@ const ProfileScreen = ({ navigation }: Props) => {
               </Button>
             </View>
           </Modal>
+          {/* Reset Stats Modal */}
+          <Modal
+            visible={resetStatsModalVisible}
+            onDismiss={() => setResetStatsModalVisible(false)}
+            contentContainerStyle={{
+              margin: 20,
+              padding: 20,
+              borderRadius: 16,
+              backgroundColor: theme.colors.surface,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 18,
+                fontFamily: "SoraBold",
+                color: theme.colors.onSurface,
+                marginBottom: 4,
+              }}
+            >
+              Reset Stats
+            </Text>
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: "Sora",
+                color: theme.colors.onSurfaceVariant,
+                marginBottom: 16,
+              }}
+            >
+              Select which stats to reset. This cannot be undone.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setResetWinnings(!resetWinnings)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.dark ? "#333" : "#eee",
+              }}
+            >
+              <MaterialIcons
+                name={resetWinnings ? "check-box" : "check-box-outline-blank"}
+                size={24}
+                color={resetWinnings ? theme.colors.error : theme.colors.onSurfaceVariant}
+              />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={{ fontFamily: "SoraBold", color: theme.colors.onSurface }}>
+                  Total Winnings
+                </Text>
+                <Text style={{ fontFamily: "Sora", fontSize: 12, color: theme.colors.onSurfaceVariant }}>
+                  Currently: ${totalWinnings.toFixed(2)}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => setResetQuarters(!resetQuarters)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: theme.dark ? "#333" : "#eee",
+              }}
+            >
+              <MaterialIcons
+                name={resetQuarters ? "check-box" : "check-box-outline-blank"}
+                size={24}
+                color={resetQuarters ? theme.colors.error : theme.colors.onSurfaceVariant}
+              />
+              <View style={{ marginLeft: 12 }}>
+                <Text style={{ fontFamily: "SoraBold", color: theme.colors.onSurface }}>
+                  Quarters Won
+                </Text>
+                <Text style={{ fontFamily: "Sora", fontSize: 12, color: theme.colors.onSurfaceVariant }}>
+                  Currently: {quartersWon}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 20, gap: 8 }}>
+              <Button
+                mode="text"
+                onPress={() => setResetStatsModalVisible(false)}
+                textColor={theme.colors.onSurfaceVariant}
+                labelStyle={{ fontFamily: "Sora" }}
+              >
+                Cancel
+              </Button>
+              <Button
+                mode="contained"
+                disabled={!resetWinnings && !resetQuarters}
+                buttonColor={theme.colors.error}
+                labelStyle={{ fontFamily: "Sora" }}
+                onPress={async () => {
+                  try {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) return;
+
+                    if (resetWinnings) {
+                      await supabase
+                        .from("users")
+                        .update({ total_winnings: 0 })
+                        .eq("id", user.id);
+                      setTotalWinnings(0);
+                    }
+
+                    if (resetQuarters) {
+                      const { error: qError } = await supabase
+                        .from("users")
+                        .update({ quarters_won_offset: rawQuartersWon })
+                        .eq("id", user.id);
+                      if (qError) throw qError;
+                      setQuartersWon(0);
+                    }
+
+                    setResetStatsModalVisible(false);
+                    showToast({
+                      type: "success",
+                      text1: "Stats have been reset",
+                    });
+                  } catch {
+                    showToast({ type: "error", text1: "Failed to reset stats" });
+                  }
+                }}
+              >
+                Reset Selected
+              </Button>
+            </View>
+          </Modal>
+
           <Toast config={getToastConfig(theme.dark)} />
         </Portal>
       </ScrollView>

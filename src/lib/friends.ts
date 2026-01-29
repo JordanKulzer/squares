@@ -442,6 +442,7 @@ export const searchUsers = async (
       .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
       .neq("id", user.id)
       .is("deleted_at", null)
+      .or("is_private.is.null,is_private.eq.false")
       .limit(20);
 
     // Also filter by email if available

@@ -17,7 +17,8 @@ import { RootStackParamList } from "../utils/types";
 
 const PendingInvitesSection: React.FC = () => {
   const theme = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [invites, setInvites] = useState<GameInviteWithSender[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingIds, setProcessingIds] = useState<Set<string>>(new Set());
@@ -36,7 +37,7 @@ const PendingInvitesSection: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       loadInvites();
-    }, [loadInvites])
+    }, [loadInvites]),
   );
 
   const handleAccept = async (invite: GameInviteWithSender) => {
@@ -116,16 +117,30 @@ const PendingInvitesSection: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <MaterialIcons
-            name="mail"
-            size={20}
-            color={theme.colors.primary}
-          />
+          <MaterialIcons name="mail" size={20} color={theme.colors.primary} />
           <Text style={[styles.title, { color: theme.colors.onBackground }]}>
-            Game Invites
+            Square Invites
           </Text>
-          <View style={[styles.badge, { backgroundColor: invites.length > 0 ? theme.colors.primary : theme.colors.surfaceVariant }]}>
-            <Text style={[styles.badgeText, { color: invites.length > 0 ? "#fff" : theme.colors.onSurfaceVariant }]}>
+          <View
+            style={[
+              styles.badge,
+              {
+                backgroundColor:
+                  invites.length > 0
+                    ? theme.colors.primary
+                    : theme.colors.surfaceVariant,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.badgeText,
+                {
+                  color:
+                    invites.length > 0 ? "#fff" : theme.colors.onSurfaceVariant,
+                },
+              ]}
+            >
               {invites.length}
             </Text>
           </View>
@@ -137,7 +152,9 @@ const PendingInvitesSection: React.FC = () => {
           <ActivityIndicator size="small" color={theme.colors.primary} />
         </View>
       ) : invites.length === 0 ? (
-        <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+        <Text
+          style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}
+        >
           No pending invites
         </Text>
       ) : (
@@ -160,31 +177,53 @@ const PendingInvitesSection: React.FC = () => {
                 <View style={styles.inviteContent}>
                   <View style={styles.inviteInfo}>
                     <Text
-                      style={[styles.gameName, { color: theme.colors.onBackground }]}
+                      style={[
+                        styles.gameName,
+                        { color: theme.colors.onBackground },
+                      ]}
                       numberOfLines={1}
                     >
                       {invite.session_title || "Game"}
                     </Text>
-                    <Text style={[styles.inviteFrom, { color: theme.colors.onSurfaceVariant }]}>
-                      From {invite.sender_username || "Someone"} • {formatTimeAgo(invite.created_at)}
+                    <Text
+                      style={[
+                        styles.inviteFrom,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      From {invite.sender_username || "Someone"} •{" "}
+                      {formatTimeAgo(invite.created_at)}
                     </Text>
                   </View>
 
                   <View style={styles.actionButtons}>
                     <TouchableOpacity
-                      style={[styles.rejectBtn, { borderColor: theme.colors.error }]}
+                      style={[
+                        styles.rejectBtn,
+                        { borderColor: theme.colors.error },
+                      ]}
                       onPress={() => handleReject(invite)}
                       disabled={isProcessing}
                     >
                       {isProcessing ? (
-                        <ActivityIndicator size="small" color={theme.colors.error} />
+                        <ActivityIndicator
+                          size="small"
+                          color={theme.colors.error}
+                        />
                       ) : (
-                        <MaterialIcons name="close" size={20} color={theme.colors.error} />
+                        <MaterialIcons
+                          name="close"
+                          size={20}
+                          color={theme.colors.error}
+                        />
                       )}
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                      style={[styles.acceptBtn, { backgroundColor: theme.colors.primary }]}
+                      style={[
+                        styles.acceptBtn,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
                       onPress={() => handleAccept(invite)}
                       disabled={isProcessing}
                     >

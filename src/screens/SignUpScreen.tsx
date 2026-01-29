@@ -21,6 +21,7 @@ import colors from "../../assets/constants/colorOptions";
 const SignupScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [checkingUsername, setCheckingUsername] = useState(false);
@@ -205,7 +206,7 @@ const SignupScreen = ({ navigation }) => {
             <PaperInput
               label="Password"
               mode="outlined"
-              secureTextEntry
+              secureTextEntry={!showPassword}
               value={password}
               onChangeText={setPassword}
               style={[styles.input, { backgroundColor: "transparent" }]}
@@ -219,8 +220,8 @@ const SignupScreen = ({ navigation }) => {
               right={
                 password ? (
                   <PaperInput.Icon
-                    icon="close"
-                    onPress={() => setPassword("")}
+                    icon={showPassword ? "eye-off" : "eye"}
+                    onPress={() => setShowPassword(!showPassword)}
                     color={colors.primary}
                   />
                 ) : null

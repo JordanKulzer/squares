@@ -62,6 +62,7 @@ const CreateSquareScreen = ({ navigation }) => {
   const [pricePerSquare, setPricePerSquare] = useState(0);
   const [eventId, setEventId] = useState("");
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
+  const [blockMode, setBlockMode] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
@@ -181,6 +182,7 @@ const CreateSquareScreen = ({ navigation }) => {
             team1_abbr: team1Abbr,
             team2_abbr: team2Abbr,
             league: league,
+            block_mode: blockMode,
           },
         ])
         .select("id")
@@ -432,6 +434,70 @@ const CreateSquareScreen = ({ navigation }) => {
               Game Settings
             </Text>
 
+            {/* 2x2 Block Mode */}
+            <View
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="view-module"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    2x2 Block Mode
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {blockMode
+                      ? "Select 2x2 blocks"
+                      : "Select individual squares"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    const newBlockMode = !blockMode;
+                    setBlockMode(newBlockMode);
+                    setMaxSelections(newBlockMode ? "25" : "100");
+                  }}
+                  style={[
+                    styles.toggleButton,
+                    {
+                      backgroundColor: blockMode
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#444"
+                          : "#ddd",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      {
+                        color: blockMode ? "#fff" : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {blockMode ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Per Square Settings */}
             <TouchableOpacity
               onPress={() => setPerSquareModalVisible(true)}
@@ -453,7 +519,9 @@ const CreateSquareScreen = ({ navigation }) => {
                       { color: theme.colors.onBackground },
                     ]}
                   >
-                    Square Limits & Pricing
+                    {blockMode
+                      ? "Block Limits & Pricing"
+                      : "Square Limits & Pricing"}
                   </Text>
                   <Text
                     style={[
@@ -461,8 +529,8 @@ const CreateSquareScreen = ({ navigation }) => {
                       { color: theme.colors.onSurfaceVariant },
                     ]}
                   >
-                    Max: {maxSelections} squares • ${pricePerSquare.toFixed(2)}{" "}
-                    each
+                    Max: {maxSelections} {blockMode ? "blocks" : "squares"} • $
+                    {pricePerSquare.toFixed(2)} each
                   </Text>
                 </View>
                 <MaterialIcons
@@ -729,6 +797,7 @@ const CreateSquareScreen = ({ navigation }) => {
         pricePerSquare={pricePerSquare}
         setMaxSelections={setMaxSelections}
         setPricePerSquare={setPricePerSquare}
+        blockMode={blockMode}
       />
     </LinearGradient>
   );

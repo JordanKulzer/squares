@@ -28,6 +28,8 @@ import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import JoinSessionModal from "../components/JoinSessionModal";
 import SkeletonLoader from "../components/SkeletonLoader";
+import { getPendingRequests } from "../lib/friends";
+import { getInviteCount } from "../lib/gameInvites";
 import colors from "../../assets/constants/colorOptions";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -59,6 +61,7 @@ const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [visible, setVisible] = useState(false);
   const [username, setUsername] = useState("");
+  const [hasNotifications, setHasNotifications] = useState(false);
   const [selectionCounts, setSelectionCounts] = useState<
     Record<string, number>
   >({});
@@ -161,6 +164,19 @@ const HomeScreen = () => {
       };
 
       fetchUserSquares();
+
+      const checkNotifications = async () => {
+        try {
+          const [requests, inviteCount] = await Promise.all([
+            getPendingRequests(),
+            getInviteCount(),
+          ]);
+          setHasNotifications(requests.length > 0 || inviteCount > 0);
+        } catch {
+          // silently fail
+        }
+      };
+      checkNotifications();
     }, []),
   );
 
@@ -198,16 +214,32 @@ const HomeScreen = () => {
         backgroundColor: theme.colors.surface,
       },
       headerRight: () => (
-        <IconButton
-          icon="account-circle"
-          size={24}
-          onPress={() => navigation.navigate("ProfileScreen")}
-          iconColor={theme.colors.onBackground}
-          style={{ marginRight: 8 }}
-        />
+        <View style={{ marginRight: 8 }}>
+          <IconButton
+            icon="account-circle"
+            size={24}
+            onPress={() => navigation.navigate("ProfileScreen")}
+            iconColor={theme.colors.onBackground}
+          />
+          {hasNotifications && (
+            <View
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                width: 10,
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: theme.colors.error,
+                borderWidth: 1.5,
+                borderColor: theme.colors.surface,
+              }}
+            />
+          )}
+        </View>
       ),
     });
-  }, [navigation, theme]);
+  }, [navigation, theme, hasNotifications]);
 
   const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? "" : "s"}`;
 
@@ -454,13 +486,6 @@ const HomeScreen = () => {
             <Text style={styles.buttonText}>Join By Code</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
-            onPress={() => navigation.navigate("FriendsScreen")}
-          >
-            <MaterialIcons name="people" size={20} color="#fff" />
-            <Text style={styles.buttonText}>Friends</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Pending Game Invites */}

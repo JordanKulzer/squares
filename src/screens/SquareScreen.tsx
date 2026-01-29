@@ -164,6 +164,7 @@ const SquareScreen = ({ route }) => {
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [tempDeadline, setTempDeadline] = useState(deadlineValue);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(false);
+  const [blockMode, setBlockMode] = useState(false);
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
   const [gameCompleted, setGameCompleted] = useState(false);
@@ -440,11 +441,14 @@ const SquareScreen = ({ route }) => {
 
     if (completedQuarters.length === 0) return;
 
+    const totalUnits = blockMode
+      ? Math.round(Object.keys(squareColors).length / 4)
+      : Object.keys(squareColors).length;
     const liveWinnings = calculatePlayerWinnings(
       quarterWinners.slice(0, completedQuarters.length),
       playerUsernames,
       pricePerSquare,
-      Object.keys(squareColors).length,
+      totalUnits,
     );
 
     setWinningsByUser(liveWinnings);
@@ -495,7 +499,9 @@ const SquareScreen = ({ route }) => {
 
         const storedPayouts: number[] = squareData?.quarter_payouts ?? [];
         const periodsCount = quarterScores.length;
-        const claimedNow = Object.keys(squareColors).length;
+        const claimedNow = blockMode
+          ? Math.round(Object.keys(squareColors).length / 4)
+          : Object.keys(squareColors).length;
         const fallbackPayout =
           ((pricePerSquare || 0) * claimedNow) / periodsCount;
 
@@ -672,6 +678,7 @@ const SquareScreen = ({ route }) => {
         setMaxSelections(data.max_selection);
         if (typeof data.axis_hidden === "boolean")
           setHideAxisUntilDeadline(data.axis_hidden);
+        setBlockMode(!!data.block_mode);
       } finally {
         setTimeout(() => setSquareDataLoaded(true), 300);
       }
@@ -965,9 +972,12 @@ const SquareScreen = ({ route }) => {
         const [scoreX, scoreY] = w.square;
         if (scoreX === xLabel && scoreY === yLabel) {
           const quarterScore = quarterScores[idx];
+          const totalUnitsForPayout = blockMode
+            ? Math.round(Object.keys(squareColors).length / 4)
+            : Object.keys(squareColors).length;
           const payoutPerQuarter =
-            pricePerSquare && Object.keys(squareColors).length > 0
-              ? (pricePerSquare * Object.keys(squareColors).length) /
+            pricePerSquare && totalUnitsForPayout > 0
+              ? (pricePerSquare * totalUnitsForPayout) /
                 quarterScores.length
               : 0;
 
@@ -1083,6 +1093,34 @@ const SquareScreen = ({ route }) => {
     });
   };
 
+  const getBlockSquares = useCallback(
+    (x: number, y: number) => {
+      const bx = Math.floor(x / 2) * 2;
+      const by = Math.floor(y / 2) * 2;
+      return [
+        { x: bx, y: by },
+        { x: bx + 1, y: by },
+        { x: bx, y: by + 1 },
+        { x: bx + 1, y: by + 1 },
+      ];
+    },
+    [],
+  );
+
+  const countSelectedBlocks = useCallback(
+    (squares: Set<string>) => {
+      const blockOrigins = new Set<string>();
+      squares.forEach((sq) => {
+        const [sx, sy] = sq.split(",").map(Number);
+        const bx = Math.floor(sx / 2) * 2;
+        const by = Math.floor(sy / 2) * 2;
+        blockOrigins.add(`${bx},${by}`);
+      });
+      return blockOrigins.size;
+    },
+    [],
+  );
+
   const lastPressTime = useRef<Record<string, number>>({});
 
   const handlePress = useCallback(
@@ -1098,57 +1136,140 @@ const SquareScreen = ({ route }) => {
       }
       lastPressTime.current[squareId] = now;
 
-      const currentColor = squareColors[squareId];
+      if (blockMode) {
+        // Block mode: select/deselect a 2x2 block
+        const blockSquares = getBlockSquares(x, y);
+        const blockIds = blockSquares.map((s) => `${s.x},${s.y}`);
 
-      if (currentColor && currentColor !== playerColors[userId]) {
-        const username = Object.entries(playerColors).find(
-          ([, color]) => color === currentColor,
-        )?.[0];
-        showSquareToast(
-          `${playerUsernames[username] || "Someone"} owns this square`,
-        );
-        return;
-      }
+        // Check if any square in the block is owned by someone else
+        for (const bid of blockIds) {
+          const color = squareColors[bid];
+          if (color && color !== playerColors[userId]) {
+            const ownerKey = Object.entries(playerColors).find(
+              ([, c]) => c === color,
+            )?.[0];
+            showSquareToast(
+              `${playerUsernames[ownerKey] || "Someone"} owns a square in this block`,
+            );
+            return;
+          }
+        }
 
-      const isSelected = selectedSquares.has(squareId);
-      const updatedSet = new Set(selectedSquares);
+        const isSelected = selectedSquares.has(blockIds[0]);
+        const updatedSet = new Set(selectedSquares);
 
-      if (!isSelected && selectedSquares.size >= maxSelections) {
-        showSquareToast(`Limit reached: ${maxSelections} squares max`);
-        return;
-      }
+        if (!isSelected && countSelectedBlocks(selectedSquares) >= maxSelections) {
+          showSquareToast(`Limit reached: ${maxSelections} blocks max`);
+          return;
+        }
 
-      if (isSelected) {
-        await deselectSquareInSupabase(x, y);
-
-        updatedSet.delete(squareId);
-        const newColors = { ...squareColors };
-        delete newColors[squareId];
-        setSquareColors(newColors);
-
-        setSelections((prev) =>
-          prev.filter((s) => !(s.x === x && s.y === y && s.userId === userId)),
-        );
+        if (isSelected) {
+          for (const sq of blockSquares) {
+            await deselectSquareInSupabase(sq.x, sq.y);
+          }
+          for (const bid of blockIds) {
+            updatedSet.delete(bid);
+          }
+          const newColors = { ...squareColors };
+          for (const bid of blockIds) {
+            delete newColors[bid];
+          }
+          setSquareColors(newColors);
+          setSelections((prev) =>
+            prev.filter(
+              (s) =>
+                !(
+                  blockSquares.some((bs) => bs.x === s.x && bs.y === s.y) &&
+                  s.userId === userId
+                ),
+            ),
+          );
+        } else {
+          for (const sq of blockSquares) {
+            await selectSquareInSupabase(sq.x, sq.y);
+          }
+          for (const bid of blockIds) {
+            updatedSet.add(bid);
+          }
+          setSquareColors((prev) => {
+            const updated = { ...prev };
+            for (const bid of blockIds) {
+              updated[bid] = playerColors[userId];
+            }
+            return updated;
+          });
+          setSelections((prev) => [
+            ...prev,
+            ...blockSquares.map((sq) => ({
+              x: sq.x,
+              y: sq.y,
+              userId,
+              username: currentUsername,
+            })),
+          ]);
+        }
+        setPendingSquares((prev) => {
+          const newSet = new Set(prev);
+          for (const bid of blockIds) {
+            newSet.add(bid);
+          }
+          return newSet;
+        });
+        setSelectedSquares(updatedSet);
       } else {
-        await selectSquareInSupabase(x, y);
+        // Normal mode: select/deselect individual square
+        const currentColor = squareColors[squareId];
 
-        updatedSet.add(squareId);
-        setSquareColors((prev) => ({
-          ...prev,
-          [squareId]: playerColors[userId],
-        }));
-        setSelections((prev) => [
-          ...prev,
-          { x, y, userId, username: currentUsername },
-        ]);
+        if (currentColor && currentColor !== playerColors[userId]) {
+          const username = Object.entries(playerColors).find(
+            ([, color]) => color === currentColor,
+          )?.[0];
+          showSquareToast(
+            `${playerUsernames[username] || "Someone"} owns this square`,
+          );
+          return;
+        }
+
+        const isSelected = selectedSquares.has(squareId);
+        const updatedSet = new Set(selectedSquares);
+
+        if (!isSelected && selectedSquares.size >= maxSelections) {
+          showSquareToast(`Limit reached: ${maxSelections} squares max`);
+          return;
+        }
+
+        if (isSelected) {
+          await deselectSquareInSupabase(x, y);
+
+          updatedSet.delete(squareId);
+          const newColors = { ...squareColors };
+          delete newColors[squareId];
+          setSquareColors(newColors);
+
+          setSelections((prev) =>
+            prev.filter((s) => !(s.x === x && s.y === y && s.userId === userId)),
+          );
+        } else {
+          await selectSquareInSupabase(x, y);
+
+          updatedSet.add(squareId);
+          setSquareColors((prev) => ({
+            ...prev,
+            [squareId]: playerColors[userId],
+          }));
+          setSelections((prev) => [
+            ...prev,
+            { x, y, userId, username: currentUsername },
+          ]);
+        }
+        setPendingSquares((prev) => {
+          const newSet = new Set(prev);
+          newSet.add(squareId);
+          return newSet;
+        });
+
+        setSelectedSquares(updatedSet);
       }
-      setPendingSquares((prev) => {
-        const newSet = new Set(prev);
-        newSet.add(squareId);
-        return newSet;
-      });
-
-      setSelectedSquares(updatedSet);
     },
     [
       squareColors,
@@ -1159,6 +1280,9 @@ const SquareScreen = ({ route }) => {
       selectSquareInSupabase,
       playerUsernames,
       maxSelections,
+      blockMode,
+      getBlockSquares,
+      countSelectedBlocks,
     ],
   );
 
@@ -1281,6 +1405,42 @@ const SquareScreen = ({ route }) => {
           const isSelected = selectedSquares.has(key);
           const isWinner = winningSquares.has(key);
 
+          // In block mode, determine which edges are outer vs inner within the 2x2 block
+          const blockBorderStyle = blockMode
+            ? (() => {
+                const gx = x - 1; // grid coordinate (0-9)
+                const gy = y - 1;
+                const isLeftInBlock = gx % 2 === 0;
+                const isTopInBlock = gy % 2 === 0;
+                if (isSelected) {
+                  const lightBorder = isDark ? "#555" : "#ccc";
+                  return {
+                    borderLeftWidth: isLeftInBlock ? 2.5 : 1,
+                    borderRightWidth: isLeftInBlock ? 1 : 2.5,
+                    borderTopWidth: isTopInBlock ? 2.5 : 1,
+                    borderBottomWidth: isTopInBlock ? 1 : 2.5,
+                    borderLeftColor: isLeftInBlock ? selectedBorderColor : lightBorder,
+                    borderRightColor: isLeftInBlock ? lightBorder : selectedBorderColor,
+                    borderTopColor: isTopInBlock ? selectedBorderColor : lightBorder,
+                    borderBottomColor: isTopInBlock ? lightBorder : selectedBorderColor,
+                  };
+                }
+                // Unselected: show outer block borders to outline 2x2 groups
+                const outerBorder = isDark ? "#666" : "#999";
+                const innerBorder = isDark ? "#333" : "#e0e0e0";
+                return {
+                  borderLeftWidth: isLeftInBlock ? 1.5 : 0.5,
+                  borderRightWidth: isLeftInBlock ? 0.5 : 1.5,
+                  borderTopWidth: isTopInBlock ? 1.5 : 0.5,
+                  borderBottomWidth: isTopInBlock ? 0.5 : 1.5,
+                  borderLeftColor: isLeftInBlock ? outerBorder : innerBorder,
+                  borderRightColor: isLeftInBlock ? innerBorder : outerBorder,
+                  borderTopColor: isTopInBlock ? outerBorder : innerBorder,
+                  borderBottomColor: isTopInBlock ? innerBorder : outerBorder,
+                };
+              })()
+            : {};
+
           row.push(
             <Pressable
               key={key}
@@ -1297,6 +1457,7 @@ const SquareScreen = ({ route }) => {
                   opacity: pressed ? 0.6 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                   borderBottomRightRadius: x === 10 && y === 10 ? 8 : 0,
+                  ...(blockMode ? blockBorderStyle : {}),
                 },
                 isSelected && styles.selectedSquare,
               ]}
@@ -1379,7 +1540,8 @@ const SquareScreen = ({ route }) => {
               playerList.map(([uid, color], idx) => {
                 const userKey = String(uid);
                 const username = playerUsernames[userKey] || userKey;
-                const count = userSquareCount[userKey] || 0;
+                const rawCount = userSquareCount[userKey] || 0;
+                const count = blockMode ? Math.round(rawCount / 4) : rawCount;
                 const totalOwed =
                   typeof pricePerSquare === "number" && pricePerSquare > 0
                     ? count * pricePerSquare
@@ -1490,6 +1652,7 @@ const SquareScreen = ({ route }) => {
     squareColors,
     maxSelections,
     pricePerSquare,
+    blockMode,
     theme,
     selections,
     hideAxisUntilDeadline,
@@ -1596,7 +1759,7 @@ const SquareScreen = ({ route }) => {
                           {pricePerSquare
                             ? `${username} wins $${(
                                 (pricePerSquare *
-                                  Object.keys(squareColors).length) /
+                                  (blockMode ? Math.round(Object.keys(squareColors).length / 4) : Object.keys(squareColors).length)) /
                                 quarterScores.length
                               ).toFixed(2)}`
                             : `${username} wins!`}
@@ -1652,7 +1815,9 @@ const SquareScreen = ({ route }) => {
         squares: () => {
           if (!isFocused) return null;
 
-          const selectedCount = selectedSquares.size;
+          const selectedCount = blockMode
+            ? countSelectedBlocks(selectedSquares)
+            : selectedSquares.size;
           const numericPrice = parseFloat(pricePerSquare || 0);
           const totalOwed = numericPrice * selectedCount;
 
@@ -1797,7 +1962,7 @@ const SquareScreen = ({ route }) => {
                             { color: theme.colors.onSurfaceVariant },
                           ]}
                         >
-                          Price per square
+                          {blockMode ? "Price per block" : "Price per square"}
                         </Text>
                         <Text
                           style={[

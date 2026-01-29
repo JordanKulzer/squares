@@ -19,9 +19,14 @@ const PerSquareSettingsModal = ({
   pricePerSquare,
   setMaxSelections,
   setPricePerSquare,
+  blockMode = false,
 }) => {
+  const unit = blockMode ? "Block" : "Square";
+  const unitPlural = blockMode ? "Blocks" : "Squares";
+  const defaultMax = blockMode ? "25" : "100";
+  const maxTotal = blockMode ? 25 : 100;
   const theme = useTheme();
-  const [max, setMax] = useState(String(maxSelections || "100"));
+  const [max, setMax] = useState(String(maxSelections || defaultMax));
   const [price, setPrice] = useState(String(pricePerSquare || "0.00"));
   const [pricePickerVisible, setPricePickerVisible] = useState(false);
   const [tempPrice, setTempPrice] = useState(price);
@@ -30,7 +35,7 @@ const PerSquareSettingsModal = ({
     if (visible) {
       const priceStr = parseFloat(pricePerSquare || 0).toFixed(2);
       setPrice(priceStr);
-      setMax(String(maxSelections || "100"));
+      setMax(String(maxSelections || defaultMax));
       setTempPrice(priceStr);
     }
   }, [visible, maxSelections, pricePerSquare]);
@@ -53,11 +58,11 @@ const PerSquareSettingsModal = ({
           ]}
         >
           <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
-            Per Square Settings
+            Per {unit} Settings
           </Text>
 
           <TextInput
-            label="1. Max Squares Per Person"
+            label={`1. Max ${unitPlural} Per Person`}
             keyboardType="numeric"
             mode="outlined"
             value={max}
@@ -82,7 +87,7 @@ const PerSquareSettingsModal = ({
             <Text
               style={{ fontFamily: "SoraBold", color: theme.colors.onSurface }}
             >
-              2. Dollar Amount Per Square
+              {`2. Dollar Amount Per ${unit}`}
             </Text>
             <View
               style={{
@@ -135,8 +140,7 @@ const PerSquareSettingsModal = ({
                 { color: theme.colors.onSurfaceVariant },
               ]}
             >
-              1. Limit how many squares each player can select. The default
-              value is 100
+              {`1. Limit how many ${unitPlural.toLowerCase()} each player can select. The default value is ${defaultMax}`}
             </Text>
             <Text
               style={[
@@ -144,7 +148,7 @@ const PerSquareSettingsModal = ({
                 { color: theme.colors.onSurfaceVariant },
               ]}
             >
-              2. Add a dollar value per square to track player totals.
+              {`2. Add a dollar value per ${unit.toLowerCase()} to track player totals.`}
             </Text>
           </View>
         </Modal>
@@ -173,7 +177,7 @@ const PerSquareSettingsModal = ({
           <Text
             style={{ fontFamily: "SoraBold", fontSize: 16, marginBottom: 8 }}
           >
-            Select Price Per Square
+            {`Select Price Per ${unit}`}
           </Text>
           <View
             style={{

@@ -42,6 +42,7 @@ const EditSquareScreen = () => {
   const [pricePerSquare, setPricePerSquare] = useState(0);
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [randomizeAxis, setRandomizeAxis] = useState(true);
+  const [blockMode, setBlockMode] = useState(false);
 
   // Original values for comparison
   const [originalData, setOriginalData] = useState<any>(null);
@@ -74,10 +75,13 @@ const EditSquareScreen = () => {
       setOriginalData(data);
       setInputTitle(data.title || "");
       setDeadline(new Date(data.deadline));
-      setMaxSelections(String(data.max_selection || 100));
+      const isBlock = !!data.block_mode;
+      const defaultMax = isBlock ? 25 : 100;
+      setMaxSelections(String(data.max_selection || defaultMax));
       setPricePerSquare(data.price_per_square || 0);
       setHideAxisUntilDeadline(data.axis_hidden ?? true);
       setRandomizeAxis(data.randomize_axis ?? true);
+      setBlockMode(isBlock);
       setTeam1FullName(data.team1_full_name || data.team1 || "Team 1");
       setTeam2FullName(data.team2_full_name || data.team2 || "Team 2");
       setHasSelections(data.selections && data.selections.length > 0);
@@ -146,6 +150,15 @@ const EditSquareScreen = () => {
         }
       }
 
+      // Handle block mode change
+      if (blockMode !== (originalData.block_mode ?? false)) {
+        updates.block_mode = blockMode;
+        if (hasSelections) {
+          // Selections will be cleared since block mode changed
+          updates.selections = [];
+        }
+      }
+
       const { error } = await supabase
         .from("squares")
         .update(updates)
@@ -183,7 +196,8 @@ const EditSquareScreen = () => {
       parseInt(maxSelections, 10) !== originalData.max_selection ||
       pricePerSquare !== originalData.price_per_square ||
       hideAxisUntilDeadline !== originalData.axis_hidden ||
-      randomizeAxis !== originalData.randomize_axis
+      randomizeAxis !== originalData.randomize_axis ||
+      blockMode !== (originalData.block_mode ?? false)
     );
   };
 
@@ -327,7 +341,7 @@ const EditSquareScreen = () => {
                       { color: theme.colors.onBackground },
                     ]}
                   >
-                    Square Limits & Pricing
+                    {blockMode ? "Block Limits & Pricing" : "Square Limits & Pricing"}
                   </Text>
                   <Text
                     style={[
@@ -335,7 +349,7 @@ const EditSquareScreen = () => {
                       { color: theme.colors.onSurfaceVariant },
                     ]}
                   >
-                    Max: {maxSelections} squares • ${pricePerSquare.toFixed(2)}{" "}
+                    Max: {maxSelections} {blockMode ? "blocks" : "squares"} • ${pricePerSquare.toFixed(2)}{" "}
                     each
                   </Text>
                 </View>
@@ -521,6 +535,89 @@ const EditSquareScreen = () => {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* 2x2 Block Mode */}
+            <View
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="view-module"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    2x2 Block Mode
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {blockMode ? "Select 2x2 blocks" : "Select individual squares"}
+                    {hasSelections && blockMode !== (originalData?.block_mode ?? false)
+                      ? " (will reset selections)"
+                      : ""}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    const newValue = !blockMode;
+                    if (hasSelections) {
+                      Alert.alert(
+                        "Warning",
+                        "Changing block mode will reset all current selections. Continue?",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Reset & Change",
+                            style: "destructive",
+                            onPress: () => {
+                              setBlockMode(newValue);
+                              setMaxSelections(newValue ? "25" : "100");
+                            },
+                          },
+                        ]
+                      );
+                    } else {
+                      setBlockMode(newValue);
+                      setMaxSelections(newValue ? "25" : "100");
+                    }
+                  }}
+                  style={[
+                    styles.toggleButton,
+                    {
+                      backgroundColor: blockMode
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#444"
+                          : "#ddd",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      {
+                        color: blockMode ? "#fff" : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {blockMode ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
 
           {/* Save Button */}
@@ -543,6 +640,89 @@ const EditSquareScreen = () => {
               No changes to save
             </Text>
           )}
+
+          {/* Reset Selections */}
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert(
+                "Reset All Selections",
+                "This will remove all player selections from the grid. This cannot be undone. Continue?",
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Reset",
+                    style: "destructive",
+                    onPress: async () => {
+                      try {
+                        const { error } = await supabase
+                          .from("squares")
+                          .update({ selections: [] })
+                          .eq("id", gridId);
+                        if (error) throw error;
+                        setHasSelections(false);
+                        Toast.show({
+                          type: "success",
+                          text1: "All selections have been reset",
+                          position: "bottom",
+                          bottomOffset: 60,
+                        });
+                      } catch (err) {
+                        console.error("Error resetting selections:", err);
+                        Toast.show({
+                          type: "error",
+                          text1: "Failed to reset selections",
+                          position: "bottom",
+                          bottomOffset: 60,
+                        });
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
+            style={[
+              styles.settingCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.error,
+                borderWidth: 1,
+                marginTop: 16,
+              },
+            ]}
+          >
+            <View style={styles.settingCardContent}>
+              <MaterialIcons
+                name="restart-alt"
+                size={24}
+                color={theme.colors.error}
+              />
+              <View style={styles.settingInfo}>
+                <Text
+                  style={[
+                    styles.settingTitle,
+                    { color: theme.colors.error },
+                  ]}
+                >
+                  Reset All Selections
+                </Text>
+                <Text
+                  style={[
+                    styles.settingValue,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  {hasSelections
+                    ? "Clear all player selections from the grid"
+                    : "No selections to reset"}
+                </Text>
+              </View>
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={theme.colors.error}
+              />
+            </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => navigation.goBack()}
@@ -575,6 +755,7 @@ const EditSquareScreen = () => {
         pricePerSquare={pricePerSquare}
         setMaxSelections={setMaxSelections}
         setPricePerSquare={setPricePerSquare}
+        blockMode={blockMode}
       />
     </LinearGradient>
   );

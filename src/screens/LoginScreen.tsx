@@ -53,6 +53,7 @@ function RuntimeConfigDebug() {
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const theme = useTheme();
   const scheme = useColorScheme();
@@ -159,7 +160,7 @@ const LoginScreen = ({ navigation }) => {
           <PaperInput
             label="Password"
             mode="outlined"
-            secureTextEntry
+            secureTextEntry={!showPassword}
             value={password}
             onChangeText={(text) => {
               setPassword(text);
@@ -170,8 +171,8 @@ const LoginScreen = ({ navigation }) => {
             right={
               password ? (
                 <PaperInput.Icon
-                  icon="close"
-                  onPress={() => setPassword("")}
+                  icon={showPassword ? "eye-off" : "eye"}
+                  onPress={() => setShowPassword(!showPassword)}
                   color={colors.primary}
                 />
               ) : null
