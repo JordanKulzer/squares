@@ -43,6 +43,7 @@ const EditSquareScreen = () => {
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [randomizeAxis, setRandomizeAxis] = useState(true);
   const [blockMode, setBlockMode] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
 
   // Original values for comparison
   const [originalData, setOriginalData] = useState<any>(null);
@@ -82,6 +83,7 @@ const EditSquareScreen = () => {
       setHideAxisUntilDeadline(data.axis_hidden ?? true);
       setRandomizeAxis(data.randomize_axis ?? true);
       setBlockMode(isBlock);
+      setIsPublic(!!data.is_public);
       setTeam1FullName(data.team1_full_name || data.team1 || "Team 1");
       setTeam2FullName(data.team2_full_name || data.team2 || "Team 2");
       setHasSelections(data.selections && data.selections.length > 0);
@@ -123,6 +125,7 @@ const EditSquareScreen = () => {
         max_selection: parseInt(maxSelections, 10),
         price_per_square: pricePerSquare,
         axis_hidden: hideAxisUntilDeadline,
+        is_public: isPublic,
       };
 
       // Handle randomize axis change - only re-randomize if changed from OFF to ON
@@ -197,7 +200,8 @@ const EditSquareScreen = () => {
       pricePerSquare !== originalData.price_per_square ||
       hideAxisUntilDeadline !== originalData.axis_hidden ||
       randomizeAxis !== originalData.randomize_axis ||
-      blockMode !== (originalData.block_mode ?? false)
+      blockMode !== (originalData.block_mode ?? false) ||
+      isPublic !== (originalData.is_public ?? false)
     );
   };
 
@@ -614,6 +618,65 @@ const EditSquareScreen = () => {
                     ]}
                   >
                     {blockMode ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+            {/* Public Game Toggle */}
+            <View
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="public"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Public Game
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {isPublic
+                      ? "Anyone can browse and join"
+                      : "Invite only"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsPublic(!isPublic)}
+                  style={[
+                    styles.toggleButton,
+                    {
+                      backgroundColor: isPublic
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#444"
+                          : "#ddd",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      {
+                        color: isPublic ? "#fff" : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {isPublic ? "ON" : "OFF"}
                   </Text>
                 </TouchableOpacity>
               </View>

@@ -36,6 +36,9 @@ import AddFriendsScreen from "./src/screens/AddFriendsScreen";
 import InviteFriendsScreen from "./src/screens/InviteFriendsScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import EditSquareScreen from "./src/screens/EditSquareScreen";
+import BrowsePublicSquaresScreen from "./src/screens/BrowsePublicSquaresScreen";
+import LeaderboardScreen from "./src/screens/LeaderboardScreen";
+import BadgesScreen from "./src/screens/BadgesScreen";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
 import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 import { registerPushToken } from "./src/utils/registerPushToken";
@@ -446,6 +449,21 @@ const App: React.FC = () => {
                     name: "EditSquareScreen",
                     component: EditSquareScreen,
                     title: "Edit Game",
+                  },
+                  {
+                    name: "BrowsePublicSquaresScreen",
+                    component: BrowsePublicSquaresScreen,
+                    title: "Public Squares",
+                  },
+                  {
+                    name: "LeaderboardScreen",
+                    component: LeaderboardScreen,
+                    title: "Leaderboard",
+                  },
+                  {
+                    name: "BadgesScreen",
+                    component: BadgesScreen,
+                    title: "Badges",
                   },
                 ].map(({ name, component, title }) => (
                   <Stack.Screen

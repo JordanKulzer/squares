@@ -20,7 +20,8 @@
       "Bash(npx expo export:*)",
       "Bash(npx eslint:*)",
       "Bash(timeout:*)",
-      "Bash(copy:*)"
+      "Bash(copy:*)",
+      "Bash(git status:*)"
     ]
   }
 }

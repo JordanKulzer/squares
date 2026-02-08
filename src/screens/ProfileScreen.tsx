@@ -52,6 +52,8 @@ const ProfileScreen = ({ navigation }: Props) => {
   const [resetQuarters, setResetQuarters] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [availableCredits, setAvailableCredits] = useState(0);
+  const [publicQuarterWins, setPublicQuarterWins] = useState(0);
 
   useEffect(() => {
     const show = Keyboard.addListener("keyboardDidShow", () =>
@@ -170,6 +172,22 @@ const ProfileScreen = ({ navigation }: Props) => {
       if (!friendsCountRes.error) {
         setFriendsCount(friendsCountRes.count || 0);
       }
+
+      // Fetch available credits
+      const { count: creditCount } = await supabase
+        .from("square_credits")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("used_at", null);
+      setAvailableCredits(creditCount || 0);
+
+      // Fetch public quarter wins from leaderboard_stats
+      const { data: lbData } = await supabase
+        .from("leaderboard_stats")
+        .select("public_quarters_won")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setPublicQuarterWins(lbData?.public_quarters_won || 0);
     } catch (err) {
       console.error("Failed to fetch profile data:", err);
       showToast({
@@ -481,6 +499,127 @@ const ProfileScreen = ({ navigation }: Props) => {
               Winnings
             </Text>
           </View>
+        </View>
+
+        {/* Free Square Credit Progress */}
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: "rgba(94, 96, 206, 0.4)",
+              borderLeftColor: theme.colors.primary,
+              padding: 14,
+            },
+          ]}
+        >
+          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+            <MaterialIcons name="card-giftcard" size={18} color={theme.colors.primary} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: "Rubik_500Medium",
+                color: theme.colors.onBackground,
+                marginLeft: 8,
+                flex: 1,
+              }}
+            >
+              {publicQuarterWins % 4}/4 wins to free credit
+            </Text>
+            {availableCredits > 0 && (
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontFamily: "Rubik_500Medium",
+                  color: theme.colors.primary,
+                }}
+              >
+                {availableCredits} credit{availableCredits !== 1 ? "s" : ""}
+              </Text>
+            )}
+          </View>
+          <View
+            style={{
+              height: 5,
+              borderRadius: 3,
+              backgroundColor: theme.dark ? "#333" : "#e0e0e0",
+              overflow: "hidden",
+            }}
+          >
+            <View
+              style={{
+                height: "100%",
+                width: `${((publicQuarterWins % 4) / 4) * 100}%`,
+                backgroundColor: theme.colors.primary,
+                borderRadius: 3,
+              }}
+            />
+          </View>
+        </View>
+
+        {/* Public Games Quick Links */}
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: "rgba(94, 96, 206, 0.4)",
+              borderLeftColor: theme.colors.primary,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("LeaderboardScreen")}
+          >
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="leaderboard"
+                size={22}
+                color={theme.colors.primary}
+              />
+              <Text
+                style={[styles.settingsText, { color: theme.colors.onSurface }]}
+              >
+                Leaderboard
+              </Text>
+            </View>
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color={theme.colors.onSurfaceVariant}
+            />
+          </TouchableOpacity>
+
+          <View
+            style={[
+              styles.settingsDivider,
+              { backgroundColor: theme.dark ? "#333" : "#eee" },
+            ]}
+          />
+
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("BadgesScreen")}
+          >
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="emoji-events"
+                size={22}
+                color={theme.colors.primary}
+              />
+              <Text
+                style={[styles.settingsText, { color: theme.colors.onSurface }]}
+              >
+                Badges
+              </Text>
+            </View>
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color={theme.colors.onSurfaceVariant}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Pending Game Invites */}

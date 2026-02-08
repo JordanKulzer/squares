@@ -1,6 +1,6 @@
 export type RootStackParamList = {
   FriendsScreen: undefined;
-  CreateSquareScreen: undefined;
+  CreateSquareScreen: { isPublic?: boolean } | undefined;
   InviteFriendsScreen: {
     gridId: string;
     sessionTitle: string;
@@ -28,6 +28,9 @@ export type RootStackParamList = {
   };
   HowToScreen: undefined;
   ProfileScreen: undefined;
+  BrowsePublicSquaresScreen: undefined;
+  LeaderboardScreen: undefined;
+  BadgesScreen: undefined;
   EditSquareScreen: {
     gridId: string;
   };
@@ -38,3 +41,9 @@ export const leagueMap: Record<string, string> = {
   NFL: "nfl",
   NCAAF: "ncaaf",
 };
+
+// Active leagues shown in Browse/Filter UI
+export const ACTIVE_LEAGUES = ["NFL", "NCAAF"];
+
+// Future leagues (uncomment when implemented)
+// export const FUTURE_LEAGUES = ["NHL", "MLB", "MLS"];

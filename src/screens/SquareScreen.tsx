@@ -539,6 +539,120 @@ const SquareScreen = ({ route }) => {
     finalizeTotalWinnings();
   }, [gameCompleted, quarterWinners]);
 
+  // Award badges, credits, and update leaderboard stats for public games
+  useEffect(() => {
+    if (!gameCompleted || !userId || !quarterWinners?.length) return;
+
+    const awardPublicGameRewards = async () => {
+      try {
+        // Check if this is a public game
+        const { data: squareData } = await supabase
+          .from("squares")
+          .select("is_public, is_featured, id")
+          .eq("id", gridId)
+          .single();
+
+        if (!squareData?.is_public) return;
+
+        const isFeaturedGame = !!squareData.is_featured;
+
+        // Find current user's in-game username
+        const myUsername = playerUsernames[userId];
+        if (!myUsername) return;
+
+        // Count user's quarter wins in this game
+        const myWins = quarterWinners.filter(
+          (w: any) => w.username?.trim() === myUsername.trim() && w.username !== "No Winner",
+        ).length;
+
+        const isSweep = myWins === 4;
+
+        // Upsert leaderboard stats
+        const { data: existing } = await supabase
+          .from("leaderboard_stats")
+          .select("public_quarters_won, public_games_played, public_sweeps")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        const prev = existing || { public_quarters_won: 0, public_games_played: 0, public_sweeps: 0 };
+
+        await supabase.from("leaderboard_stats").upsert(
+          {
+            user_id: userId,
+            username: myUsername.trim(),
+            public_quarters_won: prev.public_quarters_won + myWins,
+            public_games_played: prev.public_games_played + 1,
+            public_sweeps: prev.public_sweeps + (isSweep ? 1 : 0),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" },
+        );
+
+        // Award credits for every 4 cumulative quarter wins
+        const totalWins = prev.public_quarters_won + myWins;
+        const prevMilestones = Math.floor(prev.public_quarters_won / 4);
+        const newMilestones = Math.floor(totalWins / 4);
+        const milestonesEarned = newMilestones - prevMilestones;
+
+        for (let i = 0; i < milestonesEarned; i++) {
+          await supabase.from("square_credits").insert({
+            user_id: userId,
+            earned_from_square_id: gridId,
+          });
+        }
+
+        // Bonus credit for sweep (extra credit for featured games)
+        if (isSweep) {
+          const bonusCredits = isFeaturedGame ? 2 : 1;
+          for (let i = 0; i < bonusCredits; i++) {
+            await supabase.from("square_credits").insert({
+              user_id: userId,
+              earned_from_square_id: gridId,
+            });
+          }
+        }
+
+        // Award badges
+        const totalGames = prev.public_games_played + 1;
+        const totalSweeps = prev.public_sweeps + (isSweep ? 1 : 0);
+
+        const badgesToCheck: { type: string; condition: boolean }[] = [
+          { type: "first_public_game", condition: true },
+          { type: "first_public_win", condition: myWins > 0 },
+          { type: "5_wins", condition: totalWins >= 5 },
+          { type: "10_public_wins", condition: totalWins >= 10 },
+          { type: "25_public_wins", condition: totalWins >= 25 },
+          { type: "50_public_wins", condition: totalWins >= 50 },
+          { type: "100_public_wins", condition: totalWins >= 100 },
+          { type: "sweep", condition: isSweep },
+          { type: "double_sweep", condition: totalSweeps >= 2 },
+          { type: "5_sweeps", condition: totalSweeps >= 5 },
+          { type: "3_games", condition: totalGames >= 3 },
+          { type: "social_butterfly", condition: totalGames >= 10 },
+          { type: "20_games", condition: totalGames >= 20 },
+          { type: "50_games", condition: totalGames >= 50 },
+          { type: "credit_earner", condition: milestonesEarned > 0 || isSweep },
+          { type: "featured_winner", condition: isFeaturedGame && myWins > 0 },
+        ];
+
+        for (const badge of badgesToCheck) {
+          if (badge.condition) {
+            await supabase
+              .from("badges")
+              .upsert(
+                { user_id: userId, badge_type: badge.type },
+                { onConflict: "user_id,badge_type" },
+              );
+          }
+        }
+      } catch (err) {
+        console.error("Error awarding public game rewards:", err);
+      }
+    };
+
+    awardPublicGameRewards();
+  }, [gameCompleted, quarterWinners, userId]);
+
   useEffect(() => {
     if (!isFocused || !userId) return;
 

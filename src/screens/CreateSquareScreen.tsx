@@ -42,6 +42,7 @@ type CreateSquareRouteParams = {
     team1Abbr?: string;
     team2Abbr?: string;
     league?: string;
+    isPublic?: boolean;
   };
 };
 
@@ -63,10 +64,14 @@ const CreateSquareScreen = ({ navigation }) => {
   const [eventId, setEventId] = useState("");
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [blockMode, setBlockMode] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [availableCredits, setAvailableCredits] = useState(0);
+  const [useCredit, setUseCredit] = useState(false);
+  const [publicQuarterWins, setPublicQuarterWins] = useState(0);
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
     playerJoined: false,
@@ -84,6 +89,32 @@ const CreateSquareScreen = ({ navigation }) => {
   const route =
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
   const theme = useTheme();
+
+  // Fetch available credits
+  useEffect(() => {
+    const fetchCredits = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { count } = await supabase
+        .from("square_credits")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("used_at", null);
+
+      setAvailableCredits(count || 0);
+
+      const { data: lbData } = await supabase
+        .from("leaderboard_stats")
+        .select("public_quarters_won")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setPublicQuarterWins(lbData?.public_quarters_won || 0);
+    };
+    fetchCredits();
+  }, []);
 
   useEffect(() => {
     const params = route.params || {};
@@ -103,6 +134,7 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.selectedColor) setSelectedColor(params.selectedColor);
     if (params.eventId) setEventId(params.eventId);
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
+    if (params.isPublic) setIsPublic(true);
   }, [route.params]);
 
   const generateShuffledArray = () => {
@@ -183,6 +215,7 @@ const CreateSquareScreen = ({ navigation }) => {
             team2_abbr: team2Abbr,
             league: league,
             block_mode: blockMode,
+            is_public: isPublic,
           },
         ])
         .select("id")
@@ -193,6 +226,27 @@ const CreateSquareScreen = ({ navigation }) => {
         Alert.alert("Error", "Failed to create game. Please try again.");
         setLoading(false);
         return;
+      }
+
+      // Consume a free credit if user opted to use one
+      if (useCredit && availableCredits > 0) {
+        const { data: creditData } = await supabase
+          .from("square_credits")
+          .select("id")
+          .eq("user_id", user.id)
+          .is("used_at", null)
+          .limit(1)
+          .single();
+
+        if (creditData) {
+          await supabase
+            .from("square_credits")
+            .update({
+              used_on_square_id: data.id,
+              used_at: new Date().toISOString(),
+            })
+            .eq("id", creditData.id);
+        }
       }
 
       if (notifySettings.deadlineReminders) {
@@ -497,6 +551,175 @@ const CreateSquareScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {/* Public Game Toggle */}
+            <View
+              style={[
+                styles.settingCard,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.settingCardContent}>
+                <MaterialIcons
+                  name="public"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <View style={styles.settingInfo}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Public Game
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {isPublic
+                      ? "Anyone can browse and join"
+                      : "Invite only"}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setIsPublic(!isPublic)}
+                  style={[
+                    styles.toggleButton,
+                    {
+                      backgroundColor: isPublic
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#444"
+                          : "#ddd",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.toggleText,
+                      {
+                        color: isPublic ? "#fff" : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {isPublic ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Free Credit */}
+            {availableCredits > 0 && (
+              <View
+                style={[
+                  styles.settingCard,
+                  {
+                    backgroundColor: useCredit
+                      ? theme.colors.primaryContainer
+                      : theme.colors.surface,
+                    borderColor: useCredit ? theme.colors.primary : "rgba(0,0,0,0.1)",
+                  },
+                ]}
+              >
+                <View style={styles.settingCardContent}>
+                  <MaterialIcons
+                    name="card-giftcard"
+                    size={24}
+                    color={theme.colors.primary}
+                  />
+                  <View style={styles.settingInfo}>
+                    <Text
+                      style={[
+                        styles.settingTitle,
+                        { color: theme.colors.onBackground },
+                      ]}
+                    >
+                      Use Free Credit
+                    </Text>
+                    <Text
+                      style={[
+                        styles.settingValue,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      {availableCredits} credit{availableCredits !== 1 ? "s" : ""} available
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setUseCredit(!useCredit)}
+                    style={[
+                      styles.toggleButton,
+                      {
+                        backgroundColor: useCredit
+                          ? theme.colors.primary
+                          : theme.dark
+                            ? "#444"
+                            : "#ddd",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.toggleText,
+                        {
+                          color: useCredit ? "#fff" : theme.colors.onSurface,
+                        },
+                      ]}
+                    >
+                      {useCredit ? "ON" : "OFF"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Credit progress hint */}
+            {availableCredits === 0 && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  gap: 10,
+                }}
+              >
+                <MaterialIcons name="card-giftcard" size={18} color={theme.colors.onSurfaceVariant} />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "Rubik_400Regular",
+                      color: theme.colors.onSurfaceVariant,
+                    }}
+                  >
+                    {publicQuarterWins % 4}/4 quarter wins to earn a free credit
+                  </Text>
+                  <View
+                    style={{
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: theme.dark ? "#333" : "#e0e0e0",
+                      marginTop: 4,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <View
+                      style={{
+                        height: "100%",
+                        width: `${((publicQuarterWins % 4) / 4) * 100}%`,
+                        backgroundColor: theme.colors.primary,
+                        borderRadius: 2,
+                      }}
+                    />
+                  </View>
+                </View>
+              </View>
+            )}
 
             {/* Per Square Settings */}
             <TouchableOpacity

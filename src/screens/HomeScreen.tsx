@@ -456,6 +456,7 @@ const HomeScreen = () => {
           </Text>
         </View>
 
+        {/* Public Games Section */}
         <Text
           style={{
             fontSize: 16,
@@ -467,7 +468,55 @@ const HomeScreen = () => {
             color: theme.colors.onBackground,
           }}
         >
-          Quick Start
+          Public Games
+        </Text>
+        <View style={{ paddingHorizontal: 5 }}>
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            onPress={() => navigation.navigate("BrowsePublicSquaresScreen")}
+          >
+            <MaterialIcons name="public" size={20} color="#fff" />
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={styles.buttonText}>Browse Public Games</Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Rubik_400Regular" }}>
+                Join games with players worldwide
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.outlineButton, { borderColor: theme.colors.primary }]}
+            onPress={() => {
+              navigation.navigate("CreateSquareScreen", { isPublic: true });
+            }}
+          >
+            <MaterialIcons name="add-circle-outline" size={20} color={theme.colors.primary} />
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={[styles.outlineButtonText, { color: theme.colors.onBackground }]}>
+                Create Public Game
+              </Text>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontFamily: "Rubik_400Regular" }}>
+                Host a game for everyone to join
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Private Games Section */}
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "600",
+            marginTop: 15,
+            marginBottom: 10,
+            marginHorizontal: 10,
+            fontFamily: "Rubik_600SemiBold",
+            color: theme.colors.onBackground,
+          }}
+        >
+          Private Games
         </Text>
         <View style={{ paddingHorizontal: 5 }}>
           <TouchableOpacity
@@ -475,17 +524,30 @@ const HomeScreen = () => {
             onPress={() => navigation.navigate("CreateSquareScreen")}
           >
             <MaterialIcons name="add-box" size={20} color="#fff" />
-            <Text style={styles.buttonText}>Create Game</Text>
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={styles.buttonText}>Create Private Game</Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Rubik_400Regular" }}>
+                Invite-only game with custom settings
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            style={[styles.outlineButton, { borderColor: theme.colors.primary }]}
             onPress={() => setVisible(true)}
           >
-            <MaterialIcons name="vpn-key" size={20} color="#fff" />
-            <Text style={styles.buttonText}>Join By Code</Text>
+            <MaterialIcons name="vpn-key" size={20} color={theme.colors.primary} />
+            <View style={{ marginLeft: 8, flex: 1 }}>
+              <Text style={[styles.outlineButtonText, { color: theme.colors.onBackground }]}>
+                Join By Code
+              </Text>
+              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontFamily: "Rubik_400Regular" }}>
+                Enter a game code to join
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />
           </TouchableOpacity>
-
         </View>
 
         {/* Pending Game Invites */}
@@ -782,8 +844,8 @@ const styles = StyleSheet.create({
   button: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     paddingVertical: 14,
+    paddingHorizontal: 14,
     borderRadius: 10,
     marginVertical: 6,
     shadowOffset: { width: 0, height: 3 },
@@ -793,9 +855,22 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
-    paddingLeft: 5,
+    fontFamily: "Rubik_600SemiBold",
+  },
+  outlineButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginVertical: 6,
+    borderWidth: 1.5,
+  },
+  outlineButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
     fontFamily: "Rubik_600SemiBold",
   },
   gameCard: {
