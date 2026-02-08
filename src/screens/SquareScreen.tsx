@@ -27,7 +27,11 @@ import {
   Chip,
 } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
-import { useIsFocused, useNavigation, useFocusEffect } from "@react-navigation/native";
+import {
+  useIsFocused,
+  useNavigation,
+  useFocusEffect,
+} from "@react-navigation/native";
 import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
@@ -158,7 +162,9 @@ const SquareScreen = ({ route }) => {
   const [quarterScores, setQuarterScores] = useState([]);
   const [quarterWinners, setQuarterWinners] = useState([]);
   const [selections, setSelections] = useState([]);
-  const [selectedSquares, setSelectedSquares] = useState(new Set());
+  const [selectedSquares, setSelectedSquares] = useState<Set<string>>(
+    new Set(),
+  );
   const [deadlineValue, setDeadlineValue] = useState<Date | null>(null);
   const [isAfterDeadline, setIsAfterDeadline] = useState(false);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
@@ -977,8 +983,7 @@ const SquareScreen = ({ route }) => {
             : Object.keys(squareColors).length;
           const payoutPerQuarter =
             pricePerSquare && totalUnitsForPayout > 0
-              ? (pricePerSquare * totalUnitsForPayout) /
-                quarterScores.length
+              ? (pricePerSquare * totalUnitsForPayout) / quarterScores.length
               : 0;
 
           return {
@@ -997,12 +1002,14 @@ const SquareScreen = ({ route }) => {
     if (winningQuartersData.length > 0) {
       // If no owner, this is effectively "No Winner" for payout purposes
       const isUnclaimed = !userColor || !username;
-      const totalWinnings = isUnclaimed ? 0 : winningQuartersData.reduce((sum, q) => sum + q.payout, 0);
+      const totalWinnings = isUnclaimed
+        ? 0
+        : winningQuartersData.reduce((sum, q) => sum + q.payout, 0);
 
       setWinnerModalData({
         username: isUnclaimed ? "No Winner" : username,
         userColor: userColor || "#888888",
-        winningQuarters: winningQuartersData.map(q => ({
+        winningQuarters: winningQuartersData.map((q) => ({
           ...q,
           payout: isUnclaimed ? 0 : q.payout,
         })),
@@ -1036,7 +1043,7 @@ const SquareScreen = ({ route }) => {
     useCallback(() => {
       // Trigger refresh when screen gains focus (e.g., returning from edit)
       setRefreshKey((k) => k + 1);
-    }, [])
+    }, []),
   );
 
   useLayoutEffect(() => {
@@ -1093,33 +1100,27 @@ const SquareScreen = ({ route }) => {
     });
   };
 
-  const getBlockSquares = useCallback(
-    (x: number, y: number) => {
-      const bx = Math.floor(x / 2) * 2;
-      const by = Math.floor(y / 2) * 2;
-      return [
-        { x: bx, y: by },
-        { x: bx + 1, y: by },
-        { x: bx, y: by + 1 },
-        { x: bx + 1, y: by + 1 },
-      ];
-    },
-    [],
-  );
+  const getBlockSquares = useCallback((x: number, y: number) => {
+    const bx = Math.floor(x / 2) * 2;
+    const by = Math.floor(y / 2) * 2;
+    return [
+      { x: bx, y: by },
+      { x: bx + 1, y: by },
+      { x: bx, y: by + 1 },
+      { x: bx + 1, y: by + 1 },
+    ];
+  }, []);
 
-  const countSelectedBlocks = useCallback(
-    (squares: Set<string>) => {
-      const blockOrigins = new Set<string>();
-      squares.forEach((sq) => {
-        const [sx, sy] = sq.split(",").map(Number);
-        const bx = Math.floor(sx / 2) * 2;
-        const by = Math.floor(sy / 2) * 2;
-        blockOrigins.add(`${bx},${by}`);
-      });
-      return blockOrigins.size;
-    },
-    [],
-  );
+  const countSelectedBlocks = useCallback((squares: Set<string>) => {
+    const blockOrigins = new Set<string>();
+    squares.forEach((sq) => {
+      const [sx, sy] = sq.split(",").map(Number);
+      const bx = Math.floor(sx / 2) * 2;
+      const by = Math.floor(sy / 2) * 2;
+      blockOrigins.add(`${bx},${by}`);
+    });
+    return blockOrigins.size;
+  }, []);
 
   const lastPressTime = useRef<Record<string, number>>({});
 
@@ -1158,15 +1159,16 @@ const SquareScreen = ({ route }) => {
         const isSelected = selectedSquares.has(blockIds[0]);
         const updatedSet = new Set(selectedSquares);
 
-        if (!isSelected && countSelectedBlocks(selectedSquares) >= maxSelections) {
+        if (
+          !isSelected &&
+          countSelectedBlocks(selectedSquares) >= maxSelections
+        ) {
           showSquareToast(`Limit reached: ${maxSelections} blocks max`);
           return;
         }
 
+        // Optimistic UI update
         if (isSelected) {
-          for (const sq of blockSquares) {
-            await deselectSquareInSupabase(sq.x, sq.y);
-          }
           for (const bid of blockIds) {
             updatedSet.delete(bid);
           }
@@ -1184,10 +1186,38 @@ const SquareScreen = ({ route }) => {
                 ),
             ),
           );
+          setSelectedSquares(updatedSet);
+          // Run RPC in background
+          blockSquares.forEach((sq) => {
+            deselectSquareInSupabase(sq.x, sq.y).catch(() => {
+              // Revert UI and show Toast
+              setSquareColors((prev) => {
+                const reverted = { ...prev };
+                for (const bid of blockIds) {
+                  reverted[bid] = playerColors[userId];
+                }
+                return reverted;
+              });
+              setSelections((prev) => [
+                ...prev,
+                ...blockSquares.map((sq) => ({
+                  x: sq.x,
+                  y: sq.y,
+                  userId,
+                  username: currentUsername,
+                })),
+              ]);
+              setSelectedSquares((prev) => {
+                const reverted = new Set(prev);
+                for (const bid of blockIds) {
+                  reverted.add(bid);
+                }
+                return reverted;
+              });
+              showSquareToast("Failed to deselect block. Please try again.");
+            });
+          });
         } else {
-          for (const sq of blockSquares) {
-            await selectSquareInSupabase(sq.x, sq.y);
-          }
           for (const bid of blockIds) {
             updatedSet.add(bid);
           }
@@ -1207,6 +1237,37 @@ const SquareScreen = ({ route }) => {
               username: currentUsername,
             })),
           ]);
+          setSelectedSquares(updatedSet);
+          // Run RPC in background
+          blockSquares.forEach((sq) => {
+            selectSquareInSupabase(sq.x, sq.y).catch(() => {
+              // Revert UI and show Toast
+              setSquareColors((prev) => {
+                const reverted = { ...prev };
+                for (const bid of blockIds) {
+                  delete reverted[bid];
+                }
+                return reverted;
+              });
+              setSelections((prev) =>
+                prev.filter(
+                  (s) =>
+                    !(
+                      blockSquares.some((bs) => bs.x === s.x && bs.y === s.y) &&
+                      s.userId === userId
+                    ),
+                ),
+              );
+              setSelectedSquares((prev) => {
+                const reverted = new Set(prev);
+                for (const bid of blockIds) {
+                  reverted.delete(bid);
+                }
+                return reverted;
+              });
+              showSquareToast("Failed to select block. Please try again.");
+            });
+          });
         }
         setPendingSquares((prev) => {
           const newSet = new Set(prev);
@@ -1215,7 +1276,6 @@ const SquareScreen = ({ route }) => {
           }
           return newSet;
         });
-        setSelectedSquares(updatedSet);
       } else {
         // Normal mode: select/deselect individual square
         const currentColor = squareColors[squareId];
@@ -1238,20 +1298,37 @@ const SquareScreen = ({ route }) => {
           return;
         }
 
+        // Optimistic UI update
         if (isSelected) {
-          await deselectSquareInSupabase(x, y);
-
           updatedSet.delete(squareId);
           const newColors = { ...squareColors };
           delete newColors[squareId];
           setSquareColors(newColors);
-
           setSelections((prev) =>
-            prev.filter((s) => !(s.x === x && s.y === y && s.userId === userId)),
+            prev.filter(
+              (s) => !(s.x === x && s.y === y && s.userId === userId),
+            ),
           );
+          setSelectedSquares(updatedSet);
+          // Run RPC in background
+          deselectSquareInSupabase(x, y).catch(() => {
+            // Revert UI and show Toast
+            setSquareColors((prev) => ({
+              ...prev,
+              [squareId]: playerColors[userId],
+            }));
+            setSelections((prev) => [
+              ...prev,
+              { x, y, userId, username: currentUsername },
+            ]);
+            setSelectedSquares((prev) => {
+              const reverted = new Set(prev);
+              reverted.add(squareId);
+              return reverted;
+            });
+            showSquareToast("Failed to deselect square. Please try again.");
+          });
         } else {
-          await selectSquareInSupabase(x, y);
-
           updatedSet.add(squareId);
           setSquareColors((prev) => ({
             ...prev,
@@ -1261,14 +1338,33 @@ const SquareScreen = ({ route }) => {
             ...prev,
             { x, y, userId, username: currentUsername },
           ]);
+          setSelectedSquares(updatedSet);
+          // Run RPC in background
+          selectSquareInSupabase(x, y).catch(() => {
+            // Revert UI and show Toast
+            setSquareColors((prev) => {
+              const reverted = { ...prev };
+              delete reverted[squareId];
+              return reverted;
+            });
+            setSelections((prev) =>
+              prev.filter(
+                (s) => !(s.x === x && s.y === y && s.userId === userId),
+              ),
+            );
+            setSelectedSquares((prev) => {
+              const reverted = new Set(prev);
+              reverted.delete(squareId);
+              return reverted;
+            });
+            showSquareToast("Failed to select square. Please try again.");
+          });
         }
         setPendingSquares((prev) => {
           const newSet = new Set(prev);
           newSet.add(squareId);
           return newSet;
         });
-
-        setSelectedSquares(updatedSet);
       }
     },
     [
@@ -1283,6 +1379,7 @@ const SquareScreen = ({ route }) => {
       blockMode,
       getBlockSquares,
       countSelectedBlocks,
+      currentUsername,
     ],
   );
 
@@ -1419,10 +1516,18 @@ const SquareScreen = ({ route }) => {
                     borderRightWidth: isLeftInBlock ? 1 : 2.5,
                     borderTopWidth: isTopInBlock ? 2.5 : 1,
                     borderBottomWidth: isTopInBlock ? 1 : 2.5,
-                    borderLeftColor: isLeftInBlock ? selectedBorderColor : lightBorder,
-                    borderRightColor: isLeftInBlock ? lightBorder : selectedBorderColor,
-                    borderTopColor: isTopInBlock ? selectedBorderColor : lightBorder,
-                    borderBottomColor: isTopInBlock ? lightBorder : selectedBorderColor,
+                    borderLeftColor: isLeftInBlock
+                      ? selectedBorderColor
+                      : lightBorder,
+                    borderRightColor: isLeftInBlock
+                      ? lightBorder
+                      : selectedBorderColor,
+                    borderTopColor: isTopInBlock
+                      ? selectedBorderColor
+                      : lightBorder,
+                    borderBottomColor: isTopInBlock
+                      ? lightBorder
+                      : selectedBorderColor,
                   };
                 }
                 // Unselected: show outer block borders to outline 2x2 groups
@@ -1759,7 +1864,11 @@ const SquareScreen = ({ route }) => {
                           {pricePerSquare
                             ? `${username} wins $${(
                                 (pricePerSquare *
-                                  (blockMode ? Math.round(Object.keys(squareColors).length / 4) : Object.keys(squareColors).length)) /
+                                  (blockMode
+                                    ? Math.round(
+                                        Object.keys(squareColors).length / 4,
+                                      )
+                                    : Object.keys(squareColors).length)) /
                                 quarterScores.length
                               ).toFixed(2)}`
                             : `${username} wins!`}
@@ -2363,7 +2472,10 @@ const SquareScreen = ({ route }) => {
                       <Text
                         style={[
                           styles.winnerModalSquare,
-                          { color: theme.colors.onSurfaceVariant, marginBottom: 8 },
+                          {
+                            color: theme.colors.onSurfaceVariant,
+                            marginBottom: 8,
+                          },
                         ]}
                       >
                         Square ({winnerModalData.squareCoords[0]},{" "}
@@ -2457,7 +2569,9 @@ const SquareScreen = ({ route }) => {
                             key={idx}
                             style={[
                               styles.winnerModalQuarterCard,
-                              { backgroundColor: theme.colors.elevation.level2 },
+                              {
+                                backgroundColor: theme.colors.elevation.level2,
+                              },
                             ]}
                           >
                             <Text
