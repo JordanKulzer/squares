@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import colors from "../../assets/constants/colorOptions";
+import { iconOptions } from "../../assets/constants/iconOptions";
+import tinycolor from "tinycolor2";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { RouteProp, useRoute } from "@react-navigation/native";
@@ -67,6 +69,10 @@ const CreateSquareScreen = ({ navigation }) => {
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [displayType, setDisplayType] = useState<"color" | "icon" | "initial">(
+    "color",
+  );
+  const [displayValue, setDisplayValue] = useState("");
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
     playerJoined: false,
@@ -96,7 +102,20 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.league) setLeague(params.league);
     if (params.deadline) setDeadline(new Date(params.deadline));
     if (params.inputTitle) setInputTitle(params.inputTitle);
-    if (params.username) setUsername(params.username);
+    // Fetch username from users table
+    const fetchUsername = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("users")
+          .select("username")
+          .eq("id", user.id)
+          .single();
+        if (profile?.username) setUsername(profile.username);
+      }
+    };
+    if (!params.username) fetchUsername();
+    else setUsername(params.username);
     setMaxSelections(
       params.maxSelections !== undefined ? String(params.maxSelections) : "100",
     );
@@ -120,7 +139,7 @@ const CreateSquareScreen = ({ navigation }) => {
       return;
     }
     if (!username.trim()) {
-      Alert.alert("Missing Info", "Please enter your username");
+      Alert.alert("Missing Info", "Could not load your username. Please try again.");
       return;
     }
     if (!team1 || !team2) {
@@ -129,6 +148,14 @@ const CreateSquareScreen = ({ navigation }) => {
     }
     if (!selectedColor) {
       Alert.alert("Missing Info", "Please choose your color");
+      return;
+    }
+    if (displayType === "initial" && !displayValue.trim()) {
+      Alert.alert("Missing Info", "Please enter an initial for your display");
+      return;
+    }
+    if (displayType === "icon" && !displayValue) {
+      Alert.alert("Missing Info", "Please select an icon for your display");
       return;
     }
 
@@ -164,6 +191,9 @@ const CreateSquareScreen = ({ navigation }) => {
                 userId: user.id,
                 username: username.trim(),
                 color: selectedColor,
+                displayType,
+                displayValue:
+                  displayType !== "color" ? displayValue : undefined,
                 notifySettings,
                 amount_owed: 0,
               },
@@ -221,7 +251,7 @@ const CreateSquareScreen = ({ navigation }) => {
   };
 
   const isFormValid =
-    inputTitle.trim() && username.trim() && team1 && team2 && selectedColor;
+    inputTitle.trim() && team1 && team2 && selectedColor;
 
   return (
     <LinearGradient
@@ -280,21 +310,6 @@ const CreateSquareScreen = ({ navigation }) => {
             >
               {inputTitle.length}/50 characters
             </Text>
-          </View>
-
-          {/* Username */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
-              Your Username *
-            </Text>
-            <PaperInput
-              mode="outlined"
-              value={username}
-              onChangeText={setUsername}
-              placeholder="Enter your display name"
-              style={[styles.input, { backgroundColor: theme.colors.surface }]}
-              maxLength={20}
-            />
           </View>
 
           {/* Game Selection */}
@@ -426,6 +441,125 @@ const CreateSquareScreen = ({ navigation }) => {
                 </TouchableOpacity>
               ))}
             </View>
+          </View>
+
+          {/* Display Style */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Display Style
+            </Text>
+            <View style={styles.displayTypeRow}>
+              {(["color", "icon", "initial"] as const).map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  onPress={() => {
+                    setDisplayType(type);
+                    if (type === "icon") setDisplayValue("sports-football");
+                    else if (type === "initial") setDisplayValue("");
+                    else setDisplayValue("");
+                  }}
+                  style={[
+                    styles.displayTypeButton,
+                    {
+                      backgroundColor:
+                        displayType === type
+                          ? theme.colors.primary
+                          : theme.dark
+                            ? "#333"
+                            : "#e8e8e8",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.displayTypeText,
+                      {
+                        color:
+                          displayType === type
+                            ? "#fff"
+                            : theme.colors.onBackground,
+                      },
+                    ]}
+                  >
+                    {type === "color"
+                      ? "Color Only"
+                      : type === "icon"
+                        ? "Icon"
+                        : "Initial"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {displayType === "icon" && (
+              <View style={styles.iconGrid}>
+                {iconOptions.map((icon) => (
+                  <TouchableOpacity
+                    key={icon.name}
+                    onPress={() => setDisplayValue(icon.name)}
+                    style={[
+                      styles.iconButton,
+                      {
+                        backgroundColor: selectedColor
+                          ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                          : theme.dark
+                            ? "#333"
+                            : "#e8e8e8",
+                        borderWidth: displayValue === icon.name ? 3 : 0,
+                        borderColor: theme.colors.primary,
+                        transform: [
+                          { scale: displayValue === icon.name ? 1.1 : 1 },
+                        ],
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name={icon.name}
+                      size={22}
+                      color={selectedColor || theme.colors.onBackground}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {displayType === "initial" && (
+              <View style={styles.initialRow}>
+                <PaperInput
+                  label="Your Initial (1 letter)"
+                  value={displayValue}
+                  onChangeText={(text) => setDisplayValue(text.slice(0, 1))}
+                  maxLength={1}
+                  style={[styles.initialInput, { backgroundColor: theme.dark ? "#1e1e1e" : "#fff" }]}
+                  autoCapitalize="characters"
+                />
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 11, color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
+                    Preview
+                  </Text>
+                  <View
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 8,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: selectedColor
+                        ? tinycolor(selectedColor).setAlpha(0.3).toRgbString()
+                        : theme.dark ? "#333" : "#e8e8e8",
+                      borderWidth: 1,
+                      borderColor: theme.dark ? "#555" : "#ccc",
+                    }}
+                  >
+                    {selectedColor && displayValue ? (
+                      <Text style={{ fontSize: 22, fontWeight: "700", color: selectedColor }}>
+                        {displayValue.toUpperCase()}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Settings Card */}
@@ -958,6 +1092,42 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  displayTypeRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  displayTypeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  displayTypeText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  iconGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingVertical: 8,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  initialRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  initialInput: {
+    flex: 3,
   },
 });
 

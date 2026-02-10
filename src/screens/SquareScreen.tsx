@@ -55,6 +55,7 @@ import {
   Rubik_600SemiBold,
 } from "@expo-google-fonts/rubik";
 import SkeletonLoader from "../components/SkeletonLoader";
+import tinycolor from "tinycolor2";
 
 // ✨ Square size calculation - moved to component level for proper recalculation
 const getSquareSize = () => {
@@ -65,18 +66,18 @@ const getSquareSize = () => {
   const isTablet = screenWidth >= 768 || screenHeight >= 768;
 
   // Account for all horizontal spacing:
-  // - Card padding left/right: 16 (from paddingHorizontal: 8 on both sides)
-  // - Y-axis labels: ~30px
-  // - Container margins: 32 (16 per side)
-  // - Safety buffer for borders/shadows: 8
-  const availableWidth = screenWidth - (isTablet ? 120 : 86);
+  // - ScrollView paddingHorizontal: 4 × 2 = 8
+  // - Card borderLeftWidth: 4
+  // - Card.Content paddingHorizontal: 4 × 2 = 8
+  // - Y-axis team label: 19 (minWidth 16 + paddingRight 3)
+  // Total: 39
+  const availableWidth = screenWidth - (isTablet ? 60 : 39);
   const calculatedSize = availableWidth / 11; // 11 columns (1 axis + 10 squares)
 
-  // iPad: Allow larger squares (30-80px), Phone: smaller range (30-52px)
-  const minSize = 30;
-  const maxSize = isTablet ? 80 : 52;
+  // No cap — let the grid use all available space
+  const maxSize = isTablet ? 80 : 60;
 
-  return Math.max(minSize, Math.min(maxSize, calculatedSize));
+  return Math.min(maxSize, calculatedSize);
 };
 
 const splitTeamName = (teamName) => {
@@ -1188,8 +1189,10 @@ const SquareScreen = ({ route }) => {
           );
           setSelectedSquares(updatedSet);
           // Run RPC in background
-          blockSquares.forEach((sq) => {
-            deselectSquareInSupabase(sq.x, sq.y).catch(() => {
+          Promise.all(
+            blockSquares.map((sq) => deselectSquareInSupabase(sq.x, sq.y)),
+          )
+            .catch(() => {
               // Revert UI and show Toast
               setSquareColors((prev) => {
                 const reverted = { ...prev };
@@ -1215,8 +1218,16 @@ const SquareScreen = ({ route }) => {
                 return reverted;
               });
               showSquareToast("Failed to deselect block. Please try again.");
+            })
+            .finally(() => {
+              setPendingSquares((prev) => {
+                const cleared = new Set(prev);
+                for (const bid of blockIds) {
+                  cleared.delete(bid);
+                }
+                return cleared;
+              });
             });
-          });
         } else {
           for (const bid of blockIds) {
             updatedSet.add(bid);
@@ -1239,8 +1250,10 @@ const SquareScreen = ({ route }) => {
           ]);
           setSelectedSquares(updatedSet);
           // Run RPC in background
-          blockSquares.forEach((sq) => {
-            selectSquareInSupabase(sq.x, sq.y).catch(() => {
+          Promise.all(
+            blockSquares.map((sq) => selectSquareInSupabase(sq.x, sq.y)),
+          )
+            .catch(() => {
               // Revert UI and show Toast
               setSquareColors((prev) => {
                 const reverted = { ...prev };
@@ -1266,8 +1279,16 @@ const SquareScreen = ({ route }) => {
                 return reverted;
               });
               showSquareToast("Failed to select block. Please try again.");
+            })
+            .finally(() => {
+              setPendingSquares((prev) => {
+                const cleared = new Set(prev);
+                for (const bid of blockIds) {
+                  cleared.delete(bid);
+                }
+                return cleared;
+              });
             });
-          });
         }
         setPendingSquares((prev) => {
           const newSet = new Set(prev);
@@ -1311,23 +1332,31 @@ const SquareScreen = ({ route }) => {
           );
           setSelectedSquares(updatedSet);
           // Run RPC in background
-          deselectSquareInSupabase(x, y).catch(() => {
-            // Revert UI and show Toast
-            setSquareColors((prev) => ({
-              ...prev,
-              [squareId]: playerColors[userId],
-            }));
-            setSelections((prev) => [
-              ...prev,
-              { x, y, userId, username: currentUsername },
-            ]);
-            setSelectedSquares((prev) => {
-              const reverted = new Set(prev);
-              reverted.add(squareId);
-              return reverted;
+          deselectSquareInSupabase(x, y)
+            .catch(() => {
+              // Revert UI and show Toast
+              setSquareColors((prev) => ({
+                ...prev,
+                [squareId]: playerColors[userId],
+              }));
+              setSelections((prev) => [
+                ...prev,
+                { x, y, userId, username: currentUsername },
+              ]);
+              setSelectedSquares((prev) => {
+                const reverted = new Set(prev);
+                reverted.add(squareId);
+                return reverted;
+              });
+              showSquareToast("Failed to deselect square. Please try again.");
+            })
+            .finally(() => {
+              setPendingSquares((prev) => {
+                const cleared = new Set(prev);
+                cleared.delete(squareId);
+                return cleared;
+              });
             });
-            showSquareToast("Failed to deselect square. Please try again.");
-          });
         } else {
           updatedSet.add(squareId);
           setSquareColors((prev) => ({
@@ -1340,25 +1369,33 @@ const SquareScreen = ({ route }) => {
           ]);
           setSelectedSquares(updatedSet);
           // Run RPC in background
-          selectSquareInSupabase(x, y).catch(() => {
-            // Revert UI and show Toast
-            setSquareColors((prev) => {
-              const reverted = { ...prev };
-              delete reverted[squareId];
-              return reverted;
+          selectSquareInSupabase(x, y)
+            .catch(() => {
+              // Revert UI and show Toast
+              setSquareColors((prev) => {
+                const reverted = { ...prev };
+                delete reverted[squareId];
+                return reverted;
+              });
+              setSelections((prev) =>
+                prev.filter(
+                  (s) => !(s.x === x && s.y === y && s.userId === userId),
+                ),
+              );
+              setSelectedSquares((prev) => {
+                const reverted = new Set(prev);
+                reverted.delete(squareId);
+                return reverted;
+              });
+              showSquareToast("Failed to select square. Please try again.");
+            })
+            .finally(() => {
+              setPendingSquares((prev) => {
+                const cleared = new Set(prev);
+                cleared.delete(squareId);
+                return cleared;
+              });
             });
-            setSelections((prev) =>
-              prev.filter(
-                (s) => !(s.x === x && s.y === y && s.userId === userId),
-              ),
-            );
-            setSelectedSquares((prev) => {
-              const reverted = new Set(prev);
-              reverted.delete(squareId);
-              return reverted;
-            });
-            showSquareToast("Failed to select square. Please try again.");
-          });
         }
         setPendingSquares((prev) => {
           const newSet = new Set(prev);
@@ -1389,6 +1426,10 @@ const SquareScreen = ({ route }) => {
     let isCancelled = false;
 
     const fetchSelections = async () => {
+      // Skip polling while there are pending select/deselect operations
+      // to avoid overwriting optimistic UI updates
+      if (pendingSquares.size > 0) return;
+
       const { data, error } = await supabase
         .from("squares")
         .select("selections")
@@ -1415,6 +1456,19 @@ const SquareScreen = ({ route }) => {
   }, [userId, gridId, isFocused]);
 
   const dividerColor = theme.dark ? "#2a2a2a" : "#e8e8e8";
+
+  // Build a lookup from square key to the player who owns it
+  const squarePlayerMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    if (selections && players) {
+      selections.forEach((sel) => {
+        const key = `${sel.x},${sel.y}`;
+        const player = players.find((p) => p.userId === sel.userId);
+        if (player) map[key] = player;
+      });
+    }
+    return map;
+  }, [selections, players]);
 
   // ✨ Improved grid rendering with better visual feedback
   const renderSquareGrid = ({
@@ -1498,7 +1552,16 @@ const SquareScreen = ({ route }) => {
           );
         } else {
           const key = `${x - 1},${y - 1}`;
-          const color = squareColors[key] || defaultSquareColor;
+          const baseColor = squareColors[key] || defaultSquareColor;
+          const squarePlayer = squarePlayerMap[key];
+          const displayType = squarePlayer?.displayType || "color";
+          const displayValue = squarePlayer?.displayValue;
+          const hasCustomDisplay =
+            squareColors[key] &&
+            (displayType === "icon" || displayType === "initial");
+          const color = hasCustomDisplay
+            ? tinycolor(baseColor).setAlpha(0.3).toRgbString()
+            : baseColor;
           const isSelected = selectedSquares.has(key);
           const isWinner = winningSquares.has(key);
 
@@ -1573,7 +1636,28 @@ const SquareScreen = ({ route }) => {
               }}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              {isWinner && <Text style={dynamicStyles.trophyEmoji}>🏆</Text>}
+              {isWinner ? (
+                <Text style={dynamicStyles.trophyEmoji}>🏆</Text>
+              ) : hasCustomDisplay && displayValue ? (
+                displayType === "icon" ? (
+                  <Icon
+                    name={displayValue}
+                    size={Math.min(20, squareSize * 0.5)}
+                    color={baseColor}
+                  />
+                ) : (
+                  <Text
+                    style={{
+                      fontSize: Math.min(18, squareSize * 0.5),
+                      fontWeight: "700",
+                      color: baseColor,
+                      fontFamily: "Rubik_600SemiBold",
+                    }}
+                  >
+                    {displayValue.toUpperCase()}
+                  </Text>
+                )
+              ) : null}
             </Pressable>,
           );
         }
@@ -1671,15 +1755,45 @@ const SquareScreen = ({ route }) => {
                         alignItems: "center",
                       }}
                     >
-                      <View
-                        style={[
-                          styles.colorIndicator,
-                          {
-                            backgroundColor: color as string,
-                            borderColor: theme.dark ? "#444" : "#ddd",
-                          },
-                        ]}
-                      />
+                      {(() => {
+                        const player = players.find((p) => p.userId === uid);
+                        const dType = player?.displayType || "color";
+                        const dValue = player?.displayValue;
+                        return (
+                          <View
+                            style={[
+                              styles.colorIndicator,
+                              {
+                                backgroundColor:
+                                  dType === "color"
+                                    ? (color as string)
+                                    : tinycolor(color as string)
+                                        .setAlpha(0.3)
+                                        .toRgbString(),
+                                borderColor: theme.dark ? "#444" : "#ddd",
+                              },
+                            ]}
+                          >
+                            {dType === "icon" && dValue ? (
+                              <Icon
+                                name={dValue}
+                                size={12}
+                                color={color as string}
+                              />
+                            ) : dType === "initial" && dValue ? (
+                              <Text
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: "700",
+                                  color: color as string,
+                                }}
+                              >
+                                {dValue.toUpperCase()}
+                              </Text>
+                            ) : null}
+                          </View>
+                        );
+                      })()}
                       <View style={{ flex: 1 }}>
                         <Text
                           style={[
@@ -1845,21 +1959,54 @@ const SquareScreen = ({ route }) => {
 
                     {isWinner ? (
                       <View style={styles.winnerInfo}>
-                        <View
-                          style={[
-                            styles.winnerDot,
-                            {
-                              backgroundColor:
-                                playerColors?.[
-                                  Object.keys(playerUsernames).find(
-                                    (id) =>
-                                      playerUsernames[id]?.trim() ===
-                                      username.trim(),
-                                  )
-                                ] || "#4CAF50",
-                            },
-                          ]}
-                        />
+                        {(() => {
+                          const winnerId = Object.keys(playerUsernames).find(
+                            (id) =>
+                              playerUsernames[id]?.trim() === username.trim(),
+                          );
+                          const winnerColor =
+                            playerColors?.[winnerId] || "#4CAF50";
+                          const winnerPlayer = players.find(
+                            (p) => p.userId === winnerId,
+                          );
+                          const dType = winnerPlayer?.displayType || "color";
+                          const dValue = winnerPlayer?.displayValue;
+                          return (
+                            <View
+                              style={[
+                                styles.winnerDot,
+                                {
+                                  backgroundColor:
+                                    dType === "color"
+                                      ? winnerColor
+                                      : tinycolor(winnerColor)
+                                          .setAlpha(0.3)
+                                          .toRgbString(),
+                                  justifyContent: "center",
+                                  alignItems: "center",
+                                },
+                              ]}
+                            >
+                              {dType === "icon" && dValue ? (
+                                <Icon
+                                  name={dValue}
+                                  size={10}
+                                  color={winnerColor}
+                                />
+                              ) : dType === "initial" && dValue ? (
+                                <Text
+                                  style={{
+                                    fontSize: 9,
+                                    fontWeight: "700",
+                                    color: winnerColor,
+                                  }}
+                                >
+                                  {dValue.toUpperCase()}
+                                </Text>
+                              ) : null}
+                            </View>
+                          );
+                        })()}
                         <Text style={styles.winnerText}>
                           {pricePerSquare
                             ? `${username} wins $${(
@@ -1933,7 +2080,8 @@ const SquareScreen = ({ route }) => {
           return (
             <ScrollView
               contentContainerStyle={{
-                padding: 16,
+                paddingHorizontal: 4,
+                paddingTop: 16,
                 paddingBottom: insets.bottom + 40,
               }}
               refreshControl={
@@ -2018,7 +2166,7 @@ const SquareScreen = ({ route }) => {
                 ]}
               >
                 <Card.Content
-                  style={{ paddingHorizontal: 8, paddingVertical: 12 }}
+                  style={{ paddingHorizontal: 4, paddingVertical: 12 }}
                 >
                   <View style={styles.gridHeader}>
                     <Text
@@ -2537,12 +2685,52 @@ const SquareScreen = ({ route }) => {
                       />
 
                       <View style={styles.winnerModalPlayer}>
-                        <View
-                          style={[
-                            styles.winnerModalColorDot,
-                            { backgroundColor: winnerModalData.userColor },
-                          ]}
-                        />
+                        {(() => {
+                          const modalWinnerId = Object.keys(
+                            playerUsernames,
+                          ).find(
+                            (id) =>
+                              playerUsernames[id]?.trim() ===
+                              winnerModalData.username.trim(),
+                          );
+                          const modalPlayer = players.find(
+                            (p) => p.userId === modalWinnerId,
+                          );
+                          const mDType = modalPlayer?.displayType || "color";
+                          const mDValue = modalPlayer?.displayValue;
+                          const mColor = winnerModalData.userColor;
+                          return (
+                            <View
+                              style={[
+                                styles.winnerModalColorDot,
+                                {
+                                  backgroundColor:
+                                    mDType === "color"
+                                      ? mColor
+                                      : tinycolor(mColor)
+                                          .setAlpha(0.3)
+                                          .toRgbString(),
+                                  justifyContent: "center",
+                                  alignItems: "center",
+                                },
+                              ]}
+                            >
+                              {mDType === "icon" && mDValue ? (
+                                <Icon name={mDValue} size={12} color={mColor} />
+                              ) : mDType === "initial" && mDValue ? (
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: "700",
+                                    color: mColor,
+                                  }}
+                                >
+                                  {mDValue.toUpperCase()}
+                                </Text>
+                              ) : null}
+                            </View>
+                          );
+                        })()}
                         <Text
                           style={[
                             styles.winnerModalUsername,
@@ -2779,8 +2967,8 @@ const styles = StyleSheet.create({
   yAxisLabel: {
     justifyContent: "center",
     alignItems: "center",
-    paddingRight: 4,
-    minWidth: 28,
+    paddingRight: 7,
+    minWidth: 16,
   },
   gridWrapper: {
     alignItems: "center",
