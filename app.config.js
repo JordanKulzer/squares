@@ -4,7 +4,7 @@ export default {
   expo: {
     name: "My Squares!",
     slug: "squares",
-    version: "1.7.8",
+    version: "1.7.9",
     orientation: "portrait",
     icon: "./assets/icons/New_New_Splash_Logo.png",
     userInterfaceStyle: "automatic",
@@ -76,8 +76,12 @@ export default {
       [
         "react-native-google-mobile-ads",
         {
-          androidAppId: process.env.ADMOB_APP_ID_ANDROID || "ca-app-pub-3940256099942544~3347511713",
-          iosAppId: process.env.ADMOB_APP_ID_IOS || "ca-app-pub-3940256099942544~1458002511",
+          androidAppId:
+            process.env.ADMOB_APP_ID_ANDROID ||
+            "ca-app-pub-3940256099942544~3347511713",
+          iosAppId:
+            process.env.ADMOB_APP_ID_IOS ||
+            "ca-app-pub-3940256099942544~1458002511",
         },
       ],
     ],
@@ -90,14 +94,27 @@ export default {
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
       // AdMob ad unit IDs (test IDs used as fallback)
-      ADMOB_BANNER_ID_IOS: process.env.ADMOB_BANNER_ID_IOS || "ca-app-pub-3940256099942544/2435281174",
-      ADMOB_BANNER_ID_ANDROID: process.env.ADMOB_BANNER_ID_ANDROID || "ca-app-pub-3940256099942544/9214589741",
-      ADMOB_REWARDED_ID_IOS: process.env.ADMOB_REWARDED_ID_IOS || "ca-app-pub-3940256099942544/1712485313",
-      ADMOB_REWARDED_ID_ANDROID: process.env.ADMOB_REWARDED_ID_ANDROID || "ca-app-pub-3940256099942544/5224354917",
-      ADMOB_INTERSTITIAL_ID_IOS: process.env.ADMOB_INTERSTITIAL_ID_IOS || "ca-app-pub-3940256099942544/4411468910",
-      ADMOB_INTERSTITIAL_ID_ANDROID: process.env.ADMOB_INTERSTITIAL_ID_ANDROID || "ca-app-pub-3940256099942544/1033173712",
+      ADMOB_BANNER_ID_IOS:
+        process.env.ADMOB_BANNER_ID_IOS ||
+        "ca-app-pub-3940256099942544/2435281174",
+      ADMOB_BANNER_ID_ANDROID:
+        process.env.ADMOB_BANNER_ID_ANDROID ||
+        "ca-app-pub-3940256099942544/9214589741",
+      ADMOB_REWARDED_ID_IOS:
+        process.env.ADMOB_REWARDED_ID_IOS ||
+        "ca-app-pub-3940256099942544/1712485313",
+      ADMOB_REWARDED_ID_ANDROID:
+        process.env.ADMOB_REWARDED_ID_ANDROID ||
+        "ca-app-pub-3940256099942544/5224354917",
+      ADMOB_INTERSTITIAL_ID_IOS:
+        process.env.ADMOB_INTERSTITIAL_ID_IOS ||
+        "ca-app-pub-3940256099942544/4411468910",
+      ADMOB_INTERSTITIAL_ID_ANDROID:
+        process.env.ADMOB_INTERSTITIAL_ID_ANDROID ||
+        "ca-app-pub-3940256099942544/1033173712",
       // IAP product ID
-      IAP_PREMIUM_PRODUCT_ID: process.env.IAP_PREMIUM_PRODUCT_ID || "com.jkulzer.squaresgame.premium",
+      IAP_PREMIUM_PRODUCT_ID:
+        process.env.IAP_PREMIUM_PRODUCT_ID || "com.jkulzer.squaresgame.premium",
     },
   },
 };
