@@ -699,10 +699,12 @@ const HomeScreen = () => {
         <View
           style={{
             position: "absolute",
-            bottom: insets.bottom + 10,
+            bottom: 0,
             left: 0,
             right: 0,
             alignItems: "center",
+            backgroundColor: theme.colors.surface,
+            paddingBottom: insets.bottom,
           }}
         >
           <AdBanner />
