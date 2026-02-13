@@ -22,7 +22,8 @@
       "Bash(timeout:*)",
       "Bash(copy:*)",
       "Bash(grep:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

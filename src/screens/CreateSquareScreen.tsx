@@ -91,8 +91,7 @@ const CreateSquareScreen = ({ navigation }) => {
   const { isPremium } = usePremium();
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
-  const [adLoading, setAdLoading] = useState(false);
-  const [hasWatchedAd, setHasWatchedAd] = useState(false);
+
 
   const [fontsLoaded] = useFonts({
     Anton_400Regular,
@@ -139,10 +138,10 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
   }, [route.params]);
 
-  // Preload rewarded ad when screen mounts (if not premium)
+  // Preload interstitial ad when screen mounts (if not premium)
   useEffect(() => {
     if (!isPremium) {
-      adService.loadRewardedAd().catch(console.error);
+      adService.loadInterstitialAd().catch(console.error);
     }
   }, [isPremium]);
 
@@ -184,28 +183,6 @@ const CreateSquareScreen = ({ navigation }) => {
     if (displayType === "icon" && !displayValue) {
       Alert.alert("Missing Info", "Please select an icon for your display");
       return;
-    }
-
-    // Gate with rewarded ad if not premium and hasn't watched ad
-    if (!isPremium && !hasWatchedAd) {
-      setAdLoading(true);
-      try {
-        if (!adService.isRewardedAdReady()) {
-          await adService.loadRewardedAd();
-        }
-        const earned = await adService.showRewardedAd();
-        if (earned) {
-          setHasWatchedAd(true);
-        } else {
-          setAdLoading(false);
-          return; // User closed ad without watching
-        }
-      } catch (err) {
-        console.error("Ad error:", err);
-        // Allow creation if ad fails (graceful degradation)
-        setHasWatchedAd(true);
-      }
-      setAdLoading(false);
     }
 
     setLoading(true);
@@ -277,6 +254,19 @@ const CreateSquareScreen = ({ navigation }) => {
 
       if (notifySettings.deadlineReminders) {
         await scheduleNotifications(deadline, data.id, notifySettings);
+      }
+
+      // Show interstitial (non-blocking fallback) for non-premium users
+      if (!isPremium) {
+        try {
+          if (!adService.isInterstitialReady()) {
+            await adService.loadInterstitialAd();
+          }
+          // showInterstitialAd returns true if shown (or resolves true in Expo Go)
+          await adService.showInterstitialAd();
+        } catch (e) {
+          console.warn("Interstitial ad error", e);
+        }
       }
 
       navigation.navigate("SquareScreen", {
@@ -1096,13 +1086,13 @@ const CreateSquareScreen = ({ navigation }) => {
           <Button
             mode="contained"
             onPress={createSquareSession}
-            loading={loading || adLoading}
-            disabled={loading || adLoading || !isFormValid}
+            loading={loading}
+            disabled={loading || !isFormValid}
             style={styles.createButton}
             contentStyle={styles.createButtonContent}
             labelStyle={styles.createButtonLabel}
           >
-            {adLoading ? "Loading Ad..." : loading ? "Creating..." : "Create Game"}
+            {loading ? "Creating..." : "Create Game"}
           </Button>
 
           <TouchableOpacity

@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Alert,
 } from "react-native";
 import { Portal, Button, useTheme } from "react-native-paper";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -32,6 +33,10 @@ interface ScoreEntryModalProps {
     quarters: QuarterScore[];
     overtimes: QuarterScore[];
   };
+  onEndGame?: () => void;
+  onReopenGame?: () => void;
+  gameCompleted?: boolean;
+  saveButtonLabel?: string;
 }
 
 const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
@@ -41,6 +46,10 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
   team1Name,
   team2Name,
   initialScores,
+  onEndGame,
+  onReopenGame,
+  gameCompleted,
+  saveButtonLabel = "Save Scores",
 }) => {
   const theme = useTheme();
   const translateY = useRef(new Animated.Value(600)).current;
@@ -56,7 +65,6 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
   const wasVisibleRef = useRef(false);
   const [shouldRender, setShouldRender] = useState(false);
 
-  // Handle mount/unmount with animation
   useEffect(() => {
     if (visible) {
       setShouldRender(true);
@@ -76,14 +84,15 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
     }
   }, [visible]);
 
-  // Only initialize state when modal opens (transitions from hidden to visible)
   useEffect(() => {
     if (visible && !wasVisibleRef.current) {
-      // Modal just opened - initialize from initialScores
       if (initialScores) {
         setQuarters(
           initialScores.quarters.length > 0
-            ? initialScores.quarters
+            ? initialScores.quarters.map((q) => ({
+                team1: q.team1,
+                team2: q.team2,
+              }))
             : [
                 { team1: "", team2: "" },
                 { team1: "", team2: "" },
@@ -91,7 +100,12 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
                 { team1: "", team2: "" },
               ],
         );
-        setOvertimes(initialScores.overtimes || []);
+        setOvertimes(
+          (initialScores.overtimes || []).map((ot) => ({
+            team1: ot.team1,
+            team2: ot.team2,
+          })),
+        );
       }
     }
     wasVisibleRef.current = visible;
@@ -102,7 +116,6 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
     team: "team1" | "team2",
     value: string,
   ) => {
-    // Only allow numeric input
     const numericValue = value.replace(/[^0-9]/g, "");
     const newQuarters = [...quarters];
     newQuarters[index] = { ...newQuarters[index], [team]: numericValue };
@@ -145,9 +158,49 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
     onDismiss();
   };
 
-  const truncateName = (name: string, maxLength: number = 12) => {
-    return name.length > maxLength ? name.substring(0, maxLength) + "…" : name;
+  const handleEndGame = () => {
+    Alert.alert(
+      "End Game",
+      "Are you sure you want to end this game? This will mark the game as completed and calculate final winners.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "End Game",
+          style: "destructive",
+          onPress: () => {
+            onEndGame?.();
+          },
+        },
+      ],
+    );
   };
+
+  const handleReopenGame = () => {
+    Alert.alert(
+      "Reopen Game",
+      "This will mark the game as incomplete. You can continue editing scores.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reopen",
+          onPress: () => {
+            onReopenGame?.();
+          },
+        },
+      ],
+    );
+  };
+
+  const truncateName = (name: string, maxLength: number = 12) => {
+    return name.length > maxLength
+      ? name.substring(0, maxLength) + "\u2026"
+      : name;
+  };
+
+  const primaryColor = theme.colors.primary;
+  const primaryBg = theme.dark
+    ? "rgba(94, 96, 206, 0.15)"
+    : "rgba(94, 96, 206, 0.08)";
 
   const renderScoreRow = (
     label: string,
@@ -157,7 +210,9 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
   ) => (
     <View style={styles.scoreRow}>
       <View style={styles.labelContainer}>
-        <Text style={[styles.rowLabel, { color: theme.colors.onBackground }]}>
+        <Text
+          style={[styles.rowLabel, { color: theme.colors.onSurfaceVariant }]}
+        >
           {label}
         </Text>
       </View>
@@ -175,7 +230,7 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
           onChangeText={(val) => onUpdate("team1", val)}
           keyboardType="number-pad"
           maxLength={3}
-          placeholder="0"
+          placeholder="--"
           placeholderTextColor={theme.colors.onSurfaceVariant}
         />
         <TextInput
@@ -191,7 +246,7 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
           onChangeText={(val) => onUpdate("team2", val)}
           keyboardType="number-pad"
           maxLength={3}
-          placeholder="0"
+          placeholder="--"
           placeholderTextColor={theme.colors.onSurfaceVariant}
         />
       </View>
@@ -247,7 +302,9 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
 
           <ScrollView
             style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Team Headers */}
             <View style={styles.teamHeaders}>
@@ -270,7 +327,6 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
                   {truncateName(team2Name)}
                 </Text>
               </View>
-              <View style={{ width: 32 }} />
             </View>
 
             {/* Quarter Scores */}
@@ -352,19 +408,82 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
                   {calculateTotalScore("team2")}
                 </Text>
               </View>
-              <View style={{ width: 32 }} />
             </View>
-          </ScrollView>
 
-          {/* Save Button */}
-          <Button
-            mode="contained"
-            onPress={handleSave}
-            style={styles.saveButton}
-            contentStyle={styles.saveButtonContent}
-          >
-            Save Scores
-          </Button>
+            {/* Save Button */}
+            <Button
+              mode="contained"
+              onPress={handleSave}
+              style={styles.saveButton}
+              contentStyle={styles.saveButtonContent}
+            >
+              {saveButtonLabel}
+            </Button>
+
+            {/* End Game Section */}
+            {(onEndGame || onReopenGame) && (
+              <>
+                <View
+                  style={[
+                    styles.endGameDivider,
+                    { backgroundColor: dividerColor },
+                  ]}
+                />
+                {!gameCompleted ? (
+                  <TouchableOpacity
+                    onPress={handleEndGame}
+                    style={[
+                      styles.endGameButton,
+                      {
+                        borderColor: primaryColor,
+                        backgroundColor: primaryBg,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons name="flag" size={20} color={primaryColor} />
+                    <Text style={[styles.endGameText, { color: primaryColor }]}>
+                      End Game
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    onPress={handleReopenGame}
+                    style={[
+                      styles.gameCompletedBadge,
+                      {
+                        backgroundColor: primaryBg,
+                        borderColor: primaryColor,
+                      },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name="check-circle"
+                      size={20}
+                      color={primaryColor}
+                    />
+                    <View>
+                      <Text
+                        style={[
+                          styles.gameCompletedText,
+                          { color: primaryColor },
+                        ]}
+                      >
+                        Game Completed
+                      </Text>
+                      <Text
+                        style={[
+                          styles.reopenHint,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
+                        Tap to reopen
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </>
+            )}
+          </ScrollView>
         </KeyboardAvoidingView>
       </Animated.View>
     </Portal>
@@ -389,8 +508,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 75,
-    maxHeight: "80%",
+    paddingBottom: 60,
+    maxHeight: "85%",
     borderWidth: 1.5,
     borderLeftWidth: 5,
     borderBottomWidth: 0,
@@ -421,16 +540,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   scrollView: {
-    maxHeight: 350,
+    flexGrow: 0,
+  },
+  scrollContent: {
+    paddingBottom: 60,
   },
   teamHeaders: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    paddingRight: 32,
+    marginBottom: 8,
   },
   labelContainer: {
     width: 50,
+    justifyContent: "center",
+    alignItems: "center",
   },
   inputsContainer: {
     flex: 1,
@@ -451,6 +574,7 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 14,
     fontWeight: "600",
+    textAlign: "center",
   },
   scoreInput: {
     flex: 1,
@@ -487,11 +611,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 16,
     borderTopWidth: 1,
-    paddingRight: 32,
   },
   totalLabel: {
     fontSize: 16,
     fontWeight: "700",
+    textAlign: "center",
   },
   totalScore: {
     flex: 1,
@@ -504,6 +628,41 @@ const styles = StyleSheet.create({
   },
   saveButtonContent: {
     paddingVertical: 4,
+  },
+  endGameDivider: {
+    height: 1,
+    marginTop: 16,
+    marginBottom: 12,
+  },
+  endGameButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  endGameText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  gameCompletedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  gameCompletedText: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  reopenHint: {
+    fontSize: 11,
+    marginTop: 1,
   },
 });
 

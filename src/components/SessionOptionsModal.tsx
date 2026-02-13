@@ -59,7 +59,8 @@ const SessionOptionsModal = ({
   onAssignSquares?: () => void;
 }) => {
   const theme = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [notifySettings, setNotifySettings] = useState(null);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(600)).current;
@@ -244,21 +245,6 @@ const SessionOptionsModal = ({
 
             {isOwner && (
               <>
-                {isCustomGame && onEnterScores && (
-                  <Button
-                    icon="scoreboard"
-                    mode="contained"
-                    onPress={onEnterScores}
-                    style={{ marginBottom: 12 }}
-                    labelStyle={{
-                      fontWeight: "600",
-                      fontFamily: "Sora",
-                    }}
-                  >
-                    Enter Scores
-                  </Button>
-                )}
-
                 {onAddGuestPlayer && (
                   <Button
                     icon="account-plus"
@@ -305,7 +291,7 @@ const SessionOptionsModal = ({
                     fontFamily: "Sora",
                   }}
                 >
-                  Edit Game Settings
+                  Edit Square Settings
                 </Button>
 
                 <Button
@@ -400,7 +386,7 @@ const SessionOptionsModal = ({
             if (error || !data) return;
 
             const updatedPlayers = data.players.map((p) =>
-              p.userId === userId ? { ...p, notifySettings: newSettings } : p
+              p.userId === userId ? { ...p, notifySettings: newSettings } : p,
             );
 
             await supabase

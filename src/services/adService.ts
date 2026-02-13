@@ -11,12 +11,13 @@ let RewardedAd: any = null;
 let RewardedAdEventType: any = {};
 let AdEventType: any = {};
 let TestIds: any = { ADAPTIVE_BANNER: "", REWARDED: "" };
-
+let InterstitialAd: any = null;
 if (!isExpoGo) {
   const ads = require("react-native-google-mobile-ads");
   RewardedAd = ads.RewardedAd;
   RewardedAdEventType = ads.RewardedAdEventType;
   AdEventType = ads.AdEventType;
+  InterstitialAd = ads.InterstitialAd;
   TestIds = ads.TestIds;
 }
 
@@ -43,9 +44,21 @@ const REWARDED_ID = isExpoGo
         : extra.ADMOB_REWARDED_ID_ANDROID || TestIds.REWARDED,
     }) || "";
 
+const INTERSTITIAL_ID = isExpoGo
+  ? ""
+  : Platform.select({
+      ios: isDev
+        ? TestIds.INTERSTITIAL
+        : extra.ADMOB_INTERSTITIAL_ID_IOS || TestIds.INTERSTITIAL,
+      android: isDev
+        ? TestIds.INTERSTITIAL
+        : extra.ADMOB_INTERSTITIAL_ID_ANDROID || TestIds.INTERSTITIAL,
+    }) || "";
+
 export const getAdUnitIds = () => ({
   banner: BANNER_ID,
   rewarded: REWARDED_ID,
+  interstitial: INTERSTITIAL_ID,
 });
 
 export const isAdsSupported = () => !isExpoGo;
@@ -54,6 +67,9 @@ class AdService {
   private rewardedAd: any = null;
   private isLoaded = false;
   private isLoading = false;
+  private interstitialAd: any = null;
+  private isInterstitialLoaded = false;
+  private isInterstitialLoading = false;
 
   loadRewardedAd(): Promise<void> {
     // Skip in Expo Go
@@ -92,6 +108,77 @@ class AdService {
       );
 
       this.rewardedAd.load();
+    });
+  }
+
+  loadInterstitialAd(): Promise<void> {
+    // Skip in Expo Go
+    if (isExpoGo || !InterstitialAd) {
+      return Promise.resolve();
+    }
+
+    if (this.isInterstitialLoading) {
+      return Promise.resolve();
+    }
+
+    this.isInterstitialLoading = true;
+
+    return new Promise((resolve, reject) => {
+      this.interstitialAd = InterstitialAd.createForAdRequest(INTERSTITIAL_ID, {
+        requestNonPersonalizedAdsOnly: true,
+      });
+
+      const unsubscribeLoaded = this.interstitialAd.addAdEventListener(
+        AdEventType.LOADED,
+        () => {
+          this.isInterstitialLoaded = true;
+          this.isInterstitialLoading = false;
+          unsubscribeLoaded();
+          resolve();
+        }
+      );
+
+      const unsubscribeError = this.interstitialAd.addAdEventListener(
+        AdEventType.ERROR,
+        (error: any) => {
+          this.isInterstitialLoading = false;
+          unsubscribeError();
+          reject(error);
+        }
+      );
+
+      this.interstitialAd.load();
+    });
+  }
+
+  isInterstitialReady(): boolean {
+    if (isExpoGo) return true;
+    return this.isInterstitialLoaded;
+  }
+
+  async showInterstitialAd(): Promise<boolean> {
+    if (isExpoGo || !InterstitialAd) {
+      return true;
+    }
+
+    return new Promise((resolve) => {
+      if (!this.interstitialAd || !this.isInterstitialLoaded) {
+        resolve(false);
+        return;
+      }
+
+      const unsubscribeClosed = this.interstitialAd.addAdEventListener(
+        AdEventType.CLOSED,
+        () => {
+          unsubscribeClosed();
+          this.isInterstitialLoaded = false;
+          // Preload next
+          this.loadInterstitialAd().catch(console.error);
+          resolve(true);
+        }
+      );
+
+      this.interstitialAd.show();
     });
   }
 

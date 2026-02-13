@@ -348,38 +348,45 @@ const SquareScreen = ({ route }) => {
     xAxis,
     yAxis,
     isTeam1Home,
+    usernameMap: Record<string, string> = {},
   ) => {
-    return scores
-      .map(({ home, away }, i) => {
-        if (home === null || away === null) return null;
+    return scores.map((score, i) => {
+      const { home, away } = score || {};
 
-        const team1Score = isTeam1Home ? home : away;
-        const team2Score = isTeam1Home ? away : home;
-
-        const x = xAxis.findIndex((val) => val === team2Score % 10);
-        const y = yAxis.findIndex((val) => val === team1Score % 10);
-
-        if (x === -1 || y === -1) {
-          return {
-            quarter: `${i + 1}`,
-            username: "No Winner",
-            square: [home % 10, away % 10],
-          };
-        }
-
-        const matchingSelection = selections.find(
-          (sel) => sel.x === x && sel.y === y,
-        );
-
+      if (home == null || away == null) {
         return {
           quarter: `${i + 1}`,
-          username: matchingSelection
-            ? playerUsernames[matchingSelection.userId]
-            : "No Winner",
-          square: [xAxis[x], yAxis[y]],
+          username: "No Winner",
+          square: ["-", "-"],
         };
-      })
-      .filter(Boolean);
+      }
+
+      const team1Score = isTeam1Home ? home : away;
+      const team2Score = isTeam1Home ? away : home;
+
+      const x = xAxis.findIndex((val) => Number(val) === team2Score % 10);
+      const y = yAxis.findIndex((val) => Number(val) === team1Score % 10);
+
+      if (x === -1 || y === -1) {
+        return {
+          quarter: `${i + 1}`,
+          username: "No Winner",
+          square: [home % 10, away % 10],
+        };
+      }
+
+      const matchingSelection = selections.find(
+        (sel) => sel.x === x && sel.y === y,
+      );
+
+      return {
+        quarter: `${i + 1}`,
+        username: matchingSelection
+          ? usernameMap[matchingSelection.userId] || "Unknown"
+          : "No Winner",
+        square: [xAxis[x], yAxis[y]],
+      };
+    });
   };
 
   useEffect(() => {
@@ -411,6 +418,7 @@ const SquareScreen = ({ route }) => {
         xAxis,
         yAxis,
         isTeam1Home,
+        playerUsernames,
       );
       setQuarterWinners(winners);
     }
@@ -579,17 +587,8 @@ const SquareScreen = ({ route }) => {
           }));
         });
       }
-      if (data.selections && xAxis.length && yAxis.length) {
-        if (isTeam1Home !== null) {
-          const winners = determineQuarterWinners(
-            quarterScores,
-            selections,
-            xAxis,
-            yAxis,
-            isTeam1Home,
-          );
-          setQuarterWinners(winners);
-        }
+      if (data.selections) {
+        setSelections(data.selections);
       }
     };
 
@@ -634,7 +633,8 @@ const SquareScreen = ({ route }) => {
         if (error || !data) return;
 
         setManualOverride(!!data.manual_override);
-        setIsCustomGame(!!data.is_custom_game);
+        const customGame = !data.event_id;
+        setIsCustomGame(customGame);
 
         // Load persisted game_completed status from database
         if (data.game_completed) {
@@ -642,7 +642,7 @@ const SquareScreen = ({ route }) => {
         }
 
         // For custom games, load scores from database
-        if (data.is_custom_game && data.quarter_scores) {
+        if (customGame && data.quarter_scores) {
           setQuarterScores(data.quarter_scores);
           // Custom games use team1 as home by default
           setIsTeam1Home(true);
@@ -953,16 +953,17 @@ const SquareScreen = ({ route }) => {
   };
 
   const handleSaveManualScores = async (scores: {
-    quarters: { team1: string; team2: string }[];
-    overtimes: { team1: string; team2: string }[];
+    quarters: { team1: string; team2: string; completed?: boolean }[];
+    overtimes: { team1: string; team2: string; completed?: boolean }[];
   }) => {
     try {
       // Convert string scores to the format expected by the app
       const allScores = [...scores.quarters, ...scores.overtimes];
-      const formattedScores = allScores.map((s, index) => ({
+      const formattedScores = allScores.map((s) => ({
         home: s.team1 ? parseInt(s.team1, 10) : null,
         away: s.team2 ? parseInt(s.team2, 10) : null,
         manual: true,
+        completed: !!s.completed,
       }));
 
       // Update local state
@@ -2173,7 +2174,7 @@ const SquareScreen = ({ route }) => {
 
             {quarterScores.length > 0 ? (
               quarterScores.map((q, i) => {
-                const { home, away } = q;
+                const { home, away, completed } = q;
                 const winner = quarterWinners[i];
                 if (home == null || away == null || !winner) return null;
 
@@ -2663,16 +2664,67 @@ const SquareScreen = ({ route }) => {
             onSave={handleSaveManualScores}
             team1Name={fullTeam1 || team1}
             team2Name={fullTeam2 || team2}
+            saveButtonLabel="Apply Scores"
             initialScores={{
               quarters: quarterScores.slice(0, 4).map((q) => ({
                 team1: q?.home != null ? String(q.home) : "",
                 team2: q?.away != null ? String(q.away) : "",
+                completed: !!q?.completed,
               })),
               overtimes: quarterScores.slice(4).map((q) => ({
                 team1: q?.home != null ? String(q.home) : "",
                 team2: q?.away != null ? String(q.away) : "",
+                completed: !!q?.completed,
               })),
             }}
+            onEndGame={async () => {
+              try {
+                const { error } = await supabase
+                  .from("squares")
+                  .update({ game_completed: true })
+                  .eq("id", gridId);
+                if (error) throw error;
+                setGameCompleted(true);
+                setShowScoreEntryModal(false);
+                Toast.show({
+                  type: "success",
+                  text1: "Game ended",
+                  text2: "Final winners have been calculated",
+                  position: "bottom",
+                });
+              } catch (err) {
+                Sentry.captureException(err);
+                Toast.show({
+                  type: "error",
+                  text1: "Failed to end game",
+                  position: "bottom",
+                });
+              }
+            }}
+            onReopenGame={async () => {
+              try {
+                const { error } = await supabase
+                  .from("squares")
+                  .update({ game_completed: false })
+                  .eq("id", gridId);
+                if (error) throw error;
+                setGameCompleted(false);
+                Toast.show({
+                  type: "success",
+                  text1: "Game reopened",
+                  text2: "You can continue editing scores",
+                  position: "bottom",
+                });
+              } catch (err) {
+                Sentry.captureException(err);
+                Toast.show({
+                  type: "error",
+                  text1: "Failed to reopen game",
+                  position: "bottom",
+                });
+              }
+            }}
+            gameCompleted={gameCompleted}
           />
 
           {/* Add Guest Player Modal */}
