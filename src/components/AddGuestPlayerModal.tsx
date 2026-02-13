@@ -60,10 +60,12 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
   const [displayValue, setDisplayValue] = useState("");
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
 
-  // Animate in/out
+  // Handle mount/unmount with animation
   useEffect(() => {
     if (visible) {
+      setShouldRender(true);
       Animated.timing(translateY, {
         toValue: 0,
         duration: 300,
@@ -74,7 +76,9 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
         toValue: 600,
         duration: 250,
         useNativeDriver: true,
-      }).start();
+      }).start(() => {
+        setShouldRender(false);
+      });
     }
   }, [visible]);
 
@@ -113,30 +117,33 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
   const surfaceColor = theme.colors.surface;
   const dividerColor = theme.dark ? "#333" : "#eee";
 
+  if (!shouldRender && !showPremiumModal && !showColorPickerModal) return null;
+
   return (
     <>
-      <Portal>
-        {visible && (
-          <TouchableWithoutFeedback
-            onPress={() => {
-              resetForm();
-              onDismiss();
-            }}
-          >
-            <View style={styles.backdrop} />
-          </TouchableWithoutFeedback>
-        )}
+      {shouldRender && (
+        <Portal>
+          {visible && (
+            <TouchableWithoutFeedback
+              onPress={() => {
+                resetForm();
+                onDismiss();
+              }}
+            >
+              <View style={styles.backdrop} />
+            </TouchableWithoutFeedback>
+          )}
 
-        <Animated.View
-          pointerEvents={visible ? "auto" : "none"}
-          style={[
-            styles.container,
-            {
-              transform: [{ translateY }],
-              backgroundColor: surfaceColor,
-            },
-          ]}
-        >
+          <Animated.View
+            pointerEvents={visible ? "auto" : "none"}
+            style={[
+              styles.container,
+              {
+                transform: [{ translateY }],
+                backgroundColor: surfaceColor,
+              },
+            ]}
+          >
           {/* Header */}
           <View style={styles.header}>
             <Text
@@ -416,6 +423,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
           </Button>
         </Animated.View>
       </Portal>
+      )}
 
       <PremiumUpgradeModal
         visible={showPremiumModal}

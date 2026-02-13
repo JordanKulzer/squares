@@ -54,10 +54,12 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
 
   const [overtimes, setOvertimes] = useState<QuarterScore[]>([]);
   const wasVisibleRef = useRef(false);
+  const [shouldRender, setShouldRender] = useState(false);
 
-  // Animate in/out
+  // Handle mount/unmount with animation
   useEffect(() => {
     if (visible) {
+      setShouldRender(true);
       Animated.timing(translateY, {
         toValue: 0,
         duration: 300,
@@ -68,7 +70,9 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
         toValue: 600,
         duration: 250,
         useNativeDriver: true,
-      }).start();
+      }).start(() => {
+        setShouldRender(false);
+      });
     }
   }, [visible]);
 
@@ -201,6 +205,8 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
 
   const surfaceColor = theme.colors.surface;
   const dividerColor = theme.dark ? "#333" : "#eee";
+
+  if (!shouldRender) return null;
 
   return (
     <Portal>

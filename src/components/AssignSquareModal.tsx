@@ -42,10 +42,12 @@ const AssignSquareModal: React.FC<AssignSquareModalProps> = ({
   const theme = useTheme();
   const translateY = useRef(new Animated.Value(600)).current;
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
+  const [shouldRender, setShouldRender] = useState(false);
 
-  // Animate in/out
+  // Handle mount/unmount with animation
   useEffect(() => {
     if (visible) {
+      setShouldRender(true);
       Animated.timing(translateY, {
         toValue: 0,
         duration: 300,
@@ -56,7 +58,9 @@ const AssignSquareModal: React.FC<AssignSquareModalProps> = ({
         toValue: 600,
         duration: 250,
         useNativeDriver: true,
-      }).start();
+      }).start(() => {
+        setShouldRender(false);
+      });
     }
   }, [visible]);
 
@@ -76,6 +80,8 @@ const AssignSquareModal: React.FC<AssignSquareModalProps> = ({
 
   const surfaceColor = theme.colors.surface;
   const dividerColor = theme.dark ? "#333" : "#eee";
+
+  if (!shouldRender) return null;
 
   return (
     <Portal>

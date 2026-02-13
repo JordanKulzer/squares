@@ -16,6 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
 import { supabase } from "../lib/supabase";
 import PerSquareSettingsModal from "../components/PerSquareSettingsModal";
+import ScoreEntryModal from "../components/ScoreEntryModal";
 import Toast from "react-native-toast-message";
 import { RootStackParamList } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -58,6 +59,12 @@ const EditSquareScreen = () => {
   const [team2FullName, setTeam2FullName] = useState("");
   const [hasSelections, setHasSelections] = useState(false);
 
+  // Custom game specific
+  const [isCustomGame, setIsCustomGame] = useState(false);
+  const [showScoreEntryModal, setShowScoreEntryModal] = useState(false);
+  const [quarterScores, setQuarterScores] = useState<any[]>([]);
+  const [gameCompleted, setGameCompleted] = useState(false);
+
   useEffect(() => {
     loadSquareData();
   }, [gridId]);
@@ -85,6 +92,9 @@ const EditSquareScreen = () => {
       setTeam1FullName(data.team1_full_name || data.team1 || "Team 1");
       setTeam2FullName(data.team2_full_name || data.team2 || "Team 2");
       setHasSelections(data.selections && data.selections.length > 0);
+      setIsCustomGame(!data.event_id);
+      setQuarterScores(data.quarter_scores || []);
+      setGameCompleted(data.game_completed || false);
     } catch (err) {
       console.error("Error loading square data:", err);
       Toast.show({
@@ -198,6 +208,84 @@ const EditSquareScreen = () => {
       hideAxisUntilDeadline !== originalData.axis_hidden ||
       randomizeAxis !== originalData.randomize_axis ||
       blockMode !== (originalData.block_mode ?? false)
+    );
+  };
+
+  const handleSaveScores = async (scores: {
+    quarters: { team1: string; team2: string }[];
+    overtimes: { team1: string; team2: string }[];
+  }) => {
+    try {
+      // Convert scores to the format stored in the database
+      const allScores = [...scores.quarters, ...scores.overtimes];
+      const formattedScores = allScores.map((s) => ({
+        home: s.team1 ? parseInt(s.team1, 10) : null,
+        away: s.team2 ? parseInt(s.team2, 10) : null,
+      }));
+
+      const { error } = await supabase
+        .from("squares")
+        .update({ quarter_scores: formattedScores })
+        .eq("id", gridId);
+
+      if (error) throw error;
+
+      setQuarterScores(formattedScores);
+      Toast.show({
+        type: "success",
+        text1: "Scores saved",
+        position: "bottom",
+        bottomOffset: 60,
+      });
+    } catch (err) {
+      console.error("Error saving scores:", err);
+      Toast.show({
+        type: "error",
+        text1: "Failed to save scores",
+        position: "bottom",
+        bottomOffset: 60,
+      });
+    }
+  };
+
+  const handleEndGame = () => {
+    Alert.alert(
+      "End Game",
+      "Are you sure you want to end this game? This will mark the game as completed and calculate final winners.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "End Game",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from("squares")
+                .update({ game_completed: true })
+                .eq("id", gridId);
+
+              if (error) throw error;
+
+              setGameCompleted(true);
+              Toast.show({
+                type: "success",
+                text1: "Game ended",
+                text2: "Final winners have been calculated",
+                position: "bottom",
+                bottomOffset: 60,
+              });
+            } catch (err) {
+              console.error("Error ending game:", err);
+              Toast.show({
+                type: "error",
+                text1: "Failed to end game",
+                position: "bottom",
+                bottomOffset: 60,
+              });
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -620,6 +708,138 @@ const EditSquareScreen = () => {
             </View>
           </View>
 
+          {/* Custom Game Options - Enter Scores & End Game */}
+          {isCustomGame && (
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+                Game Management
+              </Text>
+
+              {/* Enter Scores Button */}
+              <TouchableOpacity
+                onPress={() => setShowScoreEntryModal(true)}
+                style={[
+                  styles.settingCard,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                <View style={styles.settingCardContent}>
+                  <MaterialIcons
+                    name="scoreboard"
+                    size={24}
+                    color={theme.colors.primary}
+                  />
+                  <View style={styles.settingInfo}>
+                    <Text
+                      style={[
+                        styles.settingTitle,
+                        { color: theme.colors.onBackground },
+                      ]}
+                    >
+                      Enter Scores
+                    </Text>
+                    <Text
+                      style={[
+                        styles.settingValue,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      Manually enter quarter-by-quarter scores
+                    </Text>
+                  </View>
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={24}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                </View>
+              </TouchableOpacity>
+
+              {/* End Game Button */}
+              {!gameCompleted ? (
+                <TouchableOpacity
+                  onPress={handleEndGame}
+                  style={[
+                    styles.settingCard,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: "#4CAF50",
+                      borderWidth: 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.settingCardContent}>
+                    <MaterialIcons
+                      name="flag"
+                      size={24}
+                      color="#4CAF50"
+                    />
+                    <View style={styles.settingInfo}>
+                      <Text
+                        style={[
+                          styles.settingTitle,
+                          { color: "#4CAF50" },
+                        ]}
+                      >
+                        End Game
+                      </Text>
+                      <Text
+                        style={[
+                          styles.settingValue,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
+                        Mark game as completed and finalize winners
+                      </Text>
+                    </View>
+                    <MaterialIcons
+                      name="chevron-right"
+                      size={24}
+                      color="#4CAF50"
+                    />
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View
+                  style={[
+                    styles.settingCard,
+                    {
+                      backgroundColor: theme.dark ? "#1a2f1a" : "#e8f5e9",
+                      borderColor: "#4CAF50",
+                      borderWidth: 1,
+                    },
+                  ]}
+                >
+                  <View style={styles.settingCardContent}>
+                    <MaterialIcons
+                      name="check-circle"
+                      size={24}
+                      color="#4CAF50"
+                    />
+                    <View style={styles.settingInfo}>
+                      <Text
+                        style={[
+                          styles.settingTitle,
+                          { color: "#4CAF50" },
+                        ]}
+                      >
+                        Game Completed
+                      </Text>
+                      <Text
+                        style={[
+                          styles.settingValue,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
+                        Winners have been calculated
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Save Button */}
           <Button
             mode="contained"
@@ -757,6 +977,26 @@ const EditSquareScreen = () => {
         setPricePerSquare={setPricePerSquare}
         blockMode={blockMode}
       />
+
+      {isCustomGame && (
+        <ScoreEntryModal
+          visible={showScoreEntryModal}
+          onDismiss={() => setShowScoreEntryModal(false)}
+          onSave={handleSaveScores}
+          team1Name={team1FullName}
+          team2Name={team2FullName}
+          initialScores={{
+            quarters: quarterScores.slice(0, 4).map((q) => ({
+              team1: q?.home != null ? String(q.home) : "",
+              team2: q?.away != null ? String(q.away) : "",
+            })),
+            overtimes: quarterScores.slice(4).map((q) => ({
+              team1: q?.home != null ? String(q.home) : "",
+              team2: q?.away != null ? String(q.away) : "",
+            })),
+          }}
+        />
+      )}
     </LinearGradient>
   );
 };
