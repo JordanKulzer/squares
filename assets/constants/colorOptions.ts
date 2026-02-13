@@ -14,37 +14,34 @@ const colors = {
   highlightBackground: "#f0f4ff",
   neutralBorder: "#e6e6e6",
   lightGrayBackground: "#f3f4f6",
+  // 20 free colors with good variety across the spectrum
   colorOptions: [
-    "#FF6633",
-    "#FFB399",
-    "#FF33FF",
-    "#FFFF99",
-    "#00B3E6",
-    "#E6B333",
-    "#3366E6",
-    "#999966",
-    "#99FF99",
-    "#B34D4D",
-    "#80B300",
-    "#809900",
-    "#E6B3B3",
-    "#6680B3",
-    "#66991A",
-    "#FF99E6",
-    "#CCFF1A",
-    "#FF1A66",
-    "#E6331A",
-    "#33FFCC",
-    "#66994D",
-    "#B366CC",
-    "#4D8000",
-    "#B33300",
-    "#CC80CC",
-    "#66664D",
-    "#991AFF",
-    "#E666FF",
-    "#4DB3FF",
-    "#1AB399",
+    // Reds/Warm
+    "#E6331A", // Red
+    "#FF6633", // Orange-Red
+    "#B33300", // Dark Red
+    // Oranges/Yellows
+    "#E6B333", // Gold
+    "#FF8C00", // Dark Orange
+    "#CCFF1A", // Lime Yellow
+    // Greens
+    "#80B300", // Olive Green
+    "#33CC33", // Bright Green
+    "#1AB399", // Teal
+    // Blues
+    "#00B3E6", // Sky Blue
+    "#3366E6", // Royal Blue
+    "#4DB3FF", // Light Blue
+    // Purples/Pinks
+    "#991AFF", // Purple
+    "#B366CC", // Orchid
+    "#FF33FF", // Magenta
+    "#FF1A66", // Hot Pink
+    // Neutrals/Browns
+    "#666666", // Gray
+    "#8B4513", // Saddle Brown
+    "#2F4F4F", // Dark Slate Gray
+    "#5e60ce", // App Primary (bonus)
   ],
 };
 

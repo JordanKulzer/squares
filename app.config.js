@@ -73,6 +73,13 @@ export default {
           organization: "squares-cp",
         },
       ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          androidAppId: process.env.ADMOB_APP_ID_ANDROID || "ca-app-pub-3940256099942544~3347511713",
+          iosAppId: process.env.ADMOB_APP_ID_IOS || "ca-app-pub-3940256099942544~1458002511",
+        },
+      ],
     ],
     owner: "jordankulzer",
     extra: {
@@ -82,6 +89,13 @@ export default {
       EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL,
       EXPO_PUBLIC_SUPABASE_ANON_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
       EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+      // AdMob ad unit IDs (test IDs used as fallback)
+      ADMOB_BANNER_ID_IOS: process.env.ADMOB_BANNER_ID_IOS || "ca-app-pub-3940256099942544/2435281174",
+      ADMOB_BANNER_ID_ANDROID: process.env.ADMOB_BANNER_ID_ANDROID || "ca-app-pub-3940256099942544/9214589741",
+      ADMOB_REWARDED_ID_IOS: process.env.ADMOB_REWARDED_ID_IOS || "ca-app-pub-3940256099942544/1712485313",
+      ADMOB_REWARDED_ID_ANDROID: process.env.ADMOB_REWARDED_ID_ANDROID || "ca-app-pub-3940256099942544/5224354917",
+      // IAP product ID
+      IAP_PREMIUM_PRODUCT_ID: process.env.IAP_PREMIUM_PRODUCT_ID || "com.jkulzer.squaresgame.premium",
     },
   },
 };

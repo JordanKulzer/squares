@@ -30,6 +30,10 @@ const SessionOptionsModal = ({
   team2,
   quarterScores,
   currentTitle,
+  isCustomGame,
+  onEnterScores,
+  onAddGuestPlayer,
+  onAssignSquares,
 }: {
   visible: boolean;
   onDismiss: () => void;
@@ -41,14 +45,18 @@ const SessionOptionsModal = ({
   deadlineValue: Date | null;
   setShowDeadlineModal: (v: boolean) => void;
   triggerRefresh: () => void;
-  team1: string; // <--
-  team2: string; // <--
+  team1: string;
+  team2: string;
   quarterScores: {
     quarter: string;
     home: number | null;
     away: number | null;
-  }[]; // <--
+  }[];
   currentTitle: string;
+  isCustomGame?: boolean;
+  onEnterScores?: () => void;
+  onAddGuestPlayer?: () => void;
+  onAssignSquares?: () => void;
 }) => {
   const theme = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -148,7 +156,7 @@ const SessionOptionsModal = ({
             paddingHorizontal: 20,
             paddingTop: 24,
             paddingBottom: 75,
-            maxHeight: 500,
+            maxHeight: 650,
             borderWidth: 1.5,
             borderLeftWidth: 5,
             borderBottomWidth: 0,
@@ -236,6 +244,53 @@ const SessionOptionsModal = ({
 
             {isOwner && (
               <>
+                {isCustomGame && onEnterScores && (
+                  <Button
+                    icon="scoreboard"
+                    mode="contained"
+                    onPress={onEnterScores}
+                    style={{ marginBottom: 12 }}
+                    labelStyle={{
+                      fontWeight: "600",
+                      fontFamily: "Sora",
+                    }}
+                  >
+                    Enter Scores
+                  </Button>
+                )}
+
+                {onAddGuestPlayer && (
+                  <Button
+                    icon="account-plus"
+                    mode="outlined"
+                    onPress={onAddGuestPlayer}
+                    style={{ marginBottom: 12 }}
+                    labelStyle={{
+                      fontWeight: "600",
+                      color: onSurfaceColor,
+                      fontFamily: "Sora",
+                    }}
+                  >
+                    Add Guest Player
+                  </Button>
+                )}
+
+                {onAssignSquares && (
+                  <Button
+                    icon="grid"
+                    mode="outlined"
+                    onPress={onAssignSquares}
+                    style={{ marginBottom: 12 }}
+                    labelStyle={{
+                      fontWeight: "600",
+                      color: onSurfaceColor,
+                      fontFamily: "Sora",
+                    }}
+                  >
+                    Assign Squares
+                  </Button>
+                )}
+
                 <Button
                   icon="pencil"
                   mode="outlined"

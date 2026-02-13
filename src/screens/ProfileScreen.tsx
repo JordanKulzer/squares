@@ -19,6 +19,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import SkeletonLoader from "../components/SkeletonLoader";
 import PendingInvitesSection from "../components/PendingInvitesSection";
+import { usePremium } from "../contexts/PremiumContext";
+import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -26,8 +28,10 @@ type Props = {
 
 const ProfileScreen = ({ navigation }: Props) => {
   const theme = useTheme();
+  const { isPremium, isDevMode, toggleDevPremium } = usePremium();
 
   const [username, setUsername] = useState("");
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [email, setEmail] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [totalWinnings, setTotalWinnings] = useState(0);
@@ -529,6 +533,121 @@ const ProfileScreen = ({ navigation }: Props) => {
               />
             </View>
           </TouchableOpacity>
+
+          <View
+            style={[
+              styles.settingsDivider,
+              { backgroundColor: theme.dark ? "#333" : "#eee" },
+            ]}
+          />
+
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => !isPremium && setShowPremiumModal(true)}
+          >
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="workspace-premium"
+                size={22}
+                color="#FFD700"
+              />
+              <Text
+                style={[styles.settingsText, { color: theme.colors.onSurface }]}
+              >
+                Premium
+              </Text>
+            </View>
+            {isPremium ? (
+              <View
+                style={{
+                  backgroundColor: "#FFD700",
+                  paddingHorizontal: 12,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#000",
+                    fontSize: 12,
+                    fontWeight: "700",
+                    fontFamily: "Sora",
+                  }}
+                >
+                  ACTIVE
+                </Text>
+              </View>
+            ) : (
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={theme.colors.onSurfaceVariant}
+              />
+            )}
+          </TouchableOpacity>
+
+          {/* Dev Mode Toggle - only visible in development */}
+          {__DEV__ && (
+            <>
+              <View
+                style={[
+                  styles.settingsDivider,
+                  { backgroundColor: theme.dark ? "#333" : "#eee" },
+                ]}
+              />
+              <View style={styles.settingsRow}>
+                <View style={styles.settingsLeft}>
+                  <MaterialIcons
+                    name="bug-report"
+                    size={22}
+                    color="#FF9800"
+                  />
+                  <View style={{ marginLeft: 12 }}>
+                    <Text
+                      style={[styles.settingsText, { color: theme.colors.onSurface, marginLeft: 0 }]}
+                    >
+                      Dev: Premium Mode
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: "Sora",
+                        color: theme.colors.onSurfaceVariant,
+                        marginTop: 2,
+                      }}
+                    >
+                      Simulate premium for testing
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={toggleDevPremium}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    minWidth: 50,
+                    alignItems: "center",
+                    backgroundColor: isDevMode
+                      ? "#FF9800"
+                      : theme.dark
+                        ? "#444"
+                        : "#ddd",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: isDevMode ? "#fff" : theme.colors.onSurface,
+                    }}
+                  >
+                    {isDevMode ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
 
           <View
             style={[
@@ -1049,6 +1168,11 @@ const ProfileScreen = ({ navigation }: Props) => {
           <Toast config={getToastConfig(theme.dark)} />
         </Portal>
       </ScrollView>
+
+      <PremiumUpgradeModal
+        visible={showPremiumModal}
+        onDismiss={() => setShowPremiumModal(false)}
+      />
     </LinearGradient>
   );
 };

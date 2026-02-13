@@ -52,6 +52,8 @@ import {
   Rubik_600SemiBold,
 } from "@expo-google-fonts/rubik";
 import Constants from "expo-constants";
+import { PremiumProvider } from "./src/contexts/PremiumContext";
+import { iapService } from "./src/services/iapService";
 
 Sentry.init({
   dsn: "https://ad2eab012c320c284637c80f6b9cb1cd@o4509662000054272.ingest.us.sentry.io/4509662000316416",
@@ -132,6 +134,25 @@ const App: React.FC = () => {
     setIsDarkTheme(next);
     await AsyncStorage.setItem("theme", next ? "dark" : "light");
   };
+
+  // Initialize IAP service (skip in Expo Go)
+  useEffect(() => {
+    const isExpoGo = Constants.appOwnership === "expo";
+    if (isExpoGo) {
+      console.log("Skipping IAP initialization in Expo Go");
+      return;
+    }
+
+    iapService.initialize((success) => {
+      if (success) {
+        console.log("Purchase completed successfully");
+      }
+    });
+
+    return () => {
+      iapService.cleanup();
+    };
+  }, []);
 
   useEffect(() => {
     const handleDeepLink = async ({ url }: { url: string }) => {
@@ -349,14 +370,15 @@ const App: React.FC = () => {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar
-        barStyle={isDarkTheme ? "light-content" : "dark-content"}
-        backgroundColor={
-          isDarkTheme ? DarkTheme.colors.surface : LightTheme.colors.surface
-        }
-      />
-      <PaperProvider theme={paperTheme}>
-        <NavigationContainer theme={navigationTheme} linking={linking}>
+      <PremiumProvider>
+        <StatusBar
+          barStyle={isDarkTheme ? "light-content" : "dark-content"}
+          backgroundColor={
+            isDarkTheme ? DarkTheme.colors.surface : LightTheme.colors.surface
+          }
+        />
+        <PaperProvider theme={paperTheme}>
+          <NavigationContainer theme={navigationTheme} linking={linking}>
           <Stack.Navigator
             screenOptions={{
               headerShown: true,
@@ -547,9 +569,10 @@ const App: React.FC = () => {
               </>
             )}
           </Stack.Navigator>
-        </NavigationContainer>
-        <Toast config={toastConfig} position="bottom" bottomOffset={60} />
-      </PaperProvider>
+          </NavigationContainer>
+          <Toast config={toastConfig} position="bottom" bottomOffset={60} />
+        </PaperProvider>
+      </PremiumProvider>
     </GestureHandlerRootView>
   );
 };

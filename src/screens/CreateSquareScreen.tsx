@@ -27,6 +27,11 @@ import {
   Rubik_500Medium,
   Rubik_600SemiBold,
 } from "@expo-google-fonts/rubik";
+import { usePremium } from "../contexts/PremiumContext";
+import { adService } from "../services/adService";
+import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
+import PremiumBadge from "../components/PremiumBadge";
+import ColorPickerModal from "../components/ColorPickerModal";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -44,6 +49,7 @@ type CreateSquareRouteParams = {
     team1Abbr?: string;
     team2Abbr?: string;
     league?: string;
+    isCustomGame?: boolean;
   };
 };
 
@@ -57,6 +63,7 @@ const CreateSquareScreen = ({ navigation }) => {
   const [team1Abbr, setTeam1Abbr] = useState("");
   const [team2Abbr, setTeam2Abbr] = useState("");
   const [league, setLeague] = useState("");
+  const [isCustomGame, setIsCustomGame] = useState(false);
   const [deadline, setDeadline] = useState(new Date());
   const [selectedColor, setSelectedColor] = useState(null);
   const [randomizeAxis, setRandomizeAxis] = useState(true);
@@ -80,6 +87,13 @@ const CreateSquareScreen = ({ navigation }) => {
     squareDeleted: false,
   });
 
+  // Premium and ad state
+  const { isPremium } = usePremium();
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showColorPickerModal, setShowColorPickerModal] = useState(false);
+  const [adLoading, setAdLoading] = useState(false);
+  const [hasWatchedAd, setHasWatchedAd] = useState(false);
+
   const [fontsLoaded] = useFonts({
     Anton_400Regular,
     Rubik_400Regular,
@@ -100,6 +114,7 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.team1Abbr) setTeam1Abbr(params.team1Abbr);
     if (params.team2Abbr) setTeam2Abbr(params.team2Abbr);
     if (params.league) setLeague(params.league);
+    if (params.isCustomGame) setIsCustomGame(params.isCustomGame);
     if (params.deadline) setDeadline(new Date(params.deadline));
     if (params.inputTitle) setInputTitle(params.inputTitle);
     // Fetch username from users table
@@ -124,6 +139,13 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
   }, [route.params]);
 
+  // Preload rewarded ad when screen mounts (if not premium)
+  useEffect(() => {
+    if (!isPremium) {
+      adService.loadRewardedAd().catch(console.error);
+    }
+  }, [isPremium]);
+
   const generateShuffledArray = () => {
     const arr = [...Array(10).keys()];
     for (let i = arr.length - 1; i > 0; i--) {
@@ -143,7 +165,12 @@ const CreateSquareScreen = ({ navigation }) => {
       return;
     }
     if (!team1 || !team2) {
-      Alert.alert("Missing Info", "Please select a game");
+      Alert.alert(
+        "Missing Info",
+        isCustomGame
+          ? "Please enter both team names"
+          : "Please select a game"
+      );
       return;
     }
     if (!selectedColor) {
@@ -157,6 +184,28 @@ const CreateSquareScreen = ({ navigation }) => {
     if (displayType === "icon" && !displayValue) {
       Alert.alert("Missing Info", "Please select an icon for your display");
       return;
+    }
+
+    // Gate with rewarded ad if not premium and hasn't watched ad
+    if (!isPremium && !hasWatchedAd) {
+      setAdLoading(true);
+      try {
+        if (!adService.isRewardedAdReady()) {
+          await adService.loadRewardedAd();
+        }
+        const earned = await adService.showRewardedAd();
+        if (earned) {
+          setHasWatchedAd(true);
+        } else {
+          setAdLoading(false);
+          return; // User closed ad without watching
+        }
+      } catch (err) {
+        console.error("Ad error:", err);
+        // Allow creation if ad fails (graceful degradation)
+        setHasWatchedAd(true);
+      }
+      setAdLoading(false);
     }
 
     setLoading(true);
@@ -211,8 +260,9 @@ const CreateSquareScreen = ({ navigation }) => {
             team2_full_name: team2FullName,
             team1_abbr: team1Abbr,
             team2_abbr: team2Abbr,
-            league: league,
+            league: league || (isCustomGame ? "Custom" : "NFL"),
             block_mode: blockMode,
+            is_custom_game: isCustomGame,
           },
         ])
         .select("id")
@@ -233,7 +283,7 @@ const CreateSquareScreen = ({ navigation }) => {
         gridId: data.id,
         inputTitle: inputTitle.trim(),
         username: username.trim(),
-        deadline,
+        deadline: deadline.toISOString(),
         xAxis,
         yAxis,
         eventId,
@@ -312,102 +362,218 @@ const CreateSquareScreen = ({ navigation }) => {
             </Text>
           </View>
 
-          {/* Game Selection */}
+          {/* Game Type Selection */}
           <View style={styles.section}>
             <Text style={[styles.label, { color: theme.colors.onBackground }]}>
-              Select Game *
+              Game Type *
             </Text>
-            <TouchableOpacity
-              onPress={() =>
-                navigation.navigate("GamePickerScreen", {
-                  team1,
-                  team2,
-                  deadline: deadline.toISOString(),
-                  inputTitle,
-                  username,
-                  maxSelections,
-                  selectedColor,
-                })
-              }
-              style={[
-                styles.selectButton,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor:
-                    team1 && team2
+            <View style={styles.gameTypeRow}>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsCustomGame(false);
+                  // Clear custom team names when switching to API
+                  if (isCustomGame) {
+                    setTeam1("");
+                    setTeam2("");
+                    setTeam1FullName("");
+                    setTeam2FullName("");
+                  }
+                }}
+                style={[
+                  styles.gameTypeButton,
+                  {
+                    backgroundColor: !isCustomGame
                       ? theme.colors.primary
                       : theme.dark
-                        ? "#444"
-                        : "#ddd",
-                  borderWidth: team1 && team2 ? 2 : 1,
-                },
-              ]}
-            >
-              {team1 && team2 ? (
-                <View style={styles.selectedGameInfo}>
-                  <View style={styles.selectedTeams}>
+                        ? "#333"
+                        : "#e8e8e8",
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="sports-football"
+                  size={18}
+                  color={!isCustomGame ? "#fff" : theme.colors.onBackground}
+                />
+                <Text
+                  style={[
+                    styles.gameTypeText,
+                    {
+                      color: !isCustomGame ? "#fff" : theme.colors.onBackground,
+                    },
+                  ]}
+                >
+                  Scheduled Game
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setIsCustomGame(true);
+                  setEventId(""); // Clear API event ID
+                  setLeague("");
+                }}
+                style={[
+                  styles.gameTypeButton,
+                  {
+                    backgroundColor: isCustomGame
+                      ? theme.colors.primary
+                      : theme.dark
+                        ? "#333"
+                        : "#e8e8e8",
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="edit"
+                  size={18}
+                  color={isCustomGame ? "#fff" : theme.colors.onBackground}
+                />
+                <Text
+                  style={[
+                    styles.gameTypeText,
+                    {
+                      color: isCustomGame ? "#fff" : theme.colors.onBackground,
+                    },
+                  ]}
+                >
+                  Custom Game
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Scheduled Game Picker */}
+            {!isCustomGame && (
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate("GamePickerScreen", {
+                    team1,
+                    team2,
+                    deadline: deadline.toISOString(),
+                    inputTitle,
+                    username,
+                    maxSelections,
+                    selectedColor,
+                  })
+                }
+                style={[
+                  styles.selectButton,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor:
+                      team1 && team2
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#444"
+                          : "#ddd",
+                    borderWidth: team1 && team2 ? 2 : 1,
+                    marginTop: 12,
+                  },
+                ]}
+              >
+                {team1 && team2 ? (
+                  <View style={styles.selectedGameInfo}>
+                    <View style={styles.selectedTeams}>
+                      <Text
+                        style={[
+                          styles.selectedTeamName,
+                          { color: theme.colors.onBackground },
+                        ]}
+                      >
+                        {team1FullName || team1}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.vsText,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
+                        vs
+                      </Text>
+                      <Text
+                        style={[
+                          styles.selectedTeamName,
+                          { color: theme.colors.onBackground },
+                        ]}
+                      >
+                        {team2FullName || team2}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.changeText, { color: theme.colors.primary }]}
+                    >
+                      Change Game
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.selectButtonContent}>
+                    <MaterialIcons
+                      name="sports-football"
+                      size={32}
+                      color={theme.colors.primary}
+                    />
                     <Text
                       style={[
-                        styles.selectedTeamName,
+                        styles.selectButtonText,
                         { color: theme.colors.onBackground },
                       ]}
                     >
-                      {team1FullName || team1}
+                      Choose a Game
                     </Text>
                     <Text
                       style={[
-                        styles.vsText,
+                        styles.selectButtonSubtext,
                         { color: theme.colors.onSurfaceVariant },
                       ]}
                     >
-                      vs
-                    </Text>
-                    <Text
-                      style={[
-                        styles.selectedTeamName,
-                        { color: theme.colors.onBackground },
-                      ]}
-                    >
-                      {team2FullName || team2}
+                      Browse upcoming games
                     </Text>
                   </View>
-                  <Text
-                    style={[styles.changeText, { color: theme.colors.primary }]}
-                  >
-                    Change Game
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.selectButtonContent}>
-                  <MaterialIcons
-                    name="sports-football"
-                    size={32}
-                    color={theme.colors.primary}
-                  />
-                  <Text
-                    style={[
-                      styles.selectButtonText,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Choose a Game
-                  </Text>
-                  <Text
-                    style={[
-                      styles.selectButtonSubtext,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    Browse upcoming games
-                  </Text>
-                </View>
-              )}
-              <MaterialIcons
-                name="chevron-right"
-                size={24}
-                color={theme.colors.onSurfaceVariant}
-              />
-            </TouchableOpacity>
+                )}
+                <MaterialIcons
+                  name="chevron-right"
+                  size={24}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </TouchableOpacity>
+            )}
+
+            {/* Custom Game Team Inputs */}
+            {isCustomGame && (
+              <View style={styles.customGameInputs}>
+                <PaperInput
+                  mode="outlined"
+                  label="Team 1 Name"
+                  value={team1FullName}
+                  onChangeText={(text) => {
+                    setTeam1FullName(text);
+                    setTeam1(text); // Also set short name
+                  }}
+                  placeholder="e.g., Kansas City Chiefs"
+                  style={[styles.input, { backgroundColor: theme.colors.surface }]}
+                  maxLength={50}
+                />
+                <PaperInput
+                  mode="outlined"
+                  label="Team 2 Name"
+                  value={team2FullName}
+                  onChangeText={(text) => {
+                    setTeam2FullName(text);
+                    setTeam2(text); // Also set short name
+                  }}
+                  placeholder="e.g., Philadelphia Eagles"
+                  style={[styles.input, { backgroundColor: theme.colors.surface, marginTop: 8 }]}
+                  maxLength={50}
+                />
+                <Text
+                  style={[
+                    styles.helperText,
+                    { color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: "left" },
+                  ]}
+                >
+                  Enter your own team names. You'll be able to enter scores manually.
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Color Selection */}
@@ -440,6 +606,32 @@ const CreateSquareScreen = ({ navigation }) => {
                   )}
                 </TouchableOpacity>
               ))}
+              {/* Custom Color Button (Premium) */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (isPremium) {
+                    setShowColorPickerModal(true);
+                  } else {
+                    setShowPremiumModal(true);
+                  }
+                }}
+                style={[
+                  styles.colorButton,
+                  {
+                    backgroundColor: theme.dark ? "#333" : "#e8e8e8",
+                    borderWidth: 2,
+                    borderColor: theme.colors.primary,
+                    borderStyle: "dashed",
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="colorize"
+                  size={20}
+                  color={theme.colors.primary}
+                />
+                {!isPremium && <PremiumBadge size={10} />}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -449,77 +641,97 @@ const CreateSquareScreen = ({ navigation }) => {
               Display Style
             </Text>
             <View style={styles.displayTypeRow}>
-              {(["color", "icon", "initial"] as const).map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  onPress={() => {
-                    setDisplayType(type);
-                    if (type === "icon") setDisplayValue("sports-football");
-                    else if (type === "initial") setDisplayValue("");
-                    else setDisplayValue("");
-                  }}
-                  style={[
-                    styles.displayTypeButton,
-                    {
-                      backgroundColor:
-                        displayType === type
-                          ? theme.colors.primary
-                          : theme.dark
-                            ? "#333"
-                            : "#e8e8e8",
-                    },
-                  ]}
-                >
-                  <Text
+              {(["color", "icon", "initial"] as const).map((type) => {
+                const isLocked = type !== "color" && !isPremium;
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => {
+                      if (isLocked) {
+                        setShowPremiumModal(true);
+                        return;
+                      }
+                      setDisplayType(type);
+                      if (type === "icon") setDisplayValue("sports-football");
+                      else if (type === "initial") setDisplayValue("");
+                      else setDisplayValue("");
+                    }}
                     style={[
-                      styles.displayTypeText,
+                      styles.displayTypeButton,
                       {
-                        color:
+                        backgroundColor:
                           displayType === type
-                            ? "#fff"
-                            : theme.colors.onBackground,
+                            ? theme.colors.primary
+                            : theme.dark
+                              ? "#333"
+                              : "#e8e8e8",
+                        opacity: isLocked ? 0.6 : 1,
                       },
                     ]}
                   >
-                    {type === "color"
-                      ? "Color Only"
-                      : type === "icon"
-                        ? "Icon"
-                        : "Initial"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.displayTypeText,
+                        {
+                          color:
+                            displayType === type
+                              ? "#fff"
+                              : theme.colors.onBackground,
+                        },
+                      ]}
+                    >
+                      {type === "color"
+                        ? "Color Only"
+                        : type === "icon"
+                          ? "Icon"
+                          : "Initial"}
+                    </Text>
+                    {isLocked && <PremiumBadge size={10} />}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {displayType === "icon" && (
               <View style={styles.iconGrid}>
-                {iconOptions.map((icon) => (
-                  <TouchableOpacity
-                    key={icon.name}
-                    onPress={() => setDisplayValue(icon.name)}
-                    style={[
-                      styles.iconButton,
-                      {
-                        backgroundColor: selectedColor
-                          ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
-                          : theme.dark
-                            ? "#333"
-                            : "#e8e8e8",
-                        borderWidth: displayValue === icon.name ? 3 : 0,
-                        borderColor: theme.colors.primary,
-                        transform: [
-                          { scale: displayValue === icon.name ? 1.1 : 1 },
-                        ],
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name={icon.name}
-                      size={22}
-                      color={selectedColor || theme.colors.onBackground}
-                    />
-                  </TouchableOpacity>
-                ))}
+                {iconOptions.map((icon) => {
+                  const isLocked = icon.isPremium && !isPremium;
+                  return (
+                    <TouchableOpacity
+                      key={icon.name}
+                      onPress={() => {
+                        if (isLocked) {
+                          setShowPremiumModal(true);
+                        } else {
+                          setDisplayValue(icon.name);
+                        }
+                      }}
+                      style={[
+                        styles.iconButton,
+                        {
+                          backgroundColor: selectedColor
+                            ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                            : theme.dark
+                              ? "#333"
+                              : "#e8e8e8",
+                          borderWidth: displayValue === icon.name ? 3 : 0,
+                          borderColor: theme.colors.primary,
+                          transform: [
+                            { scale: displayValue === icon.name ? 1.1 : 1 },
+                          ],
+                          opacity: isLocked ? 0.5 : 1,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={icon.name}
+                        size={22}
+                        color={selectedColor || theme.colors.onBackground}
+                      />
+                      {isLocked && <PremiumBadge size={10} />}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
@@ -884,13 +1096,13 @@ const CreateSquareScreen = ({ navigation }) => {
           <Button
             mode="contained"
             onPress={createSquareSession}
-            loading={loading}
-            disabled={loading || !isFormValid}
+            loading={loading || adLoading}
+            disabled={loading || adLoading || !isFormValid}
             style={styles.createButton}
             contentStyle={styles.createButtonContent}
             labelStyle={styles.createButtonLabel}
           >
-            {loading ? "Creating..." : "Create Game"}
+            {adLoading ? "Loading Ad..." : loading ? "Creating..." : "Create Game"}
           </Button>
 
           <TouchableOpacity
@@ -932,6 +1144,19 @@ const CreateSquareScreen = ({ navigation }) => {
         setMaxSelections={setMaxSelections}
         setPricePerSquare={setPricePerSquare}
         blockMode={blockMode}
+      />
+
+      <PremiumUpgradeModal
+        visible={showPremiumModal}
+        onDismiss={() => setShowPremiumModal(false)}
+        feature="premium icons"
+      />
+
+      <ColorPickerModal
+        visible={showColorPickerModal}
+        onDismiss={() => setShowColorPickerModal(false)}
+        onColorSelect={(color) => setSelectedColor(color)}
+        initialColor={selectedColor || "#5e60ce"}
       />
     </LinearGradient>
   );
@@ -1128,6 +1353,26 @@ const styles = StyleSheet.create({
   },
   initialInput: {
     flex: 3,
+  },
+  gameTypeRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  gameTypeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  gameTypeText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  customGameInputs: {
+    marginTop: 12,
   },
 });
 

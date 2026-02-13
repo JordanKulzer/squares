@@ -56,6 +56,9 @@ import {
 } from "@expo-google-fonts/rubik";
 import SkeletonLoader from "../components/SkeletonLoader";
 import tinycolor from "tinycolor2";
+import ScoreEntryModal from "../components/ScoreEntryModal";
+import AddGuestPlayerModal from "../components/AddGuestPlayerModal";
+import AssignSquareModal from "../components/AssignSquareModal";
 
 // ✨ Square size calculation - moved to component level for proper recalculation
 const getSquareSize = () => {
@@ -175,6 +178,16 @@ const SquareScreen = ({ route }) => {
   const [sessionOptionsVisible, setSessionOptionsVisible] = useState(false);
   const [pendingSquares, setPendingSquares] = useState<Set<string>>(new Set());
   const [gameCompleted, setGameCompleted] = useState(false);
+  const [isCustomGame, setIsCustomGame] = useState(false);
+  const [showScoreEntryModal, setShowScoreEntryModal] = useState(false);
+  const [showAddGuestModal, setShowAddGuestModal] = useState(false);
+  const [showAssignSquareModal, setShowAssignSquareModal] = useState(false);
+  const [assignMode, setAssignMode] = useState(false);
+  const [assignModePlayer, setAssignModePlayer] = useState<{
+    userId: string;
+    username: string;
+    color: string;
+  } | null>(null);
   const [isTeam1Home, setIsTeam1Home] = useState<boolean | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [winningsByUser, setWinningsByUser] = useState<Record<string, number>>(
@@ -621,10 +634,18 @@ const SquareScreen = ({ route }) => {
         if (error || !data) return;
 
         setManualOverride(!!data.manual_override);
+        setIsCustomGame(!!data.is_custom_game);
 
         // Load persisted game_completed status from database
         if (data.game_completed) {
           setGameCompleted(true);
+        }
+
+        // For custom games, load scores from database
+        if (data.is_custom_game && data.quarter_scores) {
+          setQuarterScores(data.quarter_scores);
+          // Custom games use team1 as home by default
+          setIsTeam1Home(true);
         }
 
         const colorMapping = {};
@@ -721,6 +742,12 @@ const SquareScreen = ({ route }) => {
   }, []);
 
   useEffect(() => {
+    // Skip API score fetching for custom games
+    if (isCustomGame) {
+      if (!scoresLoaded) setScoresLoaded(true);
+      return;
+    }
+
     if (!eventId || !deadlineValue) {
       if (!scoresLoaded) setScoresLoaded(true);
       return;
@@ -873,7 +900,7 @@ const SquareScreen = ({ route }) => {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isFocused, eventId, deadlineValue, refreshKey]);
+  }, [isFocused, eventId, deadlineValue, refreshKey, isCustomGame]);
 
   const playerList = useMemo(
     () => Object.entries(playerColors),
@@ -922,6 +949,233 @@ const SquareScreen = ({ route }) => {
     } catch (err) {
       Sentry.captureException(err);
       console.error("Error updating deadline:", err);
+    }
+  };
+
+  const handleSaveManualScores = async (scores: {
+    quarters: { team1: string; team2: string }[];
+    overtimes: { team1: string; team2: string }[];
+  }) => {
+    try {
+      // Convert string scores to the format expected by the app
+      const allScores = [...scores.quarters, ...scores.overtimes];
+      const formattedScores = allScores.map((s, index) => ({
+        home: s.team1 ? parseInt(s.team1, 10) : null,
+        away: s.team2 ? parseInt(s.team2, 10) : null,
+        manual: true,
+      }));
+
+      // Update local state
+      setQuarterScores(formattedScores);
+
+      // Save to database
+      const { error } = await supabase
+        .from("squares")
+        .update({
+          quarter_scores: formattedScores,
+          manual_override: true,
+        })
+        .eq("id", gridId);
+
+      if (error) {
+        console.error("Error saving scores:", error);
+        Toast.show({
+          type: "error",
+          text1: "Failed to save scores",
+          position: "bottom",
+        });
+      } else {
+        Toast.show({
+          type: "success",
+          text1: "Scores saved successfully",
+          position: "bottom",
+        });
+        // Trigger refresh to recalculate winners
+        setRefreshKey((prev) => prev + 1);
+      }
+    } catch (err) {
+      Sentry.captureException(err);
+      console.error("Error saving manual scores:", err);
+    }
+  };
+
+  const handleAddGuestPlayer = async (guestPlayer: {
+    userId: string;
+    username: string;
+    color: string;
+    displayType: "color" | "icon" | "initial";
+    displayValue?: string;
+    isGuest: boolean;
+    addedBy: string;
+  }) => {
+    try {
+      // Fetch current players
+      const { data, error } = await supabase
+        .from("squares")
+        .select("players")
+        .eq("id", gridId)
+        .single();
+
+      if (error || !data) {
+        console.error("Failed to fetch players:", error);
+        Toast.show({
+          type: "error",
+          text1: "Failed to add guest player",
+          text2: error?.message || "Could not fetch players",
+          position: "bottom",
+        });
+        return;
+      }
+
+      const updatedPlayers = [...(data.players || []), guestPlayer];
+      // Don't add guest IDs to player_ids - that column expects valid UUIDs only
+
+      const { error: updateError } = await supabase
+        .from("squares")
+        .update({
+          players: updatedPlayers,
+        })
+        .eq("id", gridId);
+
+      if (updateError) {
+        console.error("Failed to update players:", updateError);
+        Toast.show({
+          type: "error",
+          text1: "Failed to add guest player",
+          text2: updateError?.message,
+          position: "bottom",
+        });
+      } else {
+        Toast.show({
+          type: "success",
+          text1: `${guestPlayer.username} added as guest`,
+          position: "bottom",
+        });
+        setRefreshKey((prev) => prev + 1);
+      }
+    } catch (err) {
+      Sentry.captureException(err);
+      console.error("Error adding guest player:", err);
+      Toast.show({
+        type: "error",
+        text1: "Failed to add guest player",
+        text2: String(err),
+        position: "bottom",
+      });
+    }
+  };
+
+  const handleAssignSquareToPlayer = async (x: number, y: number) => {
+    if (!assignModePlayer) return;
+
+    const key = `${x},${y}`;
+
+    // Check if square is already claimed
+    if (squareColors[key]) {
+      Toast.show({
+        type: "error",
+        text1: "Square already claimed",
+        position: "bottom",
+      });
+      return;
+    }
+
+    const assignToUserId = assignModePlayer.userId;
+    const isGuestPlayer = assignToUserId.startsWith("guest_");
+
+    try {
+      if (isGuestPlayer) {
+        // For guest players, directly update the selections array
+        const { data, error: fetchError } = await supabase
+          .from("squares")
+          .select("selections")
+          .eq("id", gridId)
+          .single();
+
+        if (fetchError || !data) {
+          console.error("Failed to fetch selections:", fetchError);
+          Toast.show({
+            type: "error",
+            text1: "Failed to assign square",
+            text2: fetchError?.message,
+            position: "bottom",
+          });
+          return;
+        }
+
+        const newSelection = {
+          oddsId: null,
+          oddsStatus: "unknown",
+          oddsUpdatedAt: new Date().toISOString(),
+          oddsValue: null,
+          oddsBookmaker: null,
+          oddsType: null,
+          x,
+          y,
+          oddsDescription: null,
+          userId: assignToUserId,
+        };
+
+        const updatedSelections = [...(data.selections || []), newSelection];
+
+        const { error: updateError } = await supabase
+          .from("squares")
+          .update({ selections: updatedSelections })
+          .eq("id", gridId);
+
+        if (updateError) {
+          console.error("Failed to update selections:", updateError);
+          Toast.show({
+            type: "error",
+            text1: "Failed to assign square",
+            text2: updateError?.message,
+            position: "bottom",
+          });
+        } else {
+          Toast.show({
+            type: "success",
+            text1: `Square assigned to ${assignModePlayer.username}`,
+            position: "bottom",
+            visibilityTime: 1500,
+          });
+          setRefreshKey((prev) => prev + 1);
+        }
+      } else {
+        // For regular users, use the RPC
+        const { error } = await supabase.rpc("add_selection", {
+          grid_id: gridId,
+          user_id: assignToUserId,
+          x_coord: x,
+          y_coord: y,
+        });
+
+        if (error) {
+          console.error("RPC add_selection error:", error);
+          Toast.show({
+            type: "error",
+            text1: "Failed to assign square",
+            text2: error?.message,
+            position: "bottom",
+          });
+        } else {
+          Toast.show({
+            type: "success",
+            text1: `Square assigned to ${assignModePlayer.username}`,
+            position: "bottom",
+            visibilityTime: 1500,
+          });
+          setRefreshKey((prev) => prev + 1);
+        }
+      }
+    } catch (err) {
+      Sentry.captureException(err);
+      console.error("Error assigning square:", err);
+      Toast.show({
+        type: "error",
+        text1: "Failed to assign square",
+        text2: String(err),
+        position: "bottom",
+      });
     }
   };
 
@@ -1630,10 +1884,22 @@ const SquareScreen = ({ route }) => {
                 isSelected && styles.selectedSquare,
               ]}
               onPress={() => {
+                // If assign mode is active, directly assign to the selected player
+                if (assignMode && assignModePlayer && isOwner && !squareColors[key]) {
+                  handleAssignSquareToPlayer(x - 1, y - 1);
+                  return;
+                }
                 if (editable || onSquarePress === handleSquarePress) {
                   onSquarePress(x - 1, y - 1);
                 }
               }}
+              onLongPress={() => {
+                // Allow owners to open assign modal for empty squares
+                if (isOwner && !squareColors[key] && players.length > 0) {
+                  setShowAssignSquareModal(true);
+                }
+              }}
+              delayLongPress={500}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
               {isWinner ? (
@@ -2375,6 +2641,98 @@ const SquareScreen = ({ route }) => {
             team1={team1}
             team2={team2}
             quarterScores={quarterScores}
+            isCustomGame={isCustomGame}
+            onEnterScores={() => {
+              setSessionOptionsVisible(false);
+              setTimeout(() => setShowScoreEntryModal(true), 300);
+            }}
+            onAddGuestPlayer={() => {
+              setSessionOptionsVisible(false);
+              setTimeout(() => setShowAddGuestModal(true), 300);
+            }}
+            onAssignSquares={() => {
+              setSessionOptionsVisible(false);
+              setTimeout(() => setShowAssignSquareModal(true), 300);
+            }}
+          />
+
+          {/* Score Entry Modal for Custom Games */}
+          <ScoreEntryModal
+            visible={showScoreEntryModal}
+            onDismiss={() => setShowScoreEntryModal(false)}
+            onSave={handleSaveManualScores}
+            team1Name={fullTeam1 || team1}
+            team2Name={fullTeam2 || team2}
+            initialScores={{
+              quarters: quarterScores.slice(0, 4).map((q) => ({
+                team1: q?.home != null ? String(q.home) : "",
+                team2: q?.away != null ? String(q.away) : "",
+              })),
+              overtimes: quarterScores.slice(4).map((q) => ({
+                team1: q?.home != null ? String(q.home) : "",
+                team2: q?.away != null ? String(q.away) : "",
+              })),
+            }}
+          />
+
+          {/* Add Guest Player Modal */}
+          <AddGuestPlayerModal
+            visible={showAddGuestModal}
+            onDismiss={() => setShowAddGuestModal(false)}
+            onAddPlayer={handleAddGuestPlayer}
+            currentUserId={userId || ""}
+          />
+
+          {/* Assign Mode Header Banner */}
+          {assignMode && assignModePlayer && (
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: assignModePlayer.color,
+                paddingVertical: 8,
+                paddingHorizontal: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                zIndex: 100,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="person" size={18} color="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "600", fontFamily: "Sora" }}>
+                  Assigning to: {assignModePlayer.username}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setAssignMode(false);
+                  setAssignModePlayer(null);
+                }}
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.2)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 6,
+                }}
+              >
+                <Text style={{ color: "#fff", fontWeight: "600", fontFamily: "Sora" }}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Assign Square Modal */}
+          <AssignSquareModal
+            visible={showAssignSquareModal}
+            onDismiss={() => setShowAssignSquareModal(false)}
+            onSelectPlayer={(player) => {
+              setAssignModePlayer(player);
+              setAssignMode(true);
+            }}
+            players={players}
+            currentUserId={userId || ""}
           />
 
           {/* Confirmation Modals */}

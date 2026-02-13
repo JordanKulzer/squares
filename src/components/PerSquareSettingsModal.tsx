@@ -1,7 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
 import {
-  Modal,
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  Animated,
+} from "react-native";
+import {
   Portal,
   Text,
   Button,
@@ -26,10 +31,29 @@ const PerSquareSettingsModal = ({
   const defaultMax = blockMode ? "25" : "100";
   const maxTotal = blockMode ? 25 : 100;
   const theme = useTheme();
+  const translateY = useRef(new Animated.Value(600)).current;
+
   const [max, setMax] = useState(String(maxSelections || defaultMax));
   const [price, setPrice] = useState(String(pricePerSquare || "0.00"));
   const [pricePickerVisible, setPricePickerVisible] = useState(false);
   const [tempPrice, setTempPrice] = useState(price);
+
+  // Animate in/out
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(translateY, {
+        toValue: 600,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (visible) {
@@ -46,20 +70,43 @@ const PerSquareSettingsModal = ({
     onDismiss();
   };
 
+  const surfaceColor = theme.colors.surface;
+  const dividerColor = theme.dark ? "#333" : "#eee";
+
   return (
     <>
       <Portal>
-        <Modal
-          visible={visible}
-          onDismiss={onDismiss}
-          contentContainerStyle={[
-            styles.modalContainer,
-            { backgroundColor: theme.colors.surface },
+        {visible && (
+          <TouchableWithoutFeedback onPress={onDismiss}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        )}
+
+        <Animated.View
+          pointerEvents={visible ? "auto" : "none"}
+          style={[
+            styles.container,
+            {
+              transform: [{ translateY }],
+              backgroundColor: surfaceColor,
+            },
           ]}
         >
-          <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
-            Per {unit} Settings
-          </Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text
+              style={[styles.headerTitle, { color: theme.colors.onBackground }]}
+            >
+              Per {unit} Settings
+            </Text>
+            <TouchableOpacity onPress={onDismiss}>
+              <Text style={{ color: theme.colors.error, fontFamily: "Sora" }}>
+                Close
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.divider, { backgroundColor: dividerColor }]} />
 
           <TextInput
             label={`1. Max ${unitPlural} Per Person`}
@@ -133,6 +180,7 @@ const PerSquareSettingsModal = ({
               Confirm
             </Button>
           </View>
+
           <View style={styles.footnoteContainer}>
             <Text
               style={[
@@ -151,31 +199,28 @@ const PerSquareSettingsModal = ({
               {`2. Add a dollar value per ${unit.toLowerCase()} to track player totals.`}
             </Text>
           </View>
-        </Modal>
+        </Animated.View>
       </Portal>
+
+      {/* Price Picker Modal - keeping as centered modal since it's a sub-modal */}
       <Portal>
-        <Modal
-          visible={pricePickerVisible}
-          onDismiss={() => setPricePickerVisible(false)}
-          contentContainerStyle={{
-            backgroundColor: theme.colors.surface,
-            borderRadius: 16,
-            borderWidth: 1.5,
-            borderColor: theme.dark ? "#444" : "#ccc",
-            borderLeftWidth: 5,
-            borderLeftColor: theme.colors.primary,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.2,
-            shadowRadius: 8,
-            elevation: 6,
-            marginHorizontal: 16,
-            paddingVertical: 20,
-            paddingHorizontal: 16,
-          }}
+        {pricePickerVisible && (
+          <TouchableWithoutFeedback onPress={() => setPricePickerVisible(false)}>
+            <View style={styles.backdrop} />
+          </TouchableWithoutFeedback>
+        )}
+        <Animated.View
+          pointerEvents={pricePickerVisible ? "auto" : "none"}
+          style={[
+            styles.pickerContainer,
+            {
+              backgroundColor: theme.colors.surface,
+              opacity: pricePickerVisible ? 1 : 0,
+            },
+          ]}
         >
           <Text
-            style={{ fontFamily: "SoraBold", fontSize: 16, marginBottom: 8 }}
+            style={{ fontFamily: "SoraBold", fontSize: 16, marginBottom: 8, color: theme.colors.onSurface }}
           >
             {`Select Price Per ${unit}`}
           </Text>
@@ -255,32 +300,74 @@ const PerSquareSettingsModal = ({
               Confirm
             </Button>
           </View>
-        </Modal>
+        </Animated.View>
       </Portal>
     </>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    margin: 20,
-    padding: 20,
+  backdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  container: {
+    position: "absolute",
+    bottom: -35,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 75,
+    maxHeight: "70%",
+    borderWidth: 1.5,
+    borderLeftWidth: 5,
+    borderBottomWidth: 0,
+    borderColor: "rgba(94, 96, 206, 0.4)",
+    borderLeftColor: "#5E60CE",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  pickerContainer: {
+    position: "absolute",
+    top: "30%",
+    left: 16,
+    right: 16,
     borderRadius: 16,
+    padding: 20,
     borderWidth: 1.5,
     borderLeftWidth: 5,
     borderColor: "rgba(94, 96, 206, 0.4)",
-    borderLeftColor: colors.primary,
-    backgroundColor: colors.primaryBackground,
+    borderLeftColor: "#5E60CE",
     shadowColor: "#000",
-    shadowOpacity: 0.2,
     shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 10,
   },
-  modalTitle: {
-    fontSize: 18,
-    marginBottom: 14,
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
     fontFamily: "SoraBold",
+  },
+  divider: {
+    height: 1,
+    marginBottom: 20,
   },
   input: {
     marginBottom: 16,

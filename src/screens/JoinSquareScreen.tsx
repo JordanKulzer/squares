@@ -29,6 +29,10 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { acceptInvite } from "../lib/gameInvites";
+import { usePremium } from "../contexts/PremiumContext";
+import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
+import PremiumBadge from "../components/PremiumBadge";
+import ColorPickerModal from "../components/ColorPickerModal";
 
 const JoinSquareScreen = () => {
   const navigation =
@@ -102,6 +106,11 @@ const JoinSquareScreen = () => {
     "color",
   );
   const [displayValue, setDisplayValue] = useState("");
+
+  // Premium state
+  const { isPremium } = usePremium();
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showColorPickerModal, setShowColorPickerModal] = useState(false);
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
@@ -360,6 +369,32 @@ const JoinSquareScreen = () => {
                   )}
                 </TouchableOpacity>
               ))}
+              {/* Custom Color Button (Premium) */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (isPremium) {
+                    setShowColorPickerModal(true);
+                  } else {
+                    setShowPremiumModal(true);
+                  }
+                }}
+                style={[
+                  styles.colorButton,
+                  {
+                    backgroundColor: theme.dark ? "#333" : "#e8e8e8",
+                    borderWidth: 2,
+                    borderColor: theme.colors.primary,
+                    borderStyle: "dashed",
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="colorize"
+                  size={20}
+                  color={theme.colors.primary}
+                />
+                {!isPremium && <PremiumBadge size={10} />}
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -369,77 +404,97 @@ const JoinSquareScreen = () => {
               Display Style
             </Text>
             <View style={styles.displayTypeRow}>
-              {(["color", "icon", "initial"] as const).map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  onPress={() => {
-                    setDisplayType(type);
-                    if (type === "icon") setDisplayValue("sports-football");
-                    else if (type === "initial") setDisplayValue("");
-                    else setDisplayValue("");
-                  }}
-                  style={[
-                    styles.displayTypeButton,
-                    {
-                      backgroundColor:
-                        displayType === type
-                          ? theme.colors.primary
-                          : theme.dark
-                            ? "#333"
-                            : "#e8e8e8",
-                    },
-                  ]}
-                >
-                  <Text
+              {(["color", "icon", "initial"] as const).map((type) => {
+                const isLocked = type !== "color" && !isPremium;
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => {
+                      if (isLocked) {
+                        setShowPremiumModal(true);
+                        return;
+                      }
+                      setDisplayType(type);
+                      if (type === "icon") setDisplayValue("sports-football");
+                      else if (type === "initial") setDisplayValue("");
+                      else setDisplayValue("");
+                    }}
                     style={[
-                      styles.displayTypeText,
+                      styles.displayTypeButton,
                       {
-                        color:
+                        backgroundColor:
                           displayType === type
-                            ? "#fff"
-                            : theme.colors.onBackground,
+                            ? theme.colors.primary
+                            : theme.dark
+                              ? "#333"
+                              : "#e8e8e8",
+                        opacity: isLocked ? 0.6 : 1,
                       },
                     ]}
                   >
-                    {type === "color"
-                      ? "Color Only"
-                      : type === "icon"
-                        ? "Icon"
-                        : "Initial"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.displayTypeText,
+                        {
+                          color:
+                            displayType === type
+                              ? "#fff"
+                              : theme.colors.onBackground,
+                        },
+                      ]}
+                    >
+                      {type === "color"
+                        ? "Color Only"
+                        : type === "icon"
+                          ? "Icon"
+                          : "Initial"}
+                    </Text>
+                    {isLocked && <PremiumBadge size={10} />}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             {displayType === "icon" && (
               <View style={styles.iconGrid}>
-                {iconOptions.map((icon) => (
-                  <TouchableOpacity
-                    key={icon.name}
-                    onPress={() => setDisplayValue(icon.name)}
-                    style={[
-                      styles.iconButton,
-                      {
-                        backgroundColor: selectedColor
-                          ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
-                          : theme.dark
-                            ? "#333"
-                            : "#e8e8e8",
-                        borderWidth: displayValue === icon.name ? 3 : 0,
-                        borderColor: theme.colors.primary,
-                        transform: [
-                          { scale: displayValue === icon.name ? 1.1 : 1 },
-                        ],
-                      },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name={icon.name}
-                      size={22}
-                      color={selectedColor || theme.colors.onBackground}
-                    />
-                  </TouchableOpacity>
-                ))}
+                {iconOptions.map((icon) => {
+                  const isLocked = icon.isPremium && !isPremium;
+                  return (
+                    <TouchableOpacity
+                      key={icon.name}
+                      onPress={() => {
+                        if (isLocked) {
+                          setShowPremiumModal(true);
+                        } else {
+                          setDisplayValue(icon.name);
+                        }
+                      }}
+                      style={[
+                        styles.iconButton,
+                        {
+                          backgroundColor: selectedColor
+                            ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                            : theme.dark
+                              ? "#333"
+                              : "#e8e8e8",
+                          borderWidth: displayValue === icon.name ? 3 : 0,
+                          borderColor: theme.colors.primary,
+                          transform: [
+                            { scale: displayValue === icon.name ? 1.1 : 1 },
+                          ],
+                          opacity: isLocked ? 0.5 : 1,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={icon.name}
+                        size={22}
+                        color={selectedColor || theme.colors.onBackground}
+                      />
+                      {isLocked && <PremiumBadge size={10} />}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             )}
 
@@ -604,6 +659,19 @@ const JoinSquareScreen = () => {
         onDismiss={() => setNotifModalVisible(false)}
         settings={notifySettings}
         onSave={(settings) => setNotifySettings(settings)}
+      />
+
+      <PremiumUpgradeModal
+        visible={showPremiumModal}
+        onDismiss={() => setShowPremiumModal(false)}
+        feature="premium icons"
+      />
+
+      <ColorPickerModal
+        visible={showColorPickerModal}
+        onDismiss={() => setShowColorPickerModal(false)}
+        onColorSelect={(color) => setSelectedColor(color)}
+        initialColor={selectedColor || "#5e60ce"}
       />
     </LinearGradient>
   );
