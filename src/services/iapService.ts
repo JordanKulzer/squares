@@ -45,6 +45,7 @@ class IAPService {
   private purchaseErrorSubscription: any = null;
   private onPurchaseComplete: PurchaseCallback | null = null;
   private initialized = false;
+  private initPromise: Promise<void> | null = null;
 
   async initialize(onPurchaseComplete: PurchaseCallback): Promise<void> {
     // Skip in Expo Go
@@ -54,32 +55,55 @@ class IAPService {
     }
 
     if (this.initialized) return;
+    if (this.initPromise) return this.initPromise;
 
     this.onPurchaseComplete = onPurchaseComplete;
 
+    this.initPromise = (async () => {
+      try {
+        await initConnection();
+        this.initialized = true;
+
+        this.purchaseUpdateSubscription = purchaseUpdatedListener(
+          async (purchase: any) => {
+            const receipt = purchase.transactionReceipt;
+            if (receipt) {
+              await this.validateAndStorePurchase(purchase);
+              await finishTransaction({ purchase, isConsumable: false });
+              this.onPurchaseComplete?.(true);
+            }
+          }
+        );
+
+        this.purchaseErrorSubscription = purchaseErrorListener(
+          (error: any) => {
+            console.error("Purchase error:", error);
+            this.onPurchaseComplete?.(false);
+          }
+        );
+      } catch (err) {
+        console.error("IAP initialization error:", err);
+        this.initPromise = null;
+      }
+    })();
+
+    return this.initPromise;
+  }
+
+  private async ensureConnection(): Promise<boolean> {
+    if (this.initialized) return true;
+    if (this.initPromise) {
+      await this.initPromise;
+      return this.initialized;
+    }
+    // If initialize() was never called, try connecting now
     try {
       await initConnection();
       this.initialized = true;
-
-      this.purchaseUpdateSubscription = purchaseUpdatedListener(
-        async (purchase: any) => {
-          const receipt = purchase.transactionReceipt;
-          if (receipt) {
-            await this.validateAndStorePurchase(purchase);
-            await finishTransaction({ purchase, isConsumable: false });
-            this.onPurchaseComplete?.(true);
-          }
-        }
-      );
-
-      this.purchaseErrorSubscription = purchaseErrorListener(
-        (error: any) => {
-          console.error("Purchase error:", error);
-          this.onPurchaseComplete?.(false);
-        }
-      );
+      return true;
     } catch (err) {
-      console.error("IAP initialization error:", err);
+      console.error("IAP connection error:", err);
+      return false;
     }
   }
 
@@ -96,8 +120,19 @@ class IAPService {
     }
 
     try {
+      const connected = await this.ensureConnection();
+      if (!connected) return null;
+
       const products = await getProducts({ skus: productIds });
-      return products[0] || null;
+      if (!products || products.length === 0) {
+        console.warn(
+          "No IAP products found for SKU:",
+          productIds,
+          "— make sure the product is created in App Store Connect / Google Play Console"
+        );
+        return null;
+      }
+      return products[0];
     } catch (err) {
       console.error("Error fetching products:", err);
       return null;
@@ -109,6 +144,9 @@ class IAPService {
       console.log("Purchase not available in Expo Go");
       throw new Error("Purchase not available in Expo Go");
     }
+
+    const connected = await this.ensureConnection();
+    if (!connected) throw new Error("IAP not connected");
 
     try {
       await requestPurchase({ sku: PREMIUM_PRODUCT_ID });
@@ -123,6 +161,9 @@ class IAPService {
       console.log("Restore not available in Expo Go");
       return false;
     }
+
+    const connected = await this.ensureConnection();
+    if (!connected) return false;
 
     try {
       const purchases = await getAvailablePurchases();

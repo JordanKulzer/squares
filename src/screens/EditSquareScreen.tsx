@@ -59,8 +59,6 @@ const EditSquareScreen = () => {
   const [team2FullName, setTeam2FullName] = useState("");
   const [hasSelections, setHasSelections] = useState(false);
 
-  // Custom game specific
-  const [isCustomGame, setIsCustomGame] = useState(false);
   const [showScoreEntryModal, setShowScoreEntryModal] = useState(false);
   const [quarterScores, setQuarterScores] = useState<any[]>([]);
   const [gameCompleted, setGameCompleted] = useState(false);
@@ -92,7 +90,6 @@ const EditSquareScreen = () => {
       setTeam1FullName(data.team1_full_name || data.team1 || "Team 1");
       setTeam2FullName(data.team2_full_name || data.team2 || "Team 2");
       setHasSelections(data.selections && data.selections.length > 0);
-      setIsCustomGame(!data.event_id);
       setQuarterScores(data.quarter_scores || []);
       setGameCompleted(data.game_completed || false);
     } catch (err) {
@@ -362,8 +359,8 @@ const EditSquareScreen = () => {
             </Text>
           </View>
 
-          {/* Custom Game Options - Enter Scores & End Game */}
-          {isCustomGame && (
+          {/* Enter Scores & End Game */}
+          {
             <View style={styles.section}>
               <Text
                 style={[styles.label, { color: theme.colors.onBackground }]}
@@ -438,7 +435,7 @@ const EditSquareScreen = () => {
                         { color: theme.colors.onSurfaceVariant },
                       ]}
                     >
-                      Enter scores, mark quarters done, and end game
+                      Enter scores and mark the game as finished game
                     </Text>
                   </View>
                   <MaterialIcons
@@ -449,7 +446,7 @@ const EditSquareScreen = () => {
                 </View>
               </TouchableOpacity>
             </View>
-          )}
+          }
 
           {/* Settings */}
           <View style={styles.section}>
@@ -902,7 +899,7 @@ const EditSquareScreen = () => {
         blockMode={blockMode}
       />
 
-      {isCustomGame && (
+      {
         <ScoreEntryModal
           visible={showScoreEntryModal}
           onDismiss={() => setShowScoreEntryModal(false)}
@@ -973,7 +970,7 @@ const EditSquareScreen = () => {
           gameCompleted={gameCompleted}
           saveButtonLabel="Apply Scores"
         />
-      )}
+      }
     </LinearGradient>
   );
 };

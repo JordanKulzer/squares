@@ -1,13 +1,66 @@
 import React from "react";
-import { Text, ScrollView, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  Text,
+  View,
+  ScrollView,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "react-native-paper";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+
+const Section = ({
+  icon,
+  title,
+  children,
+  isDark,
+  textColor,
+  subColor,
+}: {
+  icon: string;
+  title: string;
+  children: React.ReactNode;
+  isDark: boolean;
+  textColor: string;
+  subColor: string;
+}) => (
+  <View
+    style={[
+      styles.section,
+      {
+        backgroundColor: isDark
+          ? "rgba(255,255,255,0.05)"
+          : "rgba(0,0,0,0.02)",
+      },
+    ]}
+  >
+    <View style={styles.sectionHeader}>
+      <View
+        style={[
+          styles.sectionIcon,
+          {
+            backgroundColor: isDark
+              ? "rgba(108,99,255,0.2)"
+              : "rgba(108,99,255,0.1)",
+          },
+        ]}
+      >
+        <MaterialIcons name={icon} size={20} color="#6C63FF" />
+      </View>
+      <Text style={[styles.sectionTitle, { color: textColor }]}>{title}</Text>
+    </View>
+    <Text style={[styles.paragraph, { color: subColor }]}>{children}</Text>
+  </View>
+);
 
 const HowToPlay = () => {
   const navigation = useNavigation();
   const theme = useTheme();
   const isDark = theme.dark;
+  const textColor = theme.colors.onBackground;
+  const subColor = theme.colors.onSurfaceVariant;
 
   return (
     <LinearGradient
@@ -20,120 +73,168 @@ const HowToPlay = () => {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.header, { color: theme.colors.onBackground }]}>
-          How to Play Squares
-        </Text>
+        {/* Header */}
+        <LinearGradient
+          colors={isDark ? ["#2d1b69", "#1a1a2e"] : ["#6C63FF", "#4834DF"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <MaterialIcons name="help-outline" size={36} color="#fff" />
+          <Text style={styles.header}>How to Play</Text>
+          <Text style={styles.headerSub}>
+            Everything you need to know about Squares
+          </Text>
+        </LinearGradient>
 
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
+        <Section
+          icon="grid-on"
+          title="What is Squares?"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
         >
-          What is Squares?
-        </Text>
-        <Text
-          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
-        >
-          Squares is a popular game played during football games (NFL, college, etc.).
-          It's a fun way to add excitement to watching sports with friends and family,
-          with chances to win at the end of each quarter!
-        </Text>
+          Squares is a popular game played during football, basketball, and
+          other sports. A 10x10 grid (100 squares) is shared among players, and
+          winners are determined by the score at the end of each quarter. It's a
+          fun way to add excitement to any game!
+        </Section>
 
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
+        <Section
+          icon="apps"
+          title="The Grid"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
         >
-          The Grid
-        </Text>
-        <Text
-          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
-        >
-          The game uses a 10x10 grid (100 squares total). Each row and column is
-          labeled with a number from 0-9:{"\n\n"}
-          • The top row represents one team's score (last digit){"\n"}
-          • The left column represents the other team's score (last digit){"\n\n"}
-          These numbers are hidden until the game's deadline passes, so picking
-          squares is completely random and fair!
-        </Text>
+          {`\u2022 The top row represents one team's score (last digit)
+\u2022 The left column represents the other team's score (last digit)
+\u2022 Numbers (0-9) are randomly assigned and hidden until the deadline
+\u2022 This keeps selection fair — every square has an equal chance!`}
+        </Section>
 
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
+        <Section
+          icon="play-circle-outline"
+          title="Getting Started"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
         >
-          How to Play
-        </Text>
-        <Text
-          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
-        >
-          1. Create a new session or join one using a code from a friend{"\n\n"}
-          2. Choose your username and pick a color to identify yourself on the grid{"\n\n"}
-          3. Tap on empty squares to claim them before the deadline (game start time){"\n\n"}
-          4. Once the deadline passes, the random numbers (0-9) are revealed on each axis{"\n\n"}
-          5. Watch the game! At the end of each quarter, check if you won
-        </Text>
+          {`1. Create a new session or join one using a code from a friend
 
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
-        >
-          How Winners Are Determined
-        </Text>
-        <Text
-          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
-        >
-          At the end of each quarter, look at the last digit of each team's score.{"\n\n"}
-          Example: If the score is Patriots 17, Chiefs 14:{"\n"}
-          • Patriots last digit = 7{"\n"}
-          • Chiefs last digit = 4{"\n"}
-          • The winning square is where 7 and 4 intersect{"\n\n"}
-          There's a winner at the end of Q1, Q2, Q3, Q4, and any overtime periods!
-        </Text>
+2. Choose a real game from the schedule (NFL, NCAAF) or create a custom game with your own teams
 
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
-        >
-          Session Options
-        </Text>
-        <Text
-          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
-        >
-          When creating a session, you can set optional limits:{"\n\n"}
-          • Max Squares: Limit how many squares each player can pick (ensures everyone
-          gets a fair chance){"\n\n"}
-          • Price Per Square: Set a buy-in amount per square. The app tracks how much
-          each player owes based on their picks. Winnings are split among quarter winners.
-        </Text>
+3. Pick your color and display style to identify yourself on the grid
 
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
-        >
-          Notifications
-        </Text>
-        <Text
-          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
-        >
-          Stay in the loop with optional notifications:{"\n\n"}
-          • Deadline reminders before the game starts{"\n"}
-          • When someone joins your session{"\n"}
-          • When someone leaves your session{"\n"}
-          • When a session you're in gets deleted
-        </Text>
+4. Tap empty squares to claim them before the deadline
 
-        <Text
-          style={[styles.sectionTitle, { color: theme.colors.onBackground }]}
+5. Once the deadline passes, the axis numbers are revealed
+
+6. Watch the game and check your results after each quarter!`}
+        </Section>
+
+        <Section
+          icon="emoji-events"
+          title="How Winners Are Determined"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
         >
-          Tips for New Players
-        </Text>
-        <Text
-          style={[styles.paragraph, { color: theme.colors.onSurfaceVariant }]}
+          {`At the end of each quarter, take the last digit of each team's score.
+
+Example: If the score is Patriots 17, Chiefs 14:
+\u2022 Patriots last digit = 7
+\u2022 Chiefs last digit = 4
+\u2022 The winning square is where 7 and 4 intersect
+
+Winners are determined at Q1, Q2, Q3, Q4, and any overtime periods. If a price per square is set, winnings are calculated and split among quarter winners.`}
+        </Section>
+
+        <Section
+          icon="tune"
+          title="Session Options"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
         >
-          • Pick your squares early - popular sessions fill up fast!{"\n\n"}
-          • Spread your picks around the grid rather than clustering them together{"\n\n"}
-          • Some numbers are statistically more common in football scores (0, 7, 3, 4)
-          but since numbers are randomly assigned, every square has an equal chance{"\n\n"}
-          • Share the session code with friends to fill up your grid!
-        </Text>
+          {`When creating a session, you can customize:
+
+\u2022 Max Squares — Limit how many squares each player can claim
+\u2022 Price Per Square — Set a buy-in per square; the app tracks payouts
+\u2022 Block Mode — Players select 2x2 blocks instead of individual squares (25 blocks total)
+\u2022 Randomize Axis — Shuffle the 0-9 numbers randomly (on by default)
+\u2022 Hide Axis — Keep numbers hidden until the deadline passes`}
+        </Section>
+
+        <Section
+          icon="person-add"
+          title="Invites & Guest Players"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`\u2022 Share your session code or invite friends directly from the app
+\u2022 Pending invites appear on the Profile screen
+\u2022 Owners can add guest players who don't have an account — great for in-person games
+\u2022 Owners can also assign squares to specific players`}
+        </Section>
+
+        <Section
+          icon="sports-score"
+          title="Scores & Results"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`\u2022 Scores update automatically for scheduled games via live data
+\u2022 Owners can manually enter or override scores from Edit Square Settings
+\u2022 Owners can end or reopen a game at any time
+\u2022 Tap a winning square to see full payout details`}
+        </Section>
+
+        <Section
+          icon="star"
+          title="Premium"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`Free players can create 1 active square at a time. Upgrade to Premium for:
+
+\u2022 Unlimited square creation
+\u2022 Ad-free experience
+\u2022 25+ premium icons for your display
+\u2022 Custom color picker
+\u2022 Premium profile badge`}
+        </Section>
+
+        <Section
+          icon="lightbulb-outline"
+          title="Tips"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`\u2022 Pick your squares early — popular sessions fill up fast
+\u2022 Spread your picks around the grid instead of clustering them
+\u2022 Since numbers are randomly assigned, every square has an equal chance
+\u2022 Share the session code with friends to fill up your grid
+\u2022 Use notifications to get reminders before the deadline`}
+        </Section>
 
         <TouchableOpacity
-          style={[styles.backButton, { backgroundColor: theme.colors.primary }]}
           onPress={() => navigation.goBack()}
+          activeOpacity={0.85}
+          style={{ marginTop: 20, marginBottom: 10 }}
         >
-          <Text style={styles.backText}>Done</Text>
+          <LinearGradient
+            colors={["#6C63FF", "#4834DF"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.doneButton}
+          >
+            <Text style={styles.doneText}>Got It</Text>
+          </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
     </LinearGradient>
@@ -142,41 +243,66 @@ const HowToPlay = () => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 40,
   },
+  headerGradient: {
+    alignItems: "center",
+    paddingTop: 24,
+    paddingBottom: 28,
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
   header: {
-    fontSize: 22,
-    fontWeight: "bold",
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#fff",
+    marginTop: 10,
+    letterSpacing: 0.3,
+  },
+  headerSub: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 4,
+  },
+  section: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    padding: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 10,
-    textAlign: "center",
-    fontFamily: "SoraBold",
+    gap: 12,
+  },
+  sectionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 6,
-    marginTop: 16,
-    fontFamily: "SoraBold",
+    fontSize: 17,
+    fontWeight: "700",
+    flex: 1,
   },
   paragraph: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontFamily: "Sora",
+    fontSize: 14,
+    lineHeight: 21,
   },
-  backButton: {
-    marginTop: 20,
-    alignSelf: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 10,
+  doneButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+    borderRadius: 14,
+    marginHorizontal: 16,
   },
-  backText: {
+  doneText: {
     color: "#fff",
     fontSize: 16,
-    fontWeight: "600",
-    fontFamily: "Sora",
+    fontWeight: "700",
   },
 });
 

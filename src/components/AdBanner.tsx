@@ -44,7 +44,7 @@ const AdBanner: React.FC = () => {
 
         const { data, error } = await supabase
           .from("users")
-          .select("premium")
+          .select("is_premium")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -53,7 +53,7 @@ const AdBanner: React.FC = () => {
           console.warn("Failed to fetch premium flag", error);
           setIsPremium(false);
         } else {
-          setIsPremium(!!data?.premium);
+          setIsPremium(!!data?.is_premium);
         }
       } catch (e) {
         console.warn("Error checking premium status", e);

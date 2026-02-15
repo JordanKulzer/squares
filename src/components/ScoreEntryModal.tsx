@@ -468,7 +468,7 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
                           { color: primaryColor },
                         ]}
                       >
-                        Game Completed
+                        Mark The Game As Completed
                       </Text>
                       <Text
                         style={[

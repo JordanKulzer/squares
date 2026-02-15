@@ -30,8 +30,6 @@ const SessionOptionsModal = ({
   team2,
   quarterScores,
   currentTitle,
-  isCustomGame,
-  onEnterScores,
   onAddGuestPlayer,
   onAssignSquares,
 }: {
@@ -53,8 +51,6 @@ const SessionOptionsModal = ({
     away: number | null;
   }[];
   currentTitle: string;
-  isCustomGame?: boolean;
-  onEnterScores?: () => void;
   onAddGuestPlayer?: () => void;
   onAssignSquares?: () => void;
 }) => {

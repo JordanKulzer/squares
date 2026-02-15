@@ -32,6 +32,10 @@ import { adService } from "../services/adService";
 import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
 import PremiumBadge from "../components/PremiumBadge";
 import ColorPickerModal from "../components/ColorPickerModal";
+import {
+  getActiveCreatedCount,
+  FREE_MAX_CREATED,
+} from "../utils/squareLimits";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -90,6 +94,7 @@ const CreateSquareScreen = ({ navigation }) => {
   // Premium and ad state
   const { isPremium } = usePremium();
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [premiumFeature, setPremiumFeature] = useState("premium features");
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
 
 
@@ -193,6 +198,17 @@ const CreateSquareScreen = ({ navigation }) => {
     if (!user) {
       setLoading(false);
       return;
+    }
+
+    // Check square creation limit for free users
+    if (!isPremium) {
+      const activeCount = await getActiveCreatedCount(user.id);
+      if (activeCount >= FREE_MAX_CREATED) {
+        setLoading(false);
+        setPremiumFeature("creating unlimited squares");
+        setShowPremiumModal(true);
+        return;
+      }
     }
 
     try {
@@ -602,6 +618,7 @@ const CreateSquareScreen = ({ navigation }) => {
                   if (isPremium) {
                     setShowColorPickerModal(true);
                   } else {
+                    setPremiumFeature("premium colors");
                     setShowPremiumModal(true);
                   }
                 }}
@@ -638,6 +655,7 @@ const CreateSquareScreen = ({ navigation }) => {
                     key={type}
                     onPress={() => {
                       if (isLocked) {
+                        setPremiumFeature("premium icons");
                         setShowPremiumModal(true);
                         return;
                       }
@@ -691,6 +709,7 @@ const CreateSquareScreen = ({ navigation }) => {
                       key={icon.name}
                       onPress={() => {
                         if (isLocked) {
+                          setPremiumFeature("premium icons");
                           setShowPremiumModal(true);
                         } else {
                           setDisplayValue(icon.name);
@@ -1139,7 +1158,7 @@ const CreateSquareScreen = ({ navigation }) => {
       <PremiumUpgradeModal
         visible={showPremiumModal}
         onDismiss={() => setShowPremiumModal(false)}
-        feature="premium icons"
+        feature={premiumFeature}
       />
 
       <ColorPickerModal

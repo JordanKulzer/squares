@@ -154,6 +154,7 @@ const SquareScreen = ({ route }) => {
   const [xAxis, setXAxis] = useState<number[]>([]);
   const [yAxis, setYAxis] = useState<number[]>([]);
   const [isOwner, setIsOwner] = useState(false);
+  const [createdBy, setCreatedBy] = useState<string | null>(null);
   const [userId, setUserId] = useState(null);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -701,6 +702,7 @@ const SquareScreen = ({ route }) => {
           data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()],
         );
 
+        setCreatedBy(data.created_by);
         if (data.created_by === userId) setIsOwner(true);
         if (data.deadline) setDeadlineValue(new Date(data.deadline));
         setMaxSelections(data.max_selection);
@@ -1145,9 +1147,12 @@ const SquareScreen = ({ route }) => {
         // For regular users, use the RPC
         const { error } = await supabase.rpc("add_selection", {
           grid_id: gridId,
-          user_id: assignToUserId,
-          x_coord: x,
-          y_coord: y,
+          new_selection: {
+            x,
+            y,
+            userId: assignToUserId,
+            username: assignModePlayer.username,
+          },
         });
 
         if (error) {
@@ -2062,14 +2067,36 @@ const SquareScreen = ({ route }) => {
                         );
                       })()}
                       <View style={{ flex: 1 }}>
-                        <Text
-                          style={[
-                            styles.playerName,
-                            { color: theme.colors.onSurface },
-                          ]}
-                        >
-                          {username}
-                        </Text>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <Text
+                            style={[
+                              styles.playerName,
+                              { color: theme.colors.onSurface },
+                            ]}
+                          >
+                            {username}
+                          </Text>
+                          {uid === createdBy && (
+                            <View
+                              style={{
+                                backgroundColor: theme.colors.primary,
+                                paddingHorizontal: 6,
+                                paddingVertical: 2,
+                                borderRadius: 8,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  fontSize: 9,
+                                  fontWeight: "700",
+                                  color: "#fff",
+                                }}
+                              >
+                                OWNER
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                         <Text
                           style={[
                             styles.playerSubtext,
@@ -2139,6 +2166,7 @@ const SquareScreen = ({ route }) => {
     maxSelections,
     pricePerSquare,
     blockMode,
+    createdBy,
     theme,
     selections,
     hideAxisUntilDeadline,
@@ -2642,11 +2670,6 @@ const SquareScreen = ({ route }) => {
             team1={team1}
             team2={team2}
             quarterScores={quarterScores}
-            isCustomGame={isCustomGame}
-            onEnterScores={() => {
-              setSessionOptionsVisible(false);
-              setTimeout(() => setShowScoreEntryModal(true), 300);
-            }}
             onAddGuestPlayer={() => {
               setSessionOptionsVisible(false);
               setTimeout(() => setShowAddGuestModal(true), 300);
@@ -2657,7 +2680,7 @@ const SquareScreen = ({ route }) => {
             }}
           />
 
-          {/* Score Entry Modal for Custom Games */}
+          {/* Score Entry Modal (owner can manually enter/override scores) */}
           <ScoreEntryModal
             visible={showScoreEntryModal}
             onDismiss={() => setShowScoreEntryModal(false)}
@@ -2998,235 +3021,260 @@ const SquareScreen = ({ route }) => {
             <Modal
               visible={winnerModalVisible}
               onDismiss={() => setWinnerModalVisible(false)}
-              contentContainerStyle={[
-                styles.winnerModalContainer,
-                { backgroundColor: theme.colors.surface },
-              ]}
+              contentContainerStyle={styles.winnerModalOuter}
             >
               {winnerModalData && (
-                <View>
+                <View
+                  style={[
+                    styles.winnerModalContainer,
+                    {
+                      backgroundColor: theme.dark ? "#1a1a2e" : "#fff",
+                    },
+                  ]}
+                >
+                  {/* Close button */}
+                  <TouchableOpacity
+                    onPress={() => setWinnerModalVisible(false)}
+                    style={styles.winnerModalClose}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Icon
+                      name="close"
+                      size={22}
+                      color={
+                        theme.dark
+                          ? "rgba(255,255,255,0.5)"
+                          : "rgba(0,0,0,0.35)"
+                      }
+                    />
+                  </TouchableOpacity>
+
                   {winnerModalData.username === "No Winner" ? (
-                    // No Winner state
                     <>
-                      <View style={styles.winnerModalHeader}>
+                      {/* No Winner gradient header */}
+                      <LinearGradient
+                        colors={
+                          theme.dark
+                            ? ["#3d2020", "#1a1a2e"]
+                            : ["#9e9e9e", "#757575"]
+                        }
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.winnerModalHeader}
+                      >
                         <Text style={styles.winnerModalEmoji}>😔</Text>
-                        <Text
-                          style={[
-                            styles.winnerModalTitle,
-                            { color: theme.colors.onSurface },
-                          ]}
-                        >
+                        <Text style={styles.winnerModalHeaderTitle}>
                           No Winner
                         </Text>
-                      </View>
-
-                      <View
-                        style={[
-                          styles.modalDivider,
-                          { backgroundColor: dividerColor, marginVertical: 16 },
-                        ]}
-                      />
-
-                      <Text
-                        style={[
-                          styles.winnerModalSquare,
-                          {
-                            color: theme.colors.onSurfaceVariant,
-                            marginBottom: 8,
-                          },
-                        ]}
-                      >
-                        Square ({winnerModalData.squareCoords[0]},{" "}
-                        {winnerModalData.squareCoords[1]}) was unclaimed
-                      </Text>
-
-                      <View style={styles.winnerModalQuarters}>
-                        {winnerModalData.winningQuarters.map((q, idx) => (
-                          <View
-                            key={idx}
-                            style={[
-                              styles.winnerModalQuarterCard,
-                              {
-                                backgroundColor: theme.colors.elevation.level2,
-                                borderLeftColor: theme.colors.onSurfaceVariant,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.winnerModalQuarterLabel,
-                                { color: theme.colors.onSurfaceVariant },
-                              ]}
-                            >
-                              {q.label}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.winnerModalQuarterScore,
-                                { color: theme.colors.onSurface },
-                              ]}
-                            >
-                              {q.score}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </>
-                  ) : (
-                    // Winner state
-                    <>
-                      <View style={styles.winnerModalHeader}>
-                        <Text style={styles.winnerModalEmoji}>🏆</Text>
-                        <Text
-                          style={[
-                            styles.winnerModalTitle,
-                            { color: theme.colors.onSurface },
-                          ]}
-                        >
-                          Winner!
+                        <Text style={styles.winnerModalHeaderSub}>
+                          Square ({winnerModalData.squareCoords[0]},{" "}
+                          {winnerModalData.squareCoords[1]}) was unclaimed
                         </Text>
-                      </View>
+                      </LinearGradient>
 
-                      <View
-                        style={[
-                          styles.modalDivider,
-                          { backgroundColor: dividerColor, marginVertical: 16 },
-                        ]}
-                      />
-
-                      <View style={styles.winnerModalPlayer}>
-                        {(() => {
-                          const modalWinnerId = Object.keys(
-                            playerUsernames,
-                          ).find(
-                            (id) =>
-                              playerUsernames[id]?.trim() ===
-                              winnerModalData.username.trim(),
-                          );
-                          const modalPlayer = players.find(
-                            (p) => p.userId === modalWinnerId,
-                          );
-                          const mDType = modalPlayer?.displayType || "color";
-                          const mDValue = modalPlayer?.displayValue;
-                          const mColor = winnerModalData.userColor;
-                          return (
+                      <View style={styles.winnerModalBody}>
+                        <View style={styles.winnerModalQuarters}>
+                          {winnerModalData.winningQuarters.map((q, idx) => (
                             <View
+                              key={idx}
                               style={[
-                                styles.winnerModalColorDot,
+                                styles.winnerModalQuarterCard,
                                 {
-                                  backgroundColor:
-                                    mDType === "color"
-                                      ? mColor
-                                      : tinycolor(mColor)
-                                          .setAlpha(0.3)
-                                          .toRgbString(),
-                                  justifyContent: "center",
-                                  alignItems: "center",
+                                  backgroundColor: theme.dark
+                                    ? "rgba(255,255,255,0.06)"
+                                    : "rgba(0,0,0,0.03)",
                                 },
                               ]}
                             >
-                              {mDType === "icon" && mDValue ? (
-                                <Icon name={mDValue} size={12} color={mColor} />
-                              ) : mDType === "initial" && mDValue ? (
-                                <Text
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: "700",
-                                    color: mColor,
-                                  }}
-                                >
-                                  {mDValue.toUpperCase()}
-                                </Text>
-                              ) : null}
-                            </View>
-                          );
-                        })()}
-                        <Text
-                          style={[
-                            styles.winnerModalUsername,
-                            { color: theme.colors.onSurface },
-                          ]}
-                        >
-                          {winnerModalData.username}
-                        </Text>
-                      </View>
-
-                      <Text
-                        style={[
-                          styles.winnerModalSquare,
-                          { color: theme.colors.onSurfaceVariant },
-                        ]}
-                      >
-                        Square ({winnerModalData.squareCoords[0]},{" "}
-                        {winnerModalData.squareCoords[1]})
-                      </Text>
-
-                      <View style={styles.winnerModalQuarters}>
-                        {winnerModalData.winningQuarters.map((q, idx) => (
-                          <View
-                            key={idx}
-                            style={[
-                              styles.winnerModalQuarterCard,
-                              {
-                                backgroundColor: theme.colors.elevation.level2,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.winnerModalQuarterLabel,
-                                { color: theme.colors.primary },
-                              ]}
-                            >
-                              {q.label}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.winnerModalQuarterScore,
-                                { color: theme.colors.onSurface },
-                              ]}
-                            >
-                              {q.score}
-                            </Text>
-                            {q.payout > 0 && (
-                              <Text style={styles.winnerModalQuarterPayout}>
-                                +${q.payout.toFixed(2)}
+                              <Text
+                                style={[
+                                  styles.winnerModalQuarterLabel,
+                                  {
+                                    color: theme.dark
+                                      ? "rgba(255,255,255,0.5)"
+                                      : "rgba(0,0,0,0.45)",
+                                  },
+                                ]}
+                              >
+                                {q.label}
                               </Text>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-
-                      {winnerModalData.totalWinnings > 0 && (
-                        <View
-                          style={[
-                            styles.winnerModalTotal,
-                            { borderTopColor: dividerColor },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.winnerModalTotalLabel,
-                              { color: theme.colors.onSurfaceVariant },
-                            ]}
-                          >
-                            Total Winnings
-                          </Text>
-                          <Text style={styles.winnerModalTotalAmount}>
-                            ${winnerModalData.totalWinnings.toFixed(2)}
-                          </Text>
+                              <Text
+                                style={[
+                                  styles.winnerModalQuarterScore,
+                                  {
+                                    color: theme.dark ? "#fff" : "#1a1a2e",
+                                  },
+                                ]}
+                              >
+                                {q.score}
+                              </Text>
+                            </View>
+                          ))}
                         </View>
-                      )}
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      {/* Winner gradient header */}
+                      <LinearGradient
+                        colors={
+                          theme.dark
+                            ? ["#2d1b69", "#1a1a2e"]
+                            : ["#FFB800", "#FF8F00"]
+                        }
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.winnerModalHeader}
+                      >
+                        <Text style={styles.winnerModalEmoji}>🏆</Text>
+                        <Text style={styles.winnerModalHeaderTitle}>
+                          Winner!
+                        </Text>
+
+                        {/* Player display */}
+                        <View style={styles.winnerModalPlayerRow}>
+                          {(() => {
+                            const modalWinnerId = Object.keys(
+                              playerUsernames
+                            ).find(
+                              (id) =>
+                                playerUsernames[id]?.trim() ===
+                                winnerModalData.username.trim()
+                            );
+                            const modalPlayer = players.find(
+                              (p) => p.userId === modalWinnerId
+                            );
+                            const mDType =
+                              modalPlayer?.displayType || "color";
+                            const mDValue = modalPlayer?.displayValue;
+                            const mColor = winnerModalData.userColor;
+                            return (
+                              <View
+                                style={[
+                                  styles.winnerModalAvatar,
+                                  {
+                                    backgroundColor:
+                                      mDType === "color"
+                                        ? mColor
+                                        : tinycolor(mColor)
+                                            .setAlpha(0.3)
+                                            .toRgbString(),
+                                    borderColor: "rgba(255,255,255,0.3)",
+                                  },
+                                ]}
+                              >
+                                {mDType === "icon" && mDValue ? (
+                                  <Icon
+                                    name={mDValue}
+                                    size={20}
+                                    color={mColor}
+                                  />
+                                ) : mDType === "initial" && mDValue ? (
+                                  <Text
+                                    style={{
+                                      fontSize: 16,
+                                      fontWeight: "700",
+                                      color: mColor,
+                                    }}
+                                  >
+                                    {mDValue.toUpperCase()}
+                                  </Text>
+                                ) : null}
+                              </View>
+                            );
+                          })()}
+                          <View>
+                            <Text style={styles.winnerModalUsername}>
+                              {winnerModalData.username}
+                            </Text>
+                            <Text style={styles.winnerModalSquareLabel}>
+                              Square ({winnerModalData.squareCoords[0]},{" "}
+                              {winnerModalData.squareCoords[1]})
+                            </Text>
+                          </View>
+                        </View>
+                      </LinearGradient>
+
+                      <View style={styles.winnerModalBody}>
+                        <View style={styles.winnerModalQuarters}>
+                          {winnerModalData.winningQuarters.map((q, idx) => (
+                            <View
+                              key={idx}
+                              style={[
+                                styles.winnerModalQuarterCard,
+                                {
+                                  backgroundColor: theme.dark
+                                    ? "rgba(255,255,255,0.06)"
+                                    : "rgba(0,0,0,0.03)",
+                                },
+                              ]}
+                            >
+                              <View
+                                style={styles.winnerModalQuarterRow}
+                              >
+                                <Text
+                                  style={[
+                                    styles.winnerModalQuarterLabel,
+                                    {
+                                      color: theme.dark
+                                        ? "rgba(255,255,255,0.5)"
+                                        : "rgba(0,0,0,0.45)",
+                                    },
+                                  ]}
+                                >
+                                  {q.label}
+                                </Text>
+                                {q.payout > 0 && (
+                                  <Text
+                                    style={styles.winnerModalQuarterPayout}
+                                  >
+                                    +${q.payout.toFixed(2)}
+                                  </Text>
+                                )}
+                              </View>
+                              <Text
+                                style={[
+                                  styles.winnerModalQuarterScore,
+                                  {
+                                    color: theme.dark ? "#fff" : "#1a1a2e",
+                                  },
+                                ]}
+                              >
+                                {q.score}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        {winnerModalData.totalWinnings > 0 && (
+                          <LinearGradient
+                            colors={
+                              theme.dark
+                                ? ["rgba(76,175,80,0.15)", "rgba(76,175,80,0.05)"]
+                                : ["rgba(76,175,80,0.1)", "rgba(76,175,80,0.03)"]
+                            }
+                            style={styles.winnerModalTotal}
+                          >
+                            <Text
+                              style={[
+                                styles.winnerModalTotalLabel,
+                                {
+                                  color: theme.dark
+                                    ? "rgba(255,255,255,0.6)"
+                                    : "rgba(0,0,0,0.5)",
+                                },
+                              ]}
+                            >
+                              Total Winnings
+                            </Text>
+                            <Text style={styles.winnerModalTotalAmount}>
+                              ${winnerModalData.totalWinnings.toFixed(2)}
+                            </Text>
+                          </LinearGradient>
+                        )}
+                      </View>
                     </>
                   )}
-
-                  <Button
-                    mode="contained"
-                    onPress={() => setWinnerModalVisible(false)}
-                    style={styles.winnerModalButton}
-                  >
-                    Close
-                  </Button>
                 </View>
               )}
             </Modal>
@@ -3560,102 +3608,118 @@ const styles = StyleSheet.create({
   },
 
   // Winner Modal
+  winnerModalOuter: {
+    margin: 16,
+  },
   winnerModalContainer: {
+    borderRadius: 24,
+    overflow: "hidden",
+  },
+  winnerModalClose: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    marginHorizontal: 16,
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-    borderLeftWidth: 5,
-    borderLeftColor: "#5e60ce",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   winnerModalHeader: {
     alignItems: "center",
-    marginBottom: 12,
+    paddingTop: 32,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
   },
   winnerModalEmoji: {
     fontSize: 48,
     marginBottom: 8,
   },
-  winnerModalTitle: {
-    fontSize: 20,
-    fontFamily: "Rubik_600SemiBold",
+  winnerModalHeaderTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.5,
   },
-  winnerModalPlayer: {
+  winnerModalHeaderSub: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 6,
+    textAlign: "center",
+  },
+  winnerModalPlayerRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 8,
+    marginTop: 16,
+    gap: 12,
   },
-  winnerModalColorDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 10,
+  winnerModalAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 2,
-    borderColor: "rgba(0,0,0,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   winnerModalUsername: {
     fontSize: 18,
-    fontFamily: "Rubik_600SemiBold",
+    fontWeight: "700",
+    color: "#fff",
   },
-  winnerModalSquare: {
-    fontSize: 14,
-    fontFamily: "Rubik_400Regular",
-    textAlign: "center",
-    marginBottom: 20,
+  winnerModalSquareLabel: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+    marginTop: 2,
+  },
+  winnerModalBody: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   winnerModalQuarters: {
-    gap: 12,
-    marginBottom: 16,
+    gap: 10,
   },
   winnerModalQuarterCard: {
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.1)",
-    borderLeftWidth: 4,
-    borderLeftColor: "#5e60ce",
   },
-  winnerModalQuarterLabel: {
-    fontSize: 14,
-    fontFamily: "Rubik_600SemiBold",
-    marginBottom: 4,
-  },
-  winnerModalQuarterScore: {
-    fontSize: 15,
-    fontFamily: "Rubik_500Medium",
-    marginBottom: 4,
-  },
-  winnerModalQuarterPayout: {
-    fontSize: 15,
-    fontFamily: "Rubik_600SemiBold",
-    color: "#4CAF50",
-  },
-  winnerModalTotal: {
-    borderTopWidth: 1,
-    paddingTop: 16,
-    marginTop: 8,
+  winnerModalQuarterRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 4,
   },
-  winnerModalTotalLabel: {
-    fontSize: 16,
-    fontFamily: "Rubik_500Medium",
+  winnerModalQuarterLabel: {
+    fontSize: 13,
+    fontWeight: "600",
   },
-  winnerModalTotalAmount: {
-    fontSize: 24,
-    fontFamily: "Rubik_600SemiBold",
+  winnerModalQuarterScore: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  winnerModalQuarterPayout: {
+    fontSize: 14,
+    fontWeight: "700",
     color: "#4CAF50",
   },
-  winnerModalButton: {
-    borderRadius: 20,
+  winnerModalTotal: {
+    marginTop: 14,
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  winnerModalTotalLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  winnerModalTotalAmount: {
+    fontSize: 26,
+    fontWeight: "800",
+    color: "#4CAF50",
   },
 });
 

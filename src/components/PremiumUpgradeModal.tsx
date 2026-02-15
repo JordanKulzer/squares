@@ -7,8 +7,9 @@ import {
   ActivityIndicator,
   Animated,
 } from "react-native";
-import { Modal, Portal, Button, useTheme } from "react-native-paper";
+import { Modal, Portal, useTheme } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import { LinearGradient } from "expo-linear-gradient";
 import { iapService, isIAPSupported } from "../services/iapService";
 import { usePremium } from "../contexts/PremiumContext";
 import Toast from "react-native-toast-message";
@@ -38,19 +39,43 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const starSpin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       loadProduct();
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
+      starSpin.setValue(0);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 65,
+          useNativeDriver: true,
+        }),
+        Animated.timing(starSpin, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
       fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
     }
   }, [visible]);
+
+  const spinInterpolate = starSpin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
 
   const loadProduct = async () => {
     setLoading(true);
@@ -126,101 +151,167 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
   };
 
   const benefits = [
-    { icon: "block", text: "Ad-free experience" },
-    { icon: "palette", text: "25+ premium icons" },
-    { icon: "color-lens", text: "Custom color picker" },
-    { icon: "star", text: "Premium profile badge" },
+    { icon: "grid-on", text: "Unlimited squares", desc: "Create as many as you want" },
+    { icon: "block", text: "Ad-free experience", desc: "No banners or interruptions" },
+    { icon: "palette", text: "Premium icons", desc: "25+ exclusive display styles" },
+    { icon: "brush", text: "Custom colors", desc: "Full color picker unlocked" },
+    { icon: "star", text: "Profile badge", desc: "Stand out from the crowd" },
   ];
+
+  const isDark = theme.dark;
 
   return (
     <Portal>
       <Modal
         visible={visible}
         onDismiss={onDismiss}
-        contentContainerStyle={[
-          styles.modalContainer,
-          { backgroundColor: theme.colors.surface },
-        ]}
+        contentContainerStyle={styles.modalOuter}
       >
-        <Animated.View style={{ opacity: fadeAnim }}>
-          <View style={styles.header}>
-            <View style={styles.starContainer}>
-              <MaterialIcons name="star" size={48} color="#FFD700" />
-            </View>
-            <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-              Go Premium
-            </Text>
-            <Text
-              style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}
-            >
-              Unlock {feature} and more!
-            </Text>
-          </View>
+        <Animated.View
+          style={[
+            styles.modalContainer,
+            {
+              backgroundColor: isDark ? "#1a1a2e" : "#fff",
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          {/* Close button */}
+          <TouchableOpacity
+            onPress={onDismiss}
+            style={styles.closeButton}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <MaterialIcons
+              name="close"
+              size={22}
+              color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.35)"}
+            />
+          </TouchableOpacity>
 
+          {/* Gradient header */}
+          <LinearGradient
+            colors={isDark ? ["#2d1b69", "#1a1a2e"] : ["#6C63FF", "#4834DF"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.header}
+          >
+            <Animated.View
+              style={[
+                styles.starContainer,
+                { transform: [{ rotate: spinInterpolate }] },
+              ]}
+            >
+              <MaterialIcons name="star" size={36} color="#FFD700" />
+            </Animated.View>
+            <Text style={styles.headerTitle}>Go Premium</Text>
+            <Text style={styles.headerSubtitle}>
+              Unlock {feature} and more
+            </Text>
+            {product && (
+              <View style={styles.priceBadge}>
+                <Text style={styles.priceBadgeText}>
+                  One-time purchase
+                </Text>
+              </View>
+            )}
+          </LinearGradient>
+
+          {/* Benefits */}
           <View style={styles.benefitsList}>
             {benefits.map((benefit, index) => (
               <View key={index} style={styles.benefitRow}>
                 <View
                   style={[
-                    styles.iconCircle,
-                    { backgroundColor: theme.colors.primaryContainer },
+                    styles.checkCircle,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(108, 99, 255, 0.2)"
+                        : "rgba(108, 99, 255, 0.1)",
+                    },
                   ]}
                 >
-                  <MaterialIcons
-                    name={benefit.icon}
-                    size={20}
-                    color={theme.colors.primary}
-                  />
+                  <MaterialIcons name={benefit.icon} size={18} color="#6C63FF" />
                 </View>
-                <Text
-                  style={[styles.benefitText, { color: theme.colors.onSurface }]}
-                >
-                  {benefit.text}
-                </Text>
+                <View style={styles.benefitTextContainer}>
+                  <Text
+                    style={[
+                      styles.benefitTitle,
+                      { color: isDark ? "#fff" : "#1a1a2e" },
+                    ]}
+                  >
+                    {benefit.text}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.benefitDesc,
+                      { color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)" },
+                    ]}
+                  >
+                    {benefit.desc}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
 
-          {loading ? (
-            <ActivityIndicator
-              size="large"
-              color={theme.colors.primary}
-              style={styles.loader}
-            />
-          ) : (
-            <>
-              <Button
-                mode="contained"
-                onPress={handlePurchase}
-                loading={purchasing}
-                disabled={purchasing || !product}
-                style={styles.purchaseButton}
-                contentStyle={styles.purchaseButtonContent}
-                labelStyle={styles.purchaseButtonLabel}
-              >
-                {product ? `Upgrade for ${product.localizedPrice}` : "Loading..."}
-              </Button>
-
-              <TouchableOpacity
-                onPress={handleRestore}
-                style={styles.restoreButton}
-              >
-                <Text
-                  style={[styles.restoreText, { color: theme.colors.primary }]}
+          {/* CTA section */}
+          <View style={styles.ctaSection}>
+            {loading ? (
+              <ActivityIndicator
+                size="large"
+                color="#6C63FF"
+                style={styles.loader}
+              />
+            ) : (
+              <>
+                <TouchableOpacity
+                  onPress={handlePurchase}
+                  disabled={purchasing || !product}
+                  activeOpacity={0.85}
                 >
-                  Restore Purchases
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
+                  <LinearGradient
+                    colors={
+                      purchasing || !product
+                        ? ["#999", "#888"]
+                        : ["#6C63FF", "#4834DF"]
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.purchaseButton}
+                  >
+                    {purchasing ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="lock-open" size={20} color="#fff" />
+                        <Text style={styles.purchaseButtonText}>
+                          {product
+                            ? `Unlock Premium \u2014 ${product.localizedPrice}`
+                            : "Loading..."}
+                        </Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
 
-          <TouchableOpacity onPress={onDismiss} style={styles.cancelButton}>
-            <Text
-              style={[styles.cancelText, { color: theme.colors.onSurfaceVariant }]}
-            >
-              Maybe Later
-            </Text>
-          </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleRestore}
+                  style={styles.restoreButton}
+                >
+                  <Text
+                    style={[
+                      styles.restoreText,
+                      { color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)" },
+                    ]}
+                  >
+                    Restore Purchase
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </Animated.View>
       </Modal>
     </Portal>
@@ -228,35 +319,68 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
 };
 
 const styles = StyleSheet.create({
+  modalOuter: {
+    margin: 16,
+  },
   modalContainer: {
-    margin: 20,
-    padding: 24,
-    borderRadius: 20,
+    borderRadius: 24,
+    overflow: "hidden",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   header: {
     alignItems: "center",
-    marginBottom: 24,
+    paddingTop: 32,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
   },
   starContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255, 215, 0, 0.2)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.5,
   },
-  subtitle: {
+  headerSubtitle: {
     fontSize: 15,
-    marginTop: 8,
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 6,
     textAlign: "center",
   },
+  priceBadge: {
+    marginTop: 12,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  priceBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.9)",
+  },
   benefitsList: {
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
   },
   benefitRow: {
     flexDirection: "row",
@@ -264,45 +388,52 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 14,
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  checkCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  benefitText: {
-    fontSize: 16,
-    fontWeight: "500",
+  benefitTextContainer: {
+    flex: 1,
+  },
+  benefitTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  benefitDesc: {
+    fontSize: 12,
+    marginTop: 1,
+  },
+  ctaSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 8,
   },
   loader: {
     marginVertical: 20,
   },
   purchaseButton: {
-    marginBottom: 12,
-    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 8,
   },
-  purchaseButtonContent: {
-    paddingVertical: 8,
-  },
-  purchaseButtonLabel: {
-    fontSize: 16,
-    fontWeight: "600",
+  purchaseButtonText: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#fff",
   },
   restoreButton: {
     alignItems: "center",
-    padding: 12,
+    paddingVertical: 14,
   },
   restoreText: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    alignItems: "center",
-    padding: 8,
-  },
-  cancelText: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "500",
   },
 });
 
