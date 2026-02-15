@@ -30,6 +30,8 @@ const SessionOptionsModal = ({
   team2,
   quarterScores,
   currentTitle,
+  onAddGuestPlayer,
+  onAssignSquares,
 }: {
   visible: boolean;
   onDismiss: () => void;
@@ -41,17 +43,20 @@ const SessionOptionsModal = ({
   deadlineValue: Date | null;
   setShowDeadlineModal: (v: boolean) => void;
   triggerRefresh: () => void;
-  team1: string; // <--
-  team2: string; // <--
+  team1: string;
+  team2: string;
   quarterScores: {
     quarter: string;
     home: number | null;
     away: number | null;
-  }[]; // <--
+  }[];
   currentTitle: string;
+  onAddGuestPlayer?: () => void;
+  onAssignSquares?: () => void;
 }) => {
   const theme = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [notifySettings, setNotifySettings] = useState(null);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(600)).current;
@@ -148,7 +153,7 @@ const SessionOptionsModal = ({
             paddingHorizontal: 20,
             paddingTop: 24,
             paddingBottom: 75,
-            maxHeight: 500,
+            maxHeight: 650,
             borderWidth: 1.5,
             borderLeftWidth: 5,
             borderBottomWidth: 0,
@@ -236,6 +241,38 @@ const SessionOptionsModal = ({
 
             {isOwner && (
               <>
+                {onAddGuestPlayer && (
+                  <Button
+                    icon="account-plus"
+                    mode="outlined"
+                    onPress={onAddGuestPlayer}
+                    style={{ marginBottom: 12 }}
+                    labelStyle={{
+                      fontWeight: "600",
+                      color: onSurfaceColor,
+                      fontFamily: "Sora",
+                    }}
+                  >
+                    Add Guest Player
+                  </Button>
+                )}
+
+                {onAssignSquares && (
+                  <Button
+                    icon="grid"
+                    mode="outlined"
+                    onPress={onAssignSquares}
+                    style={{ marginBottom: 12 }}
+                    labelStyle={{
+                      fontWeight: "600",
+                      color: onSurfaceColor,
+                      fontFamily: "Sora",
+                    }}
+                  >
+                    Assign Squares
+                  </Button>
+                )}
+
                 <Button
                   icon="pencil"
                   mode="outlined"
@@ -250,7 +287,7 @@ const SessionOptionsModal = ({
                     fontFamily: "Sora",
                   }}
                 >
-                  Edit Game Settings
+                  Edit Square Settings
                 </Button>
 
                 <Button
@@ -345,7 +382,7 @@ const SessionOptionsModal = ({
             if (error || !data) return;
 
             const updatedPlayers = data.players.map((p) =>
-              p.userId === userId ? { ...p, notifySettings: newSettings } : p
+              p.userId === userId ? { ...p, notifySettings: newSettings } : p,
             );
 
             await supabase

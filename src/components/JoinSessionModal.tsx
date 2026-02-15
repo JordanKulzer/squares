@@ -1,24 +1,21 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Text,
   StyleSheet,
   View,
   KeyboardAvoidingView,
   Platform,
-} from "react-native";
-import {
-  Modal,
-  Portal,
-  TextInput,
-  Button,
+  TouchableOpacity,
   ActivityIndicator,
-  useTheme,
-} from "react-native-paper";
+  Animated,
+} from "react-native";
+import { Modal, Portal, TextInput, useTheme } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../utils/types";
 import { supabase } from "../lib/supabase";
-// import * as Sentry from "@sentry/react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 
 const JoinSessionModal = ({ visible, onDismiss }) => {
   const navigation =
@@ -27,9 +24,27 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
   const [loadingSession, setLoadingSession] = useState(false);
   const [error, setError] = useState("");
   const theme = useTheme();
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.9);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 65,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
       setSessionCode("");
       setError("");
       setLoadingSession(false);
@@ -53,14 +68,16 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
         .single();
 
       if (fetchError || !data) {
-        // Handle specific error cases with user-friendly messages
-        if (fetchError?.code === 'PGRST116') {
-          // PostgreSQL "no rows returned" error
+        if (fetchError?.code === "PGRST116") {
           setError("Session not found. Please check the code and try again.");
-        } else if (fetchError?.message?.includes('invalid input syntax for type uuid')) {
+        } else if (
+          fetchError?.message?.includes("invalid input syntax for type uuid")
+        ) {
           setError("Invalid session code format. Please check and try again.");
         } else {
-          setError("Unable to find that session. Please verify the session code.");
+          setError(
+            "Unable to find that session. Please verify the session code.",
+          );
         }
         return;
       }
@@ -82,91 +99,144 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
     }
   };
 
-  const dividerColor = theme.dark ? "#333" : "#eee";
+  const isDark = theme.dark;
 
   return (
     <Portal>
       <Modal
         visible={visible}
         onDismiss={onDismiss}
-        contentContainerStyle={[
-          styles.modal,
-          {
-            borderLeftColor: theme.colors.primary,
-            backgroundColor: theme.colors.surface,
-          },
-        ]}
+        contentContainerStyle={styles.modalOuter}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        <Animated.View
+          style={[
+            styles.modalContainer,
+            {
+              backgroundColor: isDark ? "#1a1a2e" : "#fff",
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
         >
-          <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-            Join a Session
-          </Text>
-          <View
-            style={{
-              height: 1,
-              backgroundColor: dividerColor,
-              marginBottom: 20,
-            }}
-          />
-
-          <TextInput
-            label="Enter Session ID"
-            mode="outlined"
-            value={sessionCode}
-            onChangeText={(text) => {
-              setSessionCode(text);
-              setError("");
-            }}
-            style={[styles.input, { backgroundColor: theme.colors.surface }]}
-            theme={{ colors: { text: theme.colors.onSurface } }}
-          />
-
-          {error ? (
-            <Text style={[styles.error, { color: theme.colors.error }]}>
-              {error}
-            </Text>
-          ) : null}
-
-          {loadingSession ? (
-            <ActivityIndicator
-              animating
-              color={theme.colors.primary}
-              style={styles.spinner}
-            />
-          ) : (
-            <Button
-              mode="contained"
-              onPress={handleJoin}
-              labelStyle={{ fontFamily: "Sora" }}
-              style={styles.button}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+          >
+            {/* Close button */}
+            <TouchableOpacity
+              onPress={onDismiss}
+              style={styles.closeButton}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
-              Join
-            </Button>
-          )}
+              <MaterialIcons
+                name="close"
+                size={22}
+                color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.35)"}
+              />
+            </TouchableOpacity>
 
-          <Button
-            onPress={onDismiss}
-            textColor={theme.colors.error}
-            style={styles.closeButton}
-            labelStyle={{ fontFamily: "Sora" }}
-          >
-            Cancel
-          </Button>
-          {/* <Button
-            mode="text"
-            onPress={() => {
-              Sentry.captureException(
-                new Error("Sentry test error from JoinSessionModal")
-              );
-            }}
-            style={{ marginTop: 8 }}
-            labelStyle={{ fontFamily: "Sora" }}
-          >
-            Send Test Error
-          </Button> */}
-        </KeyboardAvoidingView>
+            {/* Header */}
+            <LinearGradient
+              colors={isDark ? ["#2d1b69", "#1a1a2e"] : ["#6C63FF", "#4834DF"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.header}
+            >
+              <View style={styles.headerIcon}>
+                <MaterialIcons name="group-add" size={28} color="#fff" />
+              </View>
+              <Text style={styles.headerTitle}>Join a Session</Text>
+              <Text style={styles.headerSub}>
+                Enter the session code to join
+              </Text>
+            </LinearGradient>
+
+            {/* Body */}
+            <View style={styles.body}>
+              <TextInput
+                label="Session Code"
+                mode="outlined"
+                value={sessionCode}
+                onChangeText={(text) => {
+                  setSessionCode(text);
+                  setError("");
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={[
+                  styles.input,
+                  { backgroundColor: isDark ? "#1a1a2e" : "#fff" },
+                ]}
+                outlineStyle={{ borderRadius: 12 }}
+                left={<TextInput.Icon icon="key-variant" />}
+              />
+
+              {error ? (
+                <View style={styles.errorRow}>
+                  <MaterialIcons
+                    name="error-outline"
+                    size={16}
+                    color="#ef5350"
+                  />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                onPress={handleJoin}
+                disabled={loadingSession}
+                activeOpacity={0.85}
+              >
+                <LinearGradient
+                  colors={
+                    loadingSession ? ["#999", "#888"] : ["#6C63FF", "#4834DF"]
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.joinButton}
+                >
+                  {loadingSession ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <MaterialIcons name="login" size={20} color="#fff" />
+                      <Text style={styles.joinButtonText}>Join Session</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Invite hint */}
+              <View style={styles.hintRow}>
+                <MaterialIcons
+                  name="mail-outline"
+                  size={15}
+                  color={isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)"}
+                />
+                <Text
+                  style={[
+                    styles.hintText,
+                    {
+                      color: isDark
+                        ? "rgba(255,255,255,0.4)"
+                        : "rgba(0,0,0,0.35)",
+                    },
+                  ]}
+                >
+                  Have an invite?{" "}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    onDismiss();
+                    navigation.navigate("ProfileScreen" as any);
+                  }}
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                >
+                  <Text style={styles.hintLink}>Check your Profile</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Animated.View>
       </Modal>
     </Portal>
   );
@@ -175,35 +245,98 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
 export default JoinSessionModal;
 
 const styles = StyleSheet.create({
-  modal: {
-    margin: 20,
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderLeftWidth: 5,
-    borderColor: "rgba(94, 96, 206, 0.4)",
-    elevation: 8,
+  modalOuter: {
+    margin: 16,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-    fontFamily: "SoraBold",
-  },
-  input: {
-    marginBottom: 16,
-  },
-  error: {
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  spinner: {
-    marginVertical: 10,
-  },
-  button: {
-    marginTop: 8,
+  modalContainer: {
+    borderRadius: 24,
+    overflow: "hidden",
   },
   closeButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  header: {
+    alignItems: "center",
+    paddingTop: 32,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
+  },
+  headerIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.3,
+  },
+  headerSub: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
     marginTop: 4,
+  },
+  body: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 24,
+  },
+  input: {
+    marginBottom: 12,
+  },
+  errorRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  errorText: {
+    color: "#ef5350",
+    fontSize: 13,
+    flex: 1,
+  },
+  joinButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 15,
+    borderRadius: 14,
+    gap: 8,
+    marginTop: 4,
+  },
+  joinButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  hintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    gap: 4,
+  },
+  hintText: {
+    fontSize: 13,
+  },
+  hintLink: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6C63FF",
   },
 });

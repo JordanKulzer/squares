@@ -1,6 +1,13 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, FlatList, Alert } from "react-native";
-import { Modal, Portal, Button, useTheme, Checkbox } from "react-native-paper";
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  TouchableWithoutFeedback,
+  FlatList,
+  Animated,
+} from "react-native";
+import { Portal, Button, useTheme, Checkbox } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialIcons";
 import Toast from "react-native-toast-message";
 import { supabase } from "../lib/supabase";
@@ -13,6 +20,7 @@ const RemovePlayerModal = ({
   triggerRefresh,
 }) => {
   const theme = useTheme();
+  const translateY = useRef(new Animated.Value(600)).current;
   const [players, setPlayers] = useState([]);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [pendingKick, setPendingKick] = useState<{
@@ -21,6 +29,23 @@ const RemovePlayerModal = ({
   } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmMultipleVisible, setConfirmMultipleVisible] = useState(false);
+
+  // Animate in/out
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(translateY, {
+        toValue: 600,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -38,22 +63,6 @@ const RemovePlayerModal = ({
     fetchPlayers();
   }, [visible]);
 
-  // const confirmKick = (uidToKick, username) => {
-  //   Alert.alert(
-  //     "Remove Player",
-  //     `Are you sure you want to remove ${
-  //       username || "this player"
-  //     } from the session?`,
-  //     [
-  //       { text: "Cancel", style: "cancel" },
-  //       {
-  //         text: "Remove",
-  //         style: "destructive",
-  //         onPress: () => handleKick(uidToKick),
-  //       },
-  //     ]
-  //   );
-  // };
   const confirmKick = (userId: string, username: string) => {
     setPendingKick({ userId, username });
     setConfirmVisible(true);
@@ -170,7 +179,7 @@ const RemovePlayerModal = ({
         position: "bottom",
         bottomOffset: 60,
       });
-      if (triggerRefresh) triggerRefresh(); // ✅ trigger parent refresh
+      if (triggerRefresh) triggerRefresh();
 
       const refetch = await supabase
         .from("squares")
@@ -194,74 +203,90 @@ const RemovePlayerModal = ({
     await handleKickMultiple(Array.from(selectedIds));
     onDismiss && onDismiss();
   };
+
+  const surfaceColor = theme.colors.surface;
   const dividerColor = theme.dark ? "#333" : "#eee";
 
   return (
-    <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss}
-        contentContainerStyle={{
-          margin: 20,
-          borderRadius: 16,
-          padding: 24,
-          borderWidth: 1.5,
-          borderLeftWidth: 5,
-          elevation: 8,
-          backgroundColor: theme.colors.surface,
-          borderColor: "rgba(94, 96, 206, 0.4)",
-          borderLeftColor: theme.colors.primary,
-        }}
-      >
-        <View
+    <>
+      <Portal>
+        {visible && (
+          <TouchableWithoutFeedback onPress={onDismiss}>
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.4)",
+              }}
+            />
+          </TouchableWithoutFeedback>
+        )}
+
+        <Animated.View
+          pointerEvents={visible ? "auto" : "none"}
           style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
+            transform: [{ translateY }],
+            backgroundColor: surfaceColor,
+            position: "absolute",
+            bottom: -35,
+            left: 0,
+            right: 0,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingHorizontal: 20,
+            paddingTop: 24,
+            paddingBottom: 75,
+            maxHeight: "75%",
+            borderWidth: 1.5,
+            borderLeftWidth: 5,
+            borderBottomWidth: 0,
+            borderColor: "rgba(94, 96, 206, 0.4)",
+            borderLeftColor: theme.colors.primary,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.2,
+            shadowRadius: 8,
+            elevation: 10,
           }}
         >
-          <Text
+          <View
             style={{
-              fontSize: 20,
-              fontFamily: "SoraBold",
-              color: theme.colors.onSurface,
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 16,
             }}
           >
-            Select Player(s) To Remove
-          </Text>
-          <TouchableOpacity onPress={onDismiss}>
-            <Icon name="close" size={24} color={theme.colors.onSurface} />
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={{
-            height: 1,
-            marginBottom: 16,
-            backgroundColor: theme.dark ? "#333" : "#eee",
-          }}
-        />
-        {players.length > 0 && (
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
-            <TouchableOpacity
+            <Text
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                paddingHorizontal: 12,
-                paddingVertical: 8,
-                borderRadius: 20,
-                gap: 4,
-                backgroundColor: theme.dark ? "#333" : "#f0f0f0",
+                fontSize: 20,
+                fontWeight: "700",
+                fontFamily: "SoraBold",
+                color: theme.colors.onSurface,
               }}
-              onPress={selectAll}
             >
-              <Icon name="select-all" size={16} color={theme.colors.primary} />
-              <Text style={{ marginLeft: 6, color: theme.colors.onSurface }}>
-                Select All
+              Remove Players
+            </Text>
+            <TouchableOpacity onPress={onDismiss}>
+              <Text style={{ color: theme.colors.error, fontFamily: "Sora" }}>
+                Close
               </Text>
             </TouchableOpacity>
-            {selectedIds.size > 0 && (
+          </View>
+
+          <View
+            style={{
+              height: 1,
+              marginBottom: 16,
+              backgroundColor: dividerColor,
+            }}
+          />
+
+          {players.length > 0 && (
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
               <TouchableOpacity
                 style={{
                   flexDirection: "row",
@@ -272,312 +297,331 @@ const RemovePlayerModal = ({
                   gap: 4,
                   backgroundColor: theme.dark ? "#333" : "#f0f0f0",
                 }}
-                onPress={clearSelection}
+                onPress={selectAll}
               >
-                <Icon name="clear" size={16} color={theme.colors.error} />
+                <Icon name="select-all" size={16} color={theme.colors.primary} />
                 <Text style={{ marginLeft: 6, color: theme.colors.onSurface }}>
-                  Clear
+                  Select All
                 </Text>
               </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {players.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 24 }}>
-            <Icon
-              name="people-outline"
-              size={36}
-              color={theme.colors.onSurfaceVariant}
-            />
-            <Text
-              style={{
-                color: theme.colors.onSurfaceVariant,
-                marginTop: 8,
-                fontFamily: "Sora",
-              }}
-            >
-              No players to remove
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={players}
-            keyExtractor={(item) => item.userId}
-            style={{ maxHeight: 300 }}
-            showsVerticalScrollIndicator={true}
-            renderItem={({ item: p }) => {
-              const isSelected = selectedIds.has(p.userId);
-              return (
+              {selectedIds.size > 0 && (
                 <TouchableOpacity
-                  onPress={() => toggleSelection(p.userId)}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    padding: 8,
-                    borderRadius: 12,
-                    marginBottom: 8,
-                    borderWidth: 1,
-                    borderColor: isSelected
-                      ? theme.colors.primary
-                      : "transparent",
-                    backgroundColor: isSelected
-                      ? theme.dark
-                        ? "rgba(94,96,206,0.2)"
-                        : "rgba(94,96,206,0.1)"
-                      : theme.colors.surface,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    gap: 4,
+                    backgroundColor: theme.dark ? "#333" : "#f0f0f0",
                   }}
+                  onPress={clearSelection}
                 >
-                  <Checkbox
-                    status={isSelected ? "checked" : "unchecked"}
+                  <Icon name="clear" size={16} color={theme.colors.error} />
+                  <Text style={{ marginLeft: 6, color: theme.colors.onSurface }}>
+                    Clear
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {players.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 24 }}>
+              <Icon
+                name="people-outline"
+                size={36}
+                color={theme.colors.onSurfaceVariant}
+              />
+              <Text
+                style={{
+                  color: theme.colors.onSurfaceVariant,
+                  marginTop: 8,
+                  fontFamily: "Sora",
+                }}
+              >
+                No players to remove
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={players}
+              keyExtractor={(item) => item.userId}
+              style={{ maxHeight: 300 }}
+              showsVerticalScrollIndicator={true}
+              renderItem={({ item: p }) => {
+                const isSelected = selectedIds.has(p.userId);
+                return (
+                  <TouchableOpacity
                     onPress={() => toggleSelection(p.userId)}
-                    color={theme.colors.primary}
-                  />
-                  <View
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 18,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: theme.colors.primary,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#fff",
-                        fontSize: 13,
-                        fontFamily: "SoraBold",
-                      }}
-                    >
-                      {(p.username || "")
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase()
-                        .slice(0, 2)}
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 8 }}>
-                    <Text
-                      style={{
-                        color: theme.colors.onSurface,
-                        fontFamily: "Rubik_500Medium",
-                      }}
-                    >
-                      {p.username || p.userId || "Player"}
-                    </Text>
-                  </View>
-                  {/* <TouchableOpacity
-                    onPress={() => confirmKick(p.userId, p.username)}
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      paddingVertical: 4,
-                      paddingHorizontal: 8,
-                      borderRadius: 8,
-                      backgroundColor: theme.dark
-                        ? "rgba(255,0,0,0.1)"
-                        : "rgba(255,0,0,0.05)",
+                      padding: 8,
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      borderWidth: 1,
+                      borderColor: isSelected
+                        ? theme.colors.primary
+                        : "transparent",
+                      backgroundColor: isSelected
+                        ? theme.dark
+                          ? "rgba(94,96,206,0.2)"
+                          : "rgba(94,96,206,0.1)"
+                        : theme.colors.surface,
                     }}
                   >
-                    <Icon
-                      name="person-remove"
-                      size={18}
-                      color={theme.colors.error}
+                    <Checkbox
+                      status={isSelected ? "checked" : "unchecked"}
+                      onPress={() => toggleSelection(p.userId)}
+                      color={theme.colors.primary}
                     />
-                    <Text
+                    <View
                       style={{
-                        color: theme.colors.error,
-                        fontSize: 14,
-                        marginLeft: 6,
-                        fontFamily: "Sora",
-                        fontWeight: "600",
+                        width: 36,
+                        height: 36,
+                        borderRadius: 18,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: theme.colors.primary,
                       }}
                     >
-                      Remove
-                    </Text>
-                  </TouchableOpacity> */}
-                </TouchableOpacity>
-              );
-            }}
-          />
-        )}
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 13,
+                          fontFamily: "SoraBold",
+                        }}
+                      >
+                        {(p.username || "")
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text
+                        style={{
+                          color: theme.colors.onSurface,
+                          fontFamily: "Rubik_500Medium",
+                        }}
+                      >
+                        {p.username || p.userId || "Player"}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
 
-        {players.length > 0 && (
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginTop: 12,
-              paddingTop: 12,
-              borderTopWidth: 1,
-              borderTopColor: "rgba(0,0,0,0.05)",
-            }}
-          >
-            <Text style={{ color: theme.colors.onSurfaceVariant }}>
-              {selectedIds.size} selected
-            </Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Button
-                mode="contained"
-                onPress={() => setConfirmMultipleVisible(true)}
-                disabled={selectedIds.size === 0}
-                labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
-                style={{ minWidth: 140, backgroundColor: theme.colors.error }}
-              >
-                Remove Selected
-              </Button>
-              {/* <Button mode="text" onPress={onDismiss}>
-                Close
-              </Button> */}
+          {players.length > 0 && (
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 12,
+                paddingTop: 12,
+                borderTopWidth: 1,
+                borderTopColor: "rgba(0,0,0,0.05)",
+              }}
+            >
+              <Text style={{ color: theme.colors.onSurfaceVariant }}>
+                {selectedIds.size} selected
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Button
+                  mode="contained"
+                  onPress={() => setConfirmMultipleVisible(true)}
+                  disabled={selectedIds.size === 0}
+                  labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+                  style={{ minWidth: 140, backgroundColor: theme.colors.error }}
+                >
+                  Remove Selected
+                </Button>
+              </View>
             </View>
-          </View>
-        )}
-        {/* {players.length === 0 && (
-          <Button mode="text" onPress={onDismiss}>
-            Close
-          </Button>
-        )} */}
-      </Modal>
-      <Portal>
-        <Modal
-          visible={confirmVisible}
-          onDismiss={() => setConfirmVisible(false)}
-          contentContainerStyle={{
-            backgroundColor: theme.colors.surface,
-            marginHorizontal: 32,
-            padding: 24,
-            borderRadius: 16,
-            borderWidth: 1.5,
-            borderColor: "rgba(94, 96, 206, 0.4)",
-            borderLeftWidth: 5,
-            borderLeftColor: theme.colors.primary,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: theme.colors.onSurface,
-              marginBottom: 16,
-              fontFamily: "SoraBold",
-            }}
-          >
-            Confirm Removal
-          </Text>
-          <View
-            style={{
-              height: 1,
-              backgroundColor: dividerColor,
-              marginBottom: 20,
-            }}
-          />
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              marginBottom: 24,
-              fontFamily: "Sora",
-            }}
-          >
-            Are you sure you want to remove{" "}
-            <Text style={{ fontWeight: "bold" }}>
-              {pendingKick?.username || "this player"}
-            </Text>{" "}
-            from the session?
-          </Text>
-
-          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-            <Button
-              onPress={() => setConfirmVisible(false)}
-              textColor={theme.colors.onSurface}
-              labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onPress={() => {
-                if (pendingKick) {
-                  handleKick(pendingKick.userId);
-                }
-                setConfirmVisible(false);
-              }}
-              textColor={theme.colors.error}
-              labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
-            >
-              Remove
-            </Button>
-          </View>
-        </Modal>
-        <Modal
-          visible={confirmMultipleVisible}
-          onDismiss={() => setConfirmMultipleVisible(false)}
-          contentContainerStyle={{
-            backgroundColor: theme.colors.surface,
-            marginHorizontal: 32,
-            padding: 24,
-            borderRadius: 16,
-            borderWidth: 1.5,
-            borderColor: "rgba(94, 96, 206, 0.4)",
-            borderLeftWidth: 5,
-            borderLeftColor: theme.colors.primary,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "bold",
-              color: theme.colors.onSurface,
-              marginBottom: 16,
-              fontFamily: "SoraBold",
-            }}
-          >
-            Confirm Removal
-          </Text>
-          <View
-            style={{
-              height: 1,
-              backgroundColor: dividerColor,
-              marginBottom: 20,
-            }}
-          />
-          <Text
-            style={{
-              color: theme.colors.onSurface,
-              marginBottom: 24,
-              fontFamily: "Sora",
-            }}
-          >
-            Are you sure you want to remove{" "}
-            <Text style={{ fontWeight: "bold" }}>
-              {selectedIds.size} selected player(s)
-              {selectedIds.size !== 1 ? "s" : ""}
-            </Text>{" "}
-            from the session?
-          </Text>
-
-          <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
-            <Button
-              onPress={() => setConfirmMultipleVisible(false)}
-              textColor={theme.colors.onSurface}
-              labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
-            >
-              Cancel
-            </Button>
-            <Button
-              onPress={async () => {
-                await confirmRemoveSelected();
-              }}
-              textColor={theme.colors.error}
-              labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
-            >
-              Remove
-            </Button>
-          </View>
-        </Modal>
+          )}
+        </Animated.View>
       </Portal>
-    </Portal>
+
+      {/* Confirmation modals - kept as small centered dialogs */}
+      <Portal>
+        {confirmVisible && (
+          <TouchableWithoutFeedback onPress={() => setConfirmVisible(false)}>
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.4)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <TouchableWithoutFeedback>
+                <View
+                  style={{
+                    backgroundColor: theme.colors.surface,
+                    marginHorizontal: 32,
+                    padding: 24,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(94, 96, 206, 0.4)",
+                    borderLeftWidth: 5,
+                    borderLeftColor: theme.colors.primary,
+                    width: "85%",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      color: theme.colors.onSurface,
+                      marginBottom: 16,
+                      fontFamily: "SoraBold",
+                    }}
+                  >
+                    Confirm Removal
+                  </Text>
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: dividerColor,
+                      marginBottom: 20,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: theme.colors.onSurface,
+                      marginBottom: 24,
+                      fontFamily: "Sora",
+                    }}
+                  >
+                    Are you sure you want to remove{" "}
+                    <Text style={{ fontWeight: "bold" }}>
+                      {pendingKick?.username || "this player"}
+                    </Text>{" "}
+                    from the session?
+                  </Text>
+
+                  <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+                    <Button
+                      onPress={() => setConfirmVisible(false)}
+                      textColor={theme.colors.onSurface}
+                      labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onPress={() => {
+                        if (pendingKick) {
+                          handleKick(pendingKick.userId);
+                        }
+                        setConfirmVisible(false);
+                      }}
+                      textColor={theme.colors.error}
+                      labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+                    >
+                      Remove
+                    </Button>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        )}
+
+        {confirmMultipleVisible && (
+          <TouchableWithoutFeedback onPress={() => setConfirmMultipleVisible(false)}>
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0,0,0,0.4)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <TouchableWithoutFeedback>
+                <View
+                  style={{
+                    backgroundColor: theme.colors.surface,
+                    marginHorizontal: 32,
+                    padding: 24,
+                    borderRadius: 16,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(94, 96, 206, 0.4)",
+                    borderLeftWidth: 5,
+                    borderLeftColor: theme.colors.primary,
+                    width: "85%",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      color: theme.colors.onSurface,
+                      marginBottom: 16,
+                      fontFamily: "SoraBold",
+                    }}
+                  >
+                    Confirm Removal
+                  </Text>
+                  <View
+                    style={{
+                      height: 1,
+                      backgroundColor: dividerColor,
+                      marginBottom: 20,
+                    }}
+                  />
+                  <Text
+                    style={{
+                      color: theme.colors.onSurface,
+                      marginBottom: 24,
+                      fontFamily: "Sora",
+                    }}
+                  >
+                    Are you sure you want to remove{" "}
+                    <Text style={{ fontWeight: "bold" }}>
+                      {selectedIds.size} player{selectedIds.size !== 1 ? "s" : ""}
+                    </Text>{" "}
+                    from the session?
+                  </Text>
+
+                  <View style={{ flexDirection: "row", justifyContent: "flex-end" }}>
+                    <Button
+                      onPress={() => setConfirmMultipleVisible(false)}
+                      textColor={theme.colors.onSurface}
+                      labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onPress={async () => {
+                        await confirmRemoveSelected();
+                      }}
+                      textColor={theme.colors.error}
+                      labelStyle={{ fontFamily: "Sora", fontWeight: "600" }}
+                    >
+                      Remove
+                    </Button>
+                  </View>
+                </View>
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        )}
+      </Portal>
+    </>
   );
 };
 

@@ -41,6 +41,7 @@ import {
   sendPlayerLeftNotification,
   sendSquareDeletedNotification,
 } from "../utils/notifications";
+import AdBanner from "../components/AdBanner";
 // import PendingInvitesSection from "../components/PendingInvitesSection";
 
 const HomeScreen = () => {
@@ -605,7 +606,7 @@ const HomeScreen = () => {
         ) : (
           <ScrollView
             style={{ paddingHorizontal: 5 }}
-            contentContainerStyle={{ paddingBottom: 100 }}
+            contentContainerStyle={{ paddingBottom: 160 }}
           >
             {userGames.map((item, index) => {
               const deadline = item.deadline
@@ -716,7 +717,7 @@ const HomeScreen = () => {
                                 fontFamily: "Rubik_500Medium",
                               }}
                             >
-                              {item.player_ids?.length || 0} players •{" "}
+                              {item.players?.length || 0} players •{" "}
                               {selectionCounts[item.id] || 0} selected
                             </Text>
                           </View>
@@ -755,6 +756,21 @@ const HomeScreen = () => {
           visible={visible}
           onDismiss={() => setVisible(false)}
         />
+
+        {/* Banner Ad */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            alignItems: "center",
+            backgroundColor: theme.colors.surface,
+            paddingBottom: insets.bottom,
+          }}
+        >
+          <AdBanner />
+        </View>
 
         {/* Confirmation Modal for Leave/Delete */}
         <Portal>

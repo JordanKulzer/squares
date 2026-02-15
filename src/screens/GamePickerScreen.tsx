@@ -62,6 +62,7 @@ type RootStackParamList = {
     maxSelections?: string;
     selectedColor?: string;
     eventId?: string;
+    isCustomGame?: boolean;
   };
 };
 

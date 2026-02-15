@@ -65,7 +65,7 @@ export function getVisibleQuarterScores(game: any): any[] {
  * @param isTeam1Home - Whether team1 is the home team (affects digit mapping)
  */
 export function determineQuarterWinners(
-  scores: { home: number | null; away: number | null }[],
+  scores: { home: number | null; away: number | null; completed?: boolean }[],
   selections: { x: number; y: number; userId: string }[],
   xAxis: number[],
   yAxis: number[],
@@ -75,8 +75,9 @@ export function determineQuarterWinners(
   if (!Array.isArray(scores) || scores.length === 0) return [];
 
   return scores.map((score, index) => {
-    const { home, away } = score || {};
-    if (home == null || away == null) {
+    const { home, away, completed } = score || {};
+    // Skip quarters not marked as completed (for manual/custom games)
+    if (home == null || away == null || completed === false) {
       return {
         quarter: `Q${index + 1}`,
         username: "No Winner",
@@ -91,8 +92,8 @@ export function determineQuarterWinners(
     const xVal = team2Score % 10;
     const yVal = team1Score % 10;
 
-    const xIndex = xAxis.findIndex((v) => v === xVal);
-    const yIndex = yAxis.findIndex((v) => v === yVal);
+    const xIndex = xAxis.findIndex((v) => Number(v) === xVal);
+    const yIndex = yAxis.findIndex((v) => Number(v) === yVal);
 
     if (xIndex === -1 || yIndex === -1) {
       console.warn(

@@ -21,7 +21,10 @@
       "Bash(npx eslint:*)",
       "Bash(timeout:*)",
       "Bash(copy:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(grep:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

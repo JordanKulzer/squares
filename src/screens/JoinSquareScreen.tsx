@@ -15,6 +15,8 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
+import { iconOptions } from "../../assets/constants/iconOptions";
+import tinycolor from "tinycolor2";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import NotificationsModal from "../components/NotificationsModal";
@@ -27,6 +29,10 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
 import { User } from "@supabase/supabase-js";
 import { acceptInvite } from "../lib/gameInvites";
+import { usePremium } from "../contexts/PremiumContext";
+import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
+import PremiumBadge from "../components/PremiumBadge";
+import ColorPickerModal from "../components/ColorPickerModal";
 
 const JoinSquareScreen = () => {
   const navigation =
@@ -44,6 +50,15 @@ const JoinSquareScreen = () => {
         navigation.goBack();
       } else {
         setUser(data.user);
+        // Fetch username from users table
+        const { data: profile } = await supabase
+          .from("users")
+          .select("username")
+          .eq("id", data.user.id)
+          .single();
+        if (profile?.username) {
+          setUsername(profile.username);
+        }
       }
     };
 
@@ -87,6 +102,15 @@ const JoinSquareScreen = () => {
   });
   const [league, setLeague] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [displayType, setDisplayType] = useState<"color" | "icon" | "initial">(
+    "color",
+  );
+  const [displayValue, setDisplayValue] = useState("");
+
+  // Premium state
+  const { isPremium } = usePremium();
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showColorPickerModal, setShowColorPickerModal] = useState(false);
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
@@ -139,12 +163,22 @@ const JoinSquareScreen = () => {
     Keyboard.dismiss();
 
     if (!username) {
-      alert("Please enter a username.");
+      alert("Could not load your username. Please try again.");
       return;
     }
 
     if (!selectedColor) {
       alert("Please select a color.");
+      return;
+    }
+
+    if (displayType === "initial" && !displayValue.trim()) {
+      alert("Please enter an initial for your display.");
+      return;
+    }
+
+    if (displayType === "icon" && !displayValue) {
+      alert("Please select an icon for your display.");
       return;
     }
 
@@ -181,6 +215,8 @@ const JoinSquareScreen = () => {
         userId: user.id,
         username,
         color: selectedColor,
+        displayType,
+        displayValue: displayType !== "color" ? displayValue : undefined,
         joined_at: new Date().toISOString(),
         notifySettings,
       };
@@ -229,7 +265,7 @@ const JoinSquareScreen = () => {
       // Verify the data was written by polling until we see ourselves in the player list
       let verified = false;
       for (let i = 0; i < 10; i++) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 200));
 
         const { data: verifySquare } = await supabase
           .from("squares")
@@ -237,8 +273,10 @@ const JoinSquareScreen = () => {
           .eq("id", gridId)
           .single();
 
-        if (verifySquare?.players?.some((p) => p.userId === user.id) &&
-            verifySquare?.player_ids?.includes(user.id)) {
+        if (
+          verifySquare?.players?.some((p) => p.userId === user.id) &&
+          verifySquare?.player_ids?.includes(user.id)
+        ) {
           verified = true;
           break;
         }
@@ -301,21 +339,6 @@ const JoinSquareScreen = () => {
             </Text>
           </View>
 
-          {/* Username */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
-              Your Username *
-            </Text>
-            <PaperInput
-              mode="outlined"
-              value={username}
-              onChangeText={setUsername}
-              placeholder="Enter your display name"
-              style={[styles.input, { backgroundColor: theme.colors.surface }]}
-              maxLength={20}
-            />
-          </View>
-
           {/* Color Selection */}
           <View style={styles.section}>
             <Text style={[styles.label, { color: theme.colors.onBackground }]}>
@@ -346,7 +369,172 @@ const JoinSquareScreen = () => {
                   )}
                 </TouchableOpacity>
               ))}
+              {/* Custom Color Button (Premium) */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (isPremium) {
+                    setShowColorPickerModal(true);
+                  } else {
+                    setShowPremiumModal(true);
+                  }
+                }}
+                style={[
+                  styles.colorButton,
+                  {
+                    backgroundColor: theme.dark ? "#333" : "#e8e8e8",
+                    borderWidth: 2,
+                    borderColor: theme.colors.primary,
+                    borderStyle: "dashed",
+                  },
+                ]}
+              >
+                <MaterialIcons
+                  name="colorize"
+                  size={20}
+                  color={theme.colors.primary}
+                />
+                {!isPremium && <PremiumBadge size={10} />}
+              </TouchableOpacity>
             </View>
+          </View>
+
+          {/* Display Style */}
+          <View style={styles.section}>
+            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
+              Display Style
+            </Text>
+            <View style={styles.displayTypeRow}>
+              {(["color", "icon", "initial"] as const).map((type) => {
+                const isLocked = type !== "color" && !isPremium;
+                return (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => {
+                      if (isLocked) {
+                        setShowPremiumModal(true);
+                        return;
+                      }
+                      setDisplayType(type);
+                      if (type === "icon") setDisplayValue("sports-football");
+                      else if (type === "initial") setDisplayValue("");
+                      else setDisplayValue("");
+                    }}
+                    style={[
+                      styles.displayTypeButton,
+                      {
+                        backgroundColor:
+                          displayType === type
+                            ? theme.colors.primary
+                            : theme.dark
+                              ? "#333"
+                              : "#e8e8e8",
+                        opacity: isLocked ? 0.6 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.displayTypeText,
+                        {
+                          color:
+                            displayType === type
+                              ? "#fff"
+                              : theme.colors.onBackground,
+                        },
+                      ]}
+                    >
+                      {type === "color"
+                        ? "Color Only"
+                        : type === "icon"
+                          ? "Icon"
+                          : "Initial"}
+                    </Text>
+                    {isLocked && <PremiumBadge size={10} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {displayType === "icon" && (
+              <View style={styles.iconGrid}>
+                {iconOptions.map((icon) => {
+                  const isLocked = icon.isPremium && !isPremium;
+                  return (
+                    <TouchableOpacity
+                      key={icon.name}
+                      onPress={() => {
+                        if (isLocked) {
+                          setShowPremiumModal(true);
+                        } else {
+                          setDisplayValue(icon.name);
+                        }
+                      }}
+                      style={[
+                        styles.iconButton,
+                        {
+                          backgroundColor: selectedColor
+                            ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                            : theme.dark
+                              ? "#333"
+                              : "#e8e8e8",
+                          borderWidth: displayValue === icon.name ? 3 : 0,
+                          borderColor: theme.colors.primary,
+                          transform: [
+                            { scale: displayValue === icon.name ? 1.1 : 1 },
+                          ],
+                          opacity: isLocked ? 0.5 : 1,
+                        },
+                      ]}
+                    >
+                      <MaterialIcons
+                        name={icon.name}
+                        size={22}
+                        color={selectedColor || theme.colors.onBackground}
+                      />
+                      {isLocked && <PremiumBadge size={10} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {displayType === "initial" && (
+              <View style={styles.initialRow}>
+                <PaperInput
+                  label="Your Initial (1 letter)"
+                  value={displayValue}
+                  onChangeText={(text) => setDisplayValue(text.slice(0, 1))}
+                  maxLength={1}
+                  style={[styles.initialInput, { backgroundColor: theme.dark ? "#1e1e1e" : "#fff" }]}
+                  autoCapitalize="characters"
+                />
+                <View style={{ alignItems: "center" }}>
+                  <Text style={{ fontSize: 11, color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
+                    Preview
+                  </Text>
+                  <View
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 8,
+                      justifyContent: "center",
+                      alignItems: "center",
+                      backgroundColor: selectedColor
+                        ? tinycolor(selectedColor).setAlpha(0.3).toRgbString()
+                        : theme.dark ? "#333" : "#e8e8e8",
+                      borderWidth: 1,
+                      borderColor: theme.dark ? "#555" : "#ccc",
+                    }}
+                  >
+                    {selectedColor && displayValue ? (
+                      <Text style={{ fontSize: 22, fontWeight: "700", color: selectedColor }}>
+                        {displayValue.toUpperCase()}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Game Settings */}
@@ -436,12 +624,12 @@ const JoinSquareScreen = () => {
           {/* Join Button */}
           <TouchableOpacity
             onPress={joinSquare}
-            disabled={!username || !selectedColor || isJoining}
+            disabled={!selectedColor || isJoining}
             style={[
               styles.joinButton,
               {
                 backgroundColor: theme.colors.primary,
-                opacity: !username || !selectedColor || isJoining ? 0.4 : 1,
+                opacity: !selectedColor || isJoining ? 0.4 : 1,
               },
             ]}
           >
@@ -471,6 +659,19 @@ const JoinSquareScreen = () => {
         onDismiss={() => setNotifModalVisible(false)}
         settings={notifySettings}
         onSave={(settings) => setNotifySettings(settings)}
+      />
+
+      <PremiumUpgradeModal
+        visible={showPremiumModal}
+        onDismiss={() => setShowPremiumModal(false)}
+        feature="premium icons"
+      />
+
+      <ColorPickerModal
+        visible={showColorPickerModal}
+        onDismiss={() => setShowColorPickerModal(false)}
+        onColorSelect={(color) => setSelectedColor(color)}
+        initialColor={selectedColor || "#5e60ce"}
       />
     </LinearGradient>
   );
@@ -578,6 +779,42 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: 15,
     fontWeight: "600",
+  },
+  displayTypeRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  displayTypeButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  displayTypeText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  iconGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    paddingVertical: 8,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  initialRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  initialInput: {
+    flex: 3,
   },
 });
 
