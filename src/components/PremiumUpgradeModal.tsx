@@ -106,6 +106,23 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
       return;
     }
 
+    if (!extraSquareProduct) {
+      // Products failed to load — retry once before giving up
+      setLoading(true);
+      const retried = await iapService.getExtraSquareProduct();
+      setLoading(false);
+      if (!retried) {
+        Toast.show({
+          type: "error",
+          text1: "Product unavailable",
+          text2: "Could not connect to the App Store. Please try again.",
+          position: "bottom",
+        });
+        return;
+      }
+      setExtraSquareProduct(retried);
+    }
+
     setPurchasingExtra(true);
     try {
       await iapService.purchaseExtraSquare();
@@ -132,6 +149,23 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
         position: "bottom",
       });
       return;
+    }
+
+    if (!subscriptionProduct) {
+      // Products failed to load — retry once before giving up
+      setLoading(true);
+      const retried = await iapService.getSubscriptionProduct();
+      setLoading(false);
+      if (!retried) {
+        Toast.show({
+          type: "error",
+          text1: "Product unavailable",
+          text2: "Could not connect to the App Store. Please try again.",
+          position: "bottom",
+        });
+        return;
+      }
+      setSubscriptionProduct(retried);
     }
 
     setPurchasingSub(true);
@@ -199,7 +233,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
   const renderExtraSquareOption = () => (
     <TouchableOpacity
       onPress={handlePurchaseExtra}
-      disabled={purchasingExtra || !extraSquareProduct}
+      disabled={purchasingExtra}
       activeOpacity={0.85}
       style={[
         styles.optionCard,
@@ -258,15 +292,11 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
     <View style={styles.subSection}>
       <TouchableOpacity
         onPress={handlePurchaseSub}
-        disabled={purchasingSub || !subscriptionProduct}
+        disabled={purchasingSub}
         activeOpacity={0.85}
       >
         <LinearGradient
-          colors={
-            purchasingSub || !subscriptionProduct
-              ? ["#999", "#888"]
-              : ["#6C63FF", "#4834DF"]
-          }
+          colors={purchasingSub ? ["#999", "#888"] : ["#6C63FF", "#4834DF"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.subButton}
