@@ -208,7 +208,7 @@ const AppDrawerContent = ({
 
           {renderItemWithIcon("shield-check-outline", "Privacy Policy", () =>
             Linking.openURL(
-              "https://www.privacypolicies.com/live/a728545e-92d3-4658-8c00-edf18d0c828c",
+              "https://jordankulzer.github.io/squares/privacy-policy",
             ),
           )}
 

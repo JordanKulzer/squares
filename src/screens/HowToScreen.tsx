@@ -110,7 +110,7 @@ const HowToPlay = () => {
           {`\u2022 The top row represents one team's score (last digit)
 \u2022 The left column represents the other team's score (last digit)
 \u2022 Numbers (0-9) are randomly assigned and hidden until the deadline
-\u2022 This keeps selection fair — every square has an equal chance!`}
+\u2022 This keeps selection fair: every square has an equal chance!`}
         </Section>
 
         <Section
@@ -159,11 +159,11 @@ Winners are determined at Q1, Q2, Q3, Q4, and any overtime periods. If a price p
         >
           {`When creating a session, you can customize:
 
-\u2022 Max Squares — Limit how many squares each player can claim
-\u2022 Price Per Square — Set a buy-in per square; the app tracks payouts
-\u2022 Block Mode — Players select 2x2 blocks instead of individual squares (25 blocks total)
-\u2022 Randomize Axis — Shuffle the 0-9 numbers randomly (on by default)
-\u2022 Hide Axis — Keep numbers hidden until the deadline passes`}
+\u2022 Max Squares: Limit how many squares each player can claim
+\u2022 Price Per Square: Set a buy-in per square; the app tracks payouts
+\u2022 Block Mode: Players select 2x2 blocks instead of individual squares (25 blocks total)
+\u2022 Randomize Axis: Shuffle the 0-9 numbers randomly (on by default)
+\u2022 Hide Axis: Keep numbers hidden until the deadline passes`}
         </Section>
 
         <Section
@@ -175,7 +175,7 @@ Winners are determined at Q1, Q2, Q3, Q4, and any overtime periods. If a price p
         >
           {`\u2022 Share your session code or invite friends directly from the app
 \u2022 Pending invites appear on the Profile screen
-\u2022 Owners can add guest players who don't have an account — great for in-person games
+\u2022 Owners can add guest players who don't have an account (great for in-person games)
 \u2022 Owners can also assign squares to specific players`}
         </Section>
 
@@ -193,6 +193,88 @@ Winners are determined at Q1, Q2, Q3, Q4, and any overtime periods. If a price p
         </Section>
 
         <Section
+          icon="public"
+          title="Public Squares"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`Browse and join public squares created by the community!
+
+\u2022 Tap "Browse" to see open public sessions
+\u2022 Filter by sport, team, or entry cost
+\u2022 Join any public game with available squares
+\u2022 When creating a session, toggle "Public" to let anyone discover and join it
+\u2022 Public games count toward your leaderboard stats`}
+        </Section>
+
+        <Section
+          icon="people"
+          title="Friends"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`Build your squad and play together!
+
+\u2022 Search for friends by username or email
+\u2022 Send and accept friend requests from the Profile screen
+\u2022 Invite friends directly to a session with one tap
+\u2022 Your top 4 most-invited friends appear as quick-invite shortcuts
+\u2022 See your friends' stats on the Leaderboard`}
+        </Section>
+
+        <Section
+          icon="leaderboard"
+          title="Leaderboard"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`Compete with players across the app!
+
+\u2022 The leaderboard tracks quarter wins and games played
+\u2022 Switch between Global (all players) and Friends-only views
+\u2022 Earn credits every 4 quarter wins to unlock extra square slots
+\u2022 Stats count only in games with at least 2 players
+\u2022 Your rank updates automatically as results come in`}
+        </Section>
+
+        <Section
+          icon="military-tech"
+          title="Badges"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`Earn badges by hitting milestones. They show on your profile for everyone to see!
+
+\u2022 First Win, 5 Wins, 10 Wins, 25 Wins, 50 Wins, 100 Wins
+\u2022 First Game, 3 Games, 10 Games, 20 Games, 50 Games
+\u2022 Sweep: win all 4 quarters in a single game
+\u2022 Double Sweep, 5 Sweeps
+\u2022 Credit Earner: earn your first bonus credit
+
+Badges are awarded automatically when you hit the milestone.`}
+        </Section>
+
+        <Section
+          icon="account-circle"
+          title="Your Profile"
+          isDark={isDark}
+          textColor={textColor}
+          subColor={subColor}
+        >
+          {`Customize how you appear on the grid and in the community.
+
+\u2022 Choose an icon and color to represent yourself on every grid
+\u2022 Premium subscribers unlock 25+ extra icons and a full color picker
+\u2022 Set a username that other players and friends will see
+\u2022 Your active badge displays beneath your username
+\u2022 Track your wins, games played, credits, and extra square slots`}
+        </Section>
+
+        <Section
           icon="star"
           title="Premium"
           isDark={isDark}
@@ -201,14 +283,16 @@ Winners are determined at Q1, Q2, Q3, Q4, and any overtime periods. If a price p
         >
           {`Free players can have up to 3 active squares at a time. Need more?
 
-\u2022 Buy an extra square credit for $0.99 (single use)
-\u2022 Earn free credits by winning — every 4 quarter wins = 1 bonus credit
+\u2022 Buy an extra square slot for $0.99 (permanently increases your limit by 1)
+\u2022 Earn free credits by winning (every 4 quarter wins = 1 bonus credit)
 \u2022 Subscribe to Premium for $4.99/month:
-  \u2014 Unlimited squares
-  \u2014 Ad-free experience
-  \u2014 25+ premium icons
-  \u2014 Custom color picker
-  \u2014 Premium profile badge`}
+  \u2022 Unlimited squares
+  \u2022 Ad-free experience
+  \u2022 25+ premium icons
+  \u2022 Custom color picker
+  \u2022 Premium profile badge
+
+One-time purchase? You keep all premium benefits forever.`}
         </Section>
 
         <Section
@@ -218,7 +302,7 @@ Winners are determined at Q1, Q2, Q3, Q4, and any overtime periods. If a price p
           textColor={textColor}
           subColor={subColor}
         >
-          {`\u2022 Pick your squares early — popular sessions fill up fast
+          {`\u2022 Pick your squares early; popular sessions fill up fast
 \u2022 Spread your picks around the grid instead of clustering them
 \u2022 Since numbers are randomly assigned, every square has an equal chance
 \u2022 Share the session code with friends to fill up your grid
