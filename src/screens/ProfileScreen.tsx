@@ -1189,72 +1189,67 @@ const ProfileScreen = ({ navigation }: Props) => {
             visible={deleteModalVisible}
             onDismiss={() => setDeleteModalVisible(false)}
             contentContainerStyle={{
-              marginHorizontal: 32,
-              padding: 20,
-              borderRadius: 12,
+              marginHorizontal: 24,
+              borderRadius: 16,
               backgroundColor: theme.colors.surface,
-              borderWidth: 1.5,
-              borderColor: theme.colors.error,
-              borderLeftWidth: 5,
-              borderLeftColor: theme.colors.error,
+              overflow: "hidden",
+              padding: 0,
             }}
           >
-            <View
+            <LinearGradient
+              colors={[theme.colors.error, "#b71c1c"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                marginBottom: 12,
+                padding: 20,
+                paddingBottom: 16,
               }}
             >
-              <MaterialIcons
-                name="warning"
-                size={24}
-                color={theme.colors.error}
-              />
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontFamily: "SoraBold",
-                  marginLeft: 8,
-                  color: theme.colors.onSurface,
-                }}
-              >
+              <MaterialIcons name="warning" size={22} color="#fff" style={{ marginRight: 10 }} />
+              <Text style={{ flex: 1, fontSize: 20, fontFamily: "SoraBold", color: "#fff" }}>
                 Delete Account
               </Text>
-            </View>
-            <Text
-              style={{
-                fontSize: 14,
-                fontFamily: "Rubik_400Regular",
-                color: theme.colors.onSurfaceVariant,
-                marginBottom: 20,
-              }}
-            >
-              Are you sure you want to delete your account? This action cannot
-              be undone and all your data will be permanently removed.
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "flex-end",
-                gap: 12,
-              }}
-            >
-              <Button
-                mode="text"
-                onPress={() => setDeleteModalVisible(false)}
-                textColor={theme.colors.onSurface}
+              <TouchableOpacity onPress={() => setDeleteModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </LinearGradient>
+            <View style={{ padding: 20 }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: "Rubik_400Regular",
+                  color: theme.colors.onSurfaceVariant,
+                  marginBottom: 20,
+                }}
               >
-                Cancel
-              </Button>
-              <Button
-                mode="contained"
-                onPress={confirmDeleteAccount}
-                buttonColor={theme.colors.error}
-                labelStyle={{ fontFamily: "Sora" }}
+                Are you sure you want to delete your account? This action cannot
+                be undone and all your data will be permanently removed.
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                }}
               >
-                Delete
-              </Button>
+                <Button
+                  mode="text"
+                  onPress={() => setDeleteModalVisible(false)}
+                  textColor={theme.colors.onSurface}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={confirmDeleteAccount}
+                  buttonColor={theme.colors.error}
+                  labelStyle={{ fontFamily: "Sora" }}
+                >
+                  Delete
+                </Button>
+              </View>
             </View>
           </Modal>
           {/* Avatar Editor Modal */}

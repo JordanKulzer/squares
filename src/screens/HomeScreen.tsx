@@ -933,29 +933,43 @@ const HomeScreen = () => {
             onDismiss={() =>
               setConfirmModal({ visible: false, item: null, isOwner: false })
             }
-            contentContainerStyle={{ backgroundColor: "transparent" }}
+            contentContainerStyle={{
+              marginHorizontal: 24,
+              borderRadius: 16,
+              backgroundColor: theme.colors.surface,
+              overflow: "hidden",
+              padding: 0,
+            }}
           >
-            <View
-              style={[
-                styles.dialogCard,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.dark ? "#444" : "#ccc",
-                },
-              ]}
+            <LinearGradient
+              colors={[theme.colors.error, "#b71c1c"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: 20,
+                paddingBottom: 16,
+              }}
             >
-              <Text
-                style={[styles.modalTitle, { color: theme.colors.onSurface }]}
-              >
+              <MaterialIcons
+                name={confirmModal.isOwner ? "delete" : "logout"}
+                size={22}
+                color="#fff"
+                style={{ marginRight: 10 }}
+              />
+              <Text style={{ flex: 1, fontSize: 20, fontFamily: "SoraBold", color: "#fff" }}>
                 {confirmModal.isOwner ? "Delete Session" : "Leave Session"}
               </Text>
-              <View
-                style={{
-                  height: 1,
-                  backgroundColor: theme.dark ? "#333" : "#eee",
-                  marginBottom: 20,
-                }}
-              />
+              <TouchableOpacity
+                onPress={() =>
+                  setConfirmModal({ visible: false, item: null, isOwner: false })
+                }
+              >
+                <MaterialIcons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </LinearGradient>
+            <View style={{ padding: 20 }}>
               <Text
                 style={[
                   styles.modalSubtitle,
