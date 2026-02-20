@@ -56,6 +56,7 @@ export default {
       "expo-web-browser",
       "expo-font",
       "expo-notifications",
+      "react-native-iap",
       [
         "expo-build-properties",
         {
