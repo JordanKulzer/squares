@@ -189,6 +189,8 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
         username={item.username}
         email={item.email}
         activeBadge={item.active_badge}
+        profileColor={item.profile_color}
+        profileIcon={item.profile_icon}
         size={44}
         backgroundColor={theme.colors.secondary}
       />

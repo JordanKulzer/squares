@@ -224,6 +224,8 @@ const InviteFriendsModal = ({
           username={item.friend_username}
           email={item.friend_email}
           activeBadge={item.friend_active_badge}
+          profileColor={item.friend_profile_color}
+          profileIcon={item.friend_profile_icon}
           size={36}
           backgroundColor={theme.colors.primary}
         />

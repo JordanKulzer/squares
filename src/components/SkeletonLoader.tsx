@@ -8,7 +8,7 @@ const screenWidth = Dimensions.get("window").width;
 const SkeletonLoader = ({
   variant,
 }: {
-  variant: "gamePickerScreen" | "squareScreen" | "friendsList" | "friendRequests" | "homeScreen" | "list" | "profile" | "badgeGrid";
+  variant: "gamePickerScreen" | "squareScreen" | "friendsList" | "friendRequests" | "homeScreen" | "list" | "profile" | "badgeGrid" | "browseScreen";
 }) => {
   const theme = useTheme();
   const isDark = theme.dark;
@@ -284,6 +284,89 @@ const SkeletonLoader = ({
               <View style={{ width: "75%", height: 12, borderRadius: 4, marginBottom: 6 }} />
               {/* Rarity chip */}
               <View style={{ width: "55%", height: 10, borderRadius: 8 }} />
+            </View>
+          ))}
+        </View>
+      </SkeletonPlaceholder>
+    );
+  }
+
+  if (variant === "browseScreen") {
+    // BrowsePublicSquaresScreen: featured card + section + game cards
+    const cardWidth = screenWidth - 24;
+    return (
+      <SkeletonPlaceholder
+        backgroundColor={baseColor}
+        highlightColor={highlightColor}
+        borderRadius={16}
+      >
+        <View style={{ paddingHorizontal: 12, paddingTop: 4 }}>
+          {/* Section label */}
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <View style={{ width: 140, height: 20, borderRadius: 6 }} />
+            <View style={{ width: 24, height: 24, borderRadius: 6 }} />
+          </View>
+
+          {/* Featured card */}
+          <View style={{ width: cardWidth, borderRadius: 16, padding: 16, marginBottom: 20 }}>
+            {/* Badge pill */}
+            <View style={{ width: 90, height: 22, borderRadius: 12, marginBottom: 12 }} />
+            {/* Title */}
+            <View style={{ width: "80%", height: 18, borderRadius: 6, marginBottom: 8 }} />
+            {/* Date */}
+            <View style={{ width: "55%", height: 13, borderRadius: 4, marginBottom: 14 }} />
+            {/* Fill bar labels */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+              <View style={{ width: 90, height: 12, borderRadius: 4 }} />
+              <View style={{ width: 36, height: 12, borderRadius: 4 }} />
+            </View>
+            {/* Fill bar */}
+            <View style={{ width: "100%", height: 6, borderRadius: 3, marginBottom: 12 }} />
+            {/* Stats row */}
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+              <View style={{ width: 40, height: 13, borderRadius: 4 }} />
+              <View style={{ width: 6, height: 13, borderRadius: 4 }} />
+              <View style={{ width: 60, height: 13, borderRadius: 4 }} />
+            </View>
+            {/* Creator row */}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ width: 24, height: 24, borderRadius: 12 }} />
+              <View style={{ width: 80, height: 13, borderRadius: 4 }} />
+              <View style={{ width: 14, height: 14, borderRadius: 4 }} />
+              <View style={{ width: 50, height: 13, borderRadius: 4 }} />
+            </View>
+          </View>
+
+          {/* Second section label */}
+          <View style={{ width: 110, height: 20, borderRadius: 6, marginBottom: 10 }} />
+
+          {/* Regular game cards */}
+          {[...Array(3)].map((_, i) => (
+            <View key={i} style={{ width: cardWidth, borderRadius: 16, padding: 16, marginBottom: 10 }}>
+              {/* Title */}
+              <View style={{ width: "75%", height: 16, borderRadius: 6, marginBottom: 8 }} />
+              {/* Date */}
+              <View style={{ width: "50%", height: 13, borderRadius: 4, marginBottom: 14 }} />
+              {/* Fill bar labels */}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                <View style={{ width: 80, height: 12, borderRadius: 4 }} />
+                <View style={{ width: 32, height: 12, borderRadius: 4 }} />
+              </View>
+              {/* Fill bar */}
+              <View style={{ width: "100%", height: 6, borderRadius: 3, marginBottom: 12 }} />
+              {/* Stats row */}
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                <View style={{ width: 36, height: 13, borderRadius: 4 }} />
+                <View style={{ width: 6, height: 13, borderRadius: 4 }} />
+                <View style={{ width: 56, height: 13, borderRadius: 4 }} />
+              </View>
+              {/* Creator row */}
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View style={{ width: 24, height: 24, borderRadius: 12 }} />
+                <View style={{ width: 70, height: 13, borderRadius: 4 }} />
+                <View style={{ width: 14, height: 14, borderRadius: 4 }} />
+                <View style={{ width: 44, height: 13, borderRadius: 4 }} />
+              </View>
             </View>
           ))}
         </View>

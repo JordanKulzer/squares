@@ -13,6 +13,7 @@ import { useTheme, Chip, Menu } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import SkeletonLoader from "../components/SkeletonLoader";
+import UserAvatar from "../components/UserAvatar";
 import { RootStackParamList, ACTIVE_LEAGUES } from "../utils/types";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { supabase } from "../lib/supabase";
@@ -50,13 +51,18 @@ const formatGameDate = (deadlineStr: string) => {
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()} at ${h}:${m} ${ampm}`;
 };
 
-type SortOption = "kickoff" | "newest" | "most_filled" | "least_filled";
+type SortOption = "kickoff" | "most_filled" | "least_filled";
 
 const SORT_LABELS: Record<SortOption, string> = {
   kickoff: "Kickoff Time",
-  newest: "Newest",
   most_filled: "Most Filled",
   least_filled: "Least Filled",
+};
+
+// Returns the number of filled slots (blocks for block_mode, squares otherwise)
+const getFilledCount = (item: any): number => {
+  const selectionCount = item.selections?.length || 0;
+  return item.block_mode ? Math.floor(selectionCount / 4) : selectionCount;
 };
 
 const sortGames = (games: any[], sort: SortOption) => {
@@ -67,22 +73,16 @@ const sortGames = (games: any[], sort: SortOption) => {
         (a, b) =>
           new Date(a.deadline).getTime() - new Date(b.deadline).getTime(),
       );
-    case "newest":
-      return sorted.sort(
-        (a, b) =>
-          new Date(b.created_at || b.deadline).getTime() -
-          new Date(a.created_at || a.deadline).getTime(),
-      );
     case "most_filled":
       return sorted.sort((a, b) => {
-        const pctA = (a.player_ids?.length || 0) / (a.max_selection || 100);
-        const pctB = (b.player_ids?.length || 0) / (b.max_selection || 100);
+        const pctA = getFilledCount(a) / (a.max_selection || 100);
+        const pctB = getFilledCount(b) / (b.max_selection || 100);
         return pctB - pctA;
       });
     case "least_filled":
       return sorted.sort((a, b) => {
-        const pctA = (a.player_ids?.length || 0) / (a.max_selection || 100);
-        const pctB = (b.player_ids?.length || 0) / (b.max_selection || 100);
+        const pctA = getFilledCount(a) / (a.max_selection || 100);
+        const pctB = getFilledCount(b) / (b.max_selection || 100);
         return pctA - pctB;
       });
   }
@@ -109,64 +109,6 @@ const BrowsePublicSquaresScreen = () => {
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
     : (["#fdfcf9", "#e0e7ff"] as const);
 
-  const now = Date.now();
-  const SAMPLE_GAMES = [
-    {
-      id: "sample-1",
-      title: "Super Bowl Squares 2026",
-      team1_full_name: "Kansas City Chiefs",
-      team2_full_name: "Philadelphia Eagles",
-      deadline: new Date(now + 3 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      league: "NFL",
-      player_ids: Array(72).fill("x"),
-      max_selection: 100,
-      price_per_square: 0,
-      game_completed: false,
-      created_by: "sample",
-      _isSample: true,
-      _isFeatured: true,
-      creator_username: "SquaresHQ",
-      creator_wins: 12,
-    },
-    {
-      id: "sample-2",
-      title: "Championship Showdown",
-      team1_full_name: "Alabama Crimson Tide",
-      team2_full_name: "Georgia Bulldogs",
-      deadline: new Date(now + 1 * 24 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(now - 6 * 60 * 60 * 1000).toISOString(),
-      league: "NCAAF",
-      player_ids: Array(88).fill("x"),
-      max_selection: 100,
-      price_per_square: 0,
-      game_completed: false,
-      created_by: "sample",
-      _isSample: true,
-      _isFeatured: false,
-      creator_username: "GridMaster",
-      creator_wins: 5,
-    },
-    {
-      id: "sample-3",
-      title: "Sunday Night Squares",
-      team1_full_name: "Dallas Cowboys",
-      team2_full_name: "San Francisco 49ers",
-      deadline: new Date(now + 5 * 60 * 60 * 1000).toISOString(),
-      created_at: new Date(now - 1 * 60 * 60 * 1000).toISOString(),
-      league: "NFL",
-      player_ids: Array(42).fill("x"),
-      max_selection: 100,
-      price_per_square: 0,
-      game_completed: false,
-      created_by: "sample",
-      _isSample: true,
-      _isFeatured: false,
-      creator_username: "NFLFanatic",
-      creator_wins: 3,
-    },
-  ];
-
   const fetchPublicSquares = async () => {
     const {
       data: { user },
@@ -177,28 +119,50 @@ const BrowsePublicSquaresScreen = () => {
     let query = supabase
       .from("squares")
       .select(
-        "id, title, deadline, price_per_square, league, players, player_ids, game_completed, created_by, max_selection, team1_full_name, team2_full_name, created_at",
+        "id, title, deadline, price_per_square, league, players, player_ids, game_completed, created_by, max_selection, team1_full_name, team2_full_name, block_mode, selections",
       )
       .eq("is_public", true)
       .eq("game_completed", false)
       .gte("deadline", new Date().toISOString())
       .order("deadline", { ascending: true });
 
-    if (
-      selectedFilter !== "all" &&
-      selectedFilter !== "almost_full" &&
-      selectedFilter !== "new"
-    ) {
-      query = query.eq("league", selectedFilter);
-    }
-
     const { data, error } = await query;
 
     if (error) {
-      console.log("Public squares query unavailable, using sample data");
+      console.error("Error fetching public squares:", error);
+      setPublicGames([]);
+      return;
     }
 
-    const games = !error && data && data.length > 0 ? data : SAMPLE_GAMES;
+    const squares = data || [];
+
+    // Fetch creator usernames and win counts
+    const creatorIds = [...new Set(squares.map((s: any) => s.created_by).filter(Boolean))];
+    let usernameMap: Record<string, string> = {};
+    let winsMap: Record<string, number> = {};
+
+    let profileColorMap: Record<string, string | null> = {};
+    let profileIconMap: Record<string, string | null> = {};
+
+    if (creatorIds.length > 0) {
+      const [{ data: usersData }, { data: statsData }] = await Promise.all([
+        supabase.from("users").select("id, username, profile_color, profile_icon").in("id", creatorIds),
+        supabase.from("leaderboard_stats").select("user_id, quarters_won").in("user_id", creatorIds),
+      ]);
+      usernameMap = Object.fromEntries((usersData || []).map((u: any) => [u.id, u.username]));
+      profileColorMap = Object.fromEntries((usersData || []).map((u: any) => [u.id, u.profile_color || null]));
+      profileIconMap = Object.fromEntries((usersData || []).map((u: any) => [u.id, u.profile_icon || null]));
+      winsMap = Object.fromEntries((statsData || []).map((s: any) => [s.user_id, s.quarters_won || 0]));
+    }
+
+    const games = squares.map((s: any) => ({
+      ...s,
+      creator_username: usernameMap[s.created_by] || "Unknown",
+      creator_wins: winsMap[s.created_by] || 0,
+      creator_profile_color: profileColorMap[s.created_by] || null,
+      creator_profile_icon: profileIconMap[s.created_by] || null,
+    }));
+
     setPublicGames(games);
 
     translateYAnims.length = 0;
@@ -241,31 +205,17 @@ const BrowsePublicSquaresScreen = () => {
     setRefreshing(false);
   };
 
-  const getPlayerCount = (item: any) => item.player_ids?.length || 0;
+  const getPlayerCount = (item: any) => getFilledCount(item);
   const getMaxPlayers = (item: any) => item.max_selection || 100;
   const getFillPercent = (item: any) =>
     Math.round((getPlayerCount(item) / getMaxPlayers(item)) * 100);
-  const isAlmostFull = (item: any) => getFillPercent(item) >= 75;
-  const isNewlyAdded = (item: any) => {
-    const created = new Date(item.created_at || item.deadline).getTime();
-    return Date.now() - created < 48 * 60 * 60 * 1000; // within 48 hours
-  };
-
   const featuredGame =
     publicGames.find((g) => g.is_featured || g._isFeatured) || null;
 
   const nonFeatured = publicGames.filter((g) => g.id !== featuredGame?.id);
 
-  const almostFullGames = sortGames(
-    nonFeatured.filter((g) => isAlmostFull(g)),
-    sortBy,
-  );
-  const newlyAddedGames = sortGames(
-    nonFeatured.filter((g) => isNewlyAdded(g)),
-    sortBy,
-  );
-  // Per-league game lists for "All Squares" view
-  const leagueSections = ACTIVE_LEAGUES.map((league) => ({
+  // Per-league game lists for "All Squares" view (includes Custom)
+  const leagueSections = [...ACTIVE_LEAGUES, "Custom"].map((league) => ({
     league,
     games: sortGames(
       nonFeatured.filter((g) => g.league === league),
@@ -275,26 +225,9 @@ const BrowsePublicSquaresScreen = () => {
 
   // Build display lists based on filter
   const getDisplayData = () => {
-    if (selectedFilter === "almost_full") {
-      return {
-        showFeatured: false,
-        almost: almostFullGames,
-        leagueSections: [] as typeof leagueSections,
-        remaining: [] as any[],
-      };
-    }
-    if (selectedFilter === "new") {
-      return {
-        showFeatured: false,
-        almost: [] as any[],
-        leagueSections: [] as typeof leagueSections,
-        remaining: newlyAddedGames,
-      };
-    }
     if (selectedFilter === "all") {
       return {
         showFeatured: true,
-        almost: almostFullGames.slice(0, 2),
         leagueSections,
         remaining: [] as any[],
       };
@@ -306,23 +239,14 @@ const BrowsePublicSquaresScreen = () => {
     );
     return {
       showFeatured: featuredGame?.league === selectedFilter,
-      almost: almostFullGames.filter((g) => g.league === selectedFilter),
       leagueSections: [] as typeof leagueSections,
-      remaining: leagueGames.filter(
-        (g) => !almostFullGames.find((af: any) => af.id === g.id),
-      ),
+      remaining: leagueGames,
     };
   };
 
   const display = getDisplayData();
 
   const navigateToGame = (item: any) => {
-    if (item._isSample) {
-      navigation.navigate("JoinSquareScreen", {
-        sessionId: item.id,
-      });
-      return;
-    }
     const alreadyJoined = item.player_ids?.includes(userId);
     if (alreadyJoined) {
       navigation.navigate("SquareScreen", {
@@ -346,21 +270,21 @@ const BrowsePublicSquaresScreen = () => {
   const CreatorRow = ({
     username,
     wins,
+    profileColor,
+    profileIcon,
   }: {
     username: string;
     wins: number;
+    profileColor?: string | null;
+    profileIcon?: string | null;
   }) => (
     <View style={styles.creatorRow}>
-      <View
-        style={[
-          styles.creatorAvatar,
-          { backgroundColor: theme.colors.primary },
-        ]}
-      >
-        <Text style={styles.creatorInitial}>
-          {(username || "?")[0].toUpperCase()}
-        </Text>
-      </View>
+      <UserAvatar
+        username={username}
+        profileColor={profileColor}
+        profileIcon={profileIcon}
+        size={28}
+      />
       <Text
         style={[styles.creatorName, { color: theme.colors.onSurfaceVariant }]}
       >
@@ -379,13 +303,14 @@ const BrowsePublicSquaresScreen = () => {
     const count = getPlayerCount(item);
     const max = getMaxPlayers(item);
     const pct = getFillPercent(item);
+    const unit = item.block_mode ? "blocks" : "squares";
     return (
       <View style={styles.fillBarContainer}>
         <View style={styles.fillBarRow}>
           <Text
             style={[styles.fillCount, { color: theme.colors.onSurfaceVariant }]}
           >
-            {count} / {max} squares
+            {count} / {max} {unit}
           </Text>
           <Text
             style={[
@@ -425,13 +350,13 @@ const BrowsePublicSquaresScreen = () => {
         •
       </Text>
       <Text style={[styles.statText, { color: theme.colors.onSurfaceVariant }]}>
-        Max 5 squares
+        {item.block_mode ? "2x2 Blocks" : "Individual"}
       </Text>
       <Text style={[styles.statDot, { color: theme.colors.onSurfaceVariant }]}>
         •
       </Text>
       <Text style={[styles.statText, { color: theme.colors.onSurfaceVariant }]}>
-        {item.price_per_square ? `$${item.price_per_square}` : "Free"}
+        {item.price_per_square ? `$${item.price_per_square}/square` : "Free"}
       </Text>
     </View>
   );
@@ -479,61 +404,6 @@ const BrowsePublicSquaresScreen = () => {
     </TouchableOpacity>
   );
 
-  const renderAlmostFullCard = (item: any, index: number) => (
-    <Animated.View
-      key={item.id}
-      style={{
-        opacity: opacityAnims[index] || new Animated.Value(1),
-        transform: [
-          {
-            translateY: translateYAnims[index] || new Animated.Value(0),
-          },
-        ],
-      }}
-    >
-      <TouchableOpacity
-        style={[
-          styles.almostFullCard,
-          {
-            backgroundColor: theme.dark ? "#2a2510" : "#FFF8E7",
-            borderColor: theme.dark ? "#5a4a20" : "#FFE0A0",
-          },
-        ]}
-        onPress={() => navigateToGame(item)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.almostFullBadge}>
-          <Text style={styles.almostFullBadgeText}>
-            {getFillPercent(item)}% FULL
-          </Text>
-        </View>
-        <Text
-          numberOfLines={1}
-          style={[styles.cardTitle, { color: theme.colors.onBackground }]}
-        >
-          {item.team1_full_name} @ {item.team2_full_name}
-        </Text>
-        <Text
-          style={[styles.cardDate, { color: theme.colors.onSurfaceVariant }]}
-        >
-          {formatGameDate(item.deadline)}
-        </Text>
-        <FillBar item={item} />
-        <StatsRow item={item} />
-        <CreatorRow
-          username={item.creator_username || "Unknown"}
-          wins={item.creator_wins || 0}
-        />
-        {item.player_ids?.includes(userId) && (
-          <View style={styles.joinedBadge}>
-            <MaterialIcons name="check-circle" size={14} color="#4CAF50" />
-            <Text style={styles.joinedText}>Joined</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    </Animated.View>
-  );
-
   const renderGameCard = (item: any, index: number) => (
     <Animated.View
       key={item.id}
@@ -575,6 +445,8 @@ const BrowsePublicSquaresScreen = () => {
         <CreatorRow
           username={item.creator_username || "Unknown"}
           wins={item.creator_wins || 0}
+          profileColor={item.creator_profile_color}
+          profileIcon={item.creator_profile_icon}
         />
         {item.player_ids?.includes(userId) && (
           <View style={styles.joinedBadge}>
@@ -656,8 +528,7 @@ const BrowsePublicSquaresScreen = () => {
             {[
               { key: "all", label: "All Squares" },
               ...ACTIVE_LEAGUES.map((l) => ({ key: l, label: l })),
-              { key: "almost_full", label: "Almost Full" },
-              { key: "new", label: "Newly Created" },
+              { key: "Custom", label: "Custom" },
             ].map((filter) => (
               <Chip
                 key={filter.key}
@@ -682,7 +553,7 @@ const BrowsePublicSquaresScreen = () => {
 
         {/* Content */}
         {loading ? (
-          <SkeletonLoader variant="homeScreen" />
+          <SkeletonLoader variant="browseScreen" />
         ) : (
           <ScrollView
             style={{ paddingHorizontal: 12 }}
@@ -713,34 +584,6 @@ const BrowsePublicSquaresScreen = () => {
               </View>
             )}
 
-            {/* Almost Full */}
-            {display.almost.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text
-                    style={[
-                      styles.sectionTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Almost Full
-                  </Text>
-                  {selectedFilter === "all" && almostFullGames.length > 2 && (
-                    <Text
-                      style={[styles.seeAll, { color: theme.colors.primary }]}
-                      onPress={() => setSelectedFilter("almost_full")}
-                    >
-                      See all
-                    </Text>
-                  )}
-                </View>
-                {display.almost.map((item) => {
-                  const globalIdx = publicGames.indexOf(item);
-                  return renderAlmostFullCard(item, globalIdx);
-                })}
-              </View>
-            )}
-
             {/* Per-league sections (All Squares view) */}
             {display.leagueSections.map((section) => (
               <View key={section.league} style={styles.section}>
@@ -767,41 +610,36 @@ const BrowsePublicSquaresScreen = () => {
               </View>
             ))}
 
-            {/* Remaining games (league/new/almost_full filter views) */}
+            {/* Remaining games (league filter views) */}
             {display.remaining.length > 0 && (
               <View style={styles.section}>
-                {selectedFilter === "new" && (
+                {selectedFilter !== "all" && (
                   <Text
                     style={[
                       styles.sectionTitle,
-                      {
-                        color: theme.colors.onBackground,
-                        marginBottom: 10,
-                      },
+                      { color: theme.colors.onBackground, marginBottom: 10 },
                     ]}
                   >
-                    Newly Created
+                    {selectedFilter} Games
                   </Text>
                 )}
-                {selectedFilter !== "all" &&
-                  selectedFilter !== "new" &&
-                  selectedFilter !== "almost_full" && (
-                    <Text
-                      style={[
-                        styles.sectionTitle,
-                        {
-                          color: theme.colors.onBackground,
-                          marginBottom: 10,
-                        },
-                      ]}
-                    >
-                      {selectedFilter} Games
-                    </Text>
-                  )}
                 {display.remaining.map((item) => {
                   const globalIdx = publicGames.indexOf(item);
                   return renderGameCard(item, globalIdx);
                 })}
+              </View>
+            )}
+
+            {/* Empty state */}
+            {publicGames.length === 0 && (
+              <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 32 }}>
+                <MaterialIcons name="grid-off" size={56} color={theme.colors.onSurfaceVariant} />
+                <Text style={{ fontSize: 18, fontFamily: "Rubik_600SemiBold", color: theme.colors.onBackground, marginTop: 16, textAlign: "center" }}>
+                  No public squares yet
+                </Text>
+                <Text style={{ fontSize: 14, fontFamily: "Rubik_400Regular", color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: "center" }}>
+                  Be the first to create a public session!
+                </Text>
               </View>
             )}
           </ScrollView>
@@ -894,32 +732,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Rubik_400Regular",
     marginBottom: 12,
-  },
-  almostFullCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1.5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  almostFullBadge: {
-    backgroundColor: "#F59E0B",
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 10,
-  },
-  almostFullBadgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-    fontFamily: "Rubik_600SemiBold",
-    letterSpacing: 0.5,
   },
   gameCard: {
     borderRadius: 16,

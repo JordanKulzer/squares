@@ -9,7 +9,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import colors from "../../assets/constants/colorOptions";
-import { iconOptions, BADGE_EMOJI_MAP } from "../../assets/constants/iconOptions";
+import {
+  iconOptions,
+  BADGE_EMOJI_MAP,
+} from "../../assets/constants/iconOptions";
 import tinycolor from "tinycolor2";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
@@ -58,6 +61,7 @@ type CreateSquareRouteParams = {
     team2Abbr?: string;
     league?: string;
     isCustomGame?: boolean;
+    isPublic?: boolean;
   };
 };
 
@@ -80,6 +84,7 @@ const CreateSquareScreen = ({ navigation }) => {
   const [eventId, setEventId] = useState("");
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [blockMode, setBlockMode] = useState(false);
+  const [isPublic, setIsPublic] = useState<boolean>(false);
   const [showPicker, setShowPicker] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
@@ -124,6 +129,7 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.team2Abbr) setTeam2Abbr(params.team2Abbr);
     if (params.league) setLeague(params.league);
     if (params.isCustomGame) setIsCustomGame(params.isCustomGame);
+    if (params.isPublic) setIsPublic(params.isPublic);
     if (params.deadline) setDeadline(new Date(params.deadline));
     if (params.inputTitle) setInputTitle(params.inputTitle);
     // Fetch username, active badge, and earned badges from users table
@@ -141,7 +147,9 @@ const CreateSquareScreen = ({ navigation }) => {
         // Auto-default to active badge emoji if set
         if (profile?.active_badge && BADGE_EMOJI_MAP[profile.active_badge]) {
           setDisplayType("icon");
-          setDisplayValue(`emoji:${BADGE_EMOJI_MAP[profile.active_badge].emoji}`);
+          setDisplayValue(
+            `emoji:${BADGE_EMOJI_MAP[profile.active_badge].emoji}`,
+          );
         }
         // Fetch earned badges for icon picker
         const { data: badgeData } = await supabase
@@ -305,6 +313,7 @@ const CreateSquareScreen = ({ navigation }) => {
             league: league || (isCustomGame ? "Custom" : "NFL"),
             block_mode: blockMode,
             is_custom_game: isCustomGame,
+            is_public: isPublic,
           },
         ])
         .select("id")
@@ -362,7 +371,8 @@ const CreateSquareScreen = ({ navigation }) => {
     }
   };
 
-  const isFormValid = inputTitle.trim() && team1 && team2 && selectedColor;
+  const isFormValid =
+    inputTitle.trim() && team1 && team2 && selectedColor;
 
   return (
     <LinearGradient
@@ -772,7 +782,15 @@ const CreateSquareScreen = ({ navigation }) => {
                 {/* Earned Badge Emojis */}
                 {earnedBadges.length > 0 && (
                   <>
-                    <Text style={{ fontSize: 12, fontFamily: "Rubik_500Medium", color: theme.colors.onSurfaceVariant, marginBottom: 6, marginTop: 4 }}>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: "Rubik_500Medium",
+                        color: theme.colors.onSurfaceVariant,
+                        marginBottom: 6,
+                        marginTop: 4,
+                      }}
+                    >
                       Earned Badges
                     </Text>
                     <View style={styles.iconGrid}>
@@ -788,13 +806,17 @@ const CreateSquareScreen = ({ navigation }) => {
                               styles.iconButton,
                               {
                                 backgroundColor: selectedColor
-                                  ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                                  ? tinycolor(selectedColor)
+                                      .setAlpha(0.2)
+                                      .toRgbString()
                                   : theme.dark
                                     ? "#333"
                                     : "#e8e8e8",
                                 borderWidth: displayValue === val ? 3 : 0,
                                 borderColor: theme.colors.primary,
-                                transform: [{ scale: displayValue === val ? 1.1 : 1 }],
+                                transform: [
+                                  { scale: displayValue === val ? 1.1 : 1 },
+                                ],
                               },
                             ]}
                           >
@@ -806,7 +828,15 @@ const CreateSquareScreen = ({ navigation }) => {
                   </>
                 )}
                 {/* Premium Icons */}
-                <Text style={{ fontSize: 12, fontFamily: "Rubik_500Medium", color: theme.colors.onSurfaceVariant, marginBottom: 6, marginTop: earnedBadges.length > 0 ? 12 : 4 }}>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: "Rubik_500Medium",
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 6,
+                    marginTop: earnedBadges.length > 0 ? 12 : 4,
+                  }}
+                >
                   {isPremium ? "Icons" : "Premium Icons"}
                 </Text>
                 <View style={styles.iconGrid}>
@@ -915,6 +945,127 @@ const CreateSquareScreen = ({ navigation }) => {
             <Text style={[styles.label, { color: theme.colors.onBackground }]}>
               Game Settings
             </Text>
+            {/* Public Square */}
+            <View
+              style={[
+                styles.settingCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderWidth: 0,
+                },
+              ]}
+            >
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <MaterialIcons
+                  name="public"
+                  size={24}
+                  color={theme.colors.primary}
+                  style={{ marginRight: 12 }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.settingTitle,
+                      { color: theme.colors.onBackground },
+                    ]}
+                  >
+                    Visibility
+                  </Text>
+                  <Text
+                    style={[
+                      styles.settingValue,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {isPublic
+                      ? "Listed in Browse — anyone can join"
+                      : "Private — invite only"}
+                  </Text>
+                </View>
+              </View>
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                <TouchableOpacity
+                  onPress={() => setIsPublic(false)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    backgroundColor:
+                      isPublic === false
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#333"
+                          : "#eee",
+                  }}
+                >
+                  <MaterialIcons
+                    name="lock"
+                    size={18}
+                    color={
+                      isPublic === false
+                        ? "#fff"
+                        : theme.colors.onSurfaceVariant
+                    }
+                  />
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: "Rubik_500Medium",
+                      color:
+                        isPublic === false
+                          ? "#fff"
+                          : theme.colors.onSurfaceVariant,
+                      marginTop: 4,
+                    }}
+                  >
+                    Private
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setIsPublic(true)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    backgroundColor:
+                      isPublic === true
+                        ? theme.colors.primary
+                        : theme.dark
+                          ? "#333"
+                          : "#eee",
+                  }}
+                >
+                  <MaterialIcons
+                    name="public"
+                    size={18}
+                    color={
+                      isPublic === true ? "#fff" : theme.colors.onSurfaceVariant
+                    }
+                  />
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontFamily: "Rubik_500Medium",
+                      color:
+                        isPublic === true
+                          ? "#fff"
+                          : theme.colors.onSurfaceVariant,
+                      marginTop: 4,
+                    }}
+                  >
+                    Public
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {/* 2x2 Block Mode */}
             <View

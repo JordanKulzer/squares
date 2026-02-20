@@ -40,6 +40,7 @@ interface AddGuestPlayerModalProps {
     addedBy: string;
   }) => void;
   currentUserId: string;
+  usedColors?: string[];
 }
 
 const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
@@ -47,6 +48,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
   onDismiss,
   onAddPlayer,
   currentUserId,
+  usedColors = [],
 }) => {
   const theme = useTheme();
   const { isPremium } = usePremium();
@@ -194,7 +196,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                 Color *
               </Text>
               <View style={styles.colorGrid}>
-                {colors.colorOptions.map((color) => (
+                {colors.colorOptions.filter((color) => !usedColors.includes(color)).map((color) => (
                   <TouchableOpacity
                     key={color}
                     onPress={() => setSelectedColor(color)}

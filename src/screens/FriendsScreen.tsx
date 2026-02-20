@@ -186,6 +186,8 @@ const FriendsScreen = ({ navigation }: any) => {
                 username={friend.friend_username}
                 email={friend.friend_email}
                 activeBadge={friend.friend_active_badge}
+                profileColor={friend.friend_profile_color}
+                profileIcon={friend.friend_profile_icon}
                 size={56}
                 backgroundColor={theme.colors.primary}
               />
@@ -252,6 +254,8 @@ const FriendsScreen = ({ navigation }: any) => {
               username={request.requester_username}
               email={request.requester_email}
               activeBadge={request.requester_active_badge}
+              profileColor={request.requester_profile_color}
+              profileIcon={request.requester_profile_icon}
               size={56}
               backgroundColor={theme.colors.secondary}
             />

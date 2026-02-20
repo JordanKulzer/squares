@@ -217,6 +217,7 @@ const SquareScreen = ({ route }) => {
     username: string;
     color: string;
   } | null>(null);
+  const assignModePlayerRef = useRef<{ userId: string; username: string; color: string } | null>(null);
   const [isTeam1Home, setIsTeam1Home] = useState<boolean | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [winningsByUser, setWinningsByUser] = useState<Record<string, number>>(
@@ -1231,7 +1232,8 @@ const SquareScreen = ({ route }) => {
   };
 
   const handleAssignSquareToPlayer = async (x: number, y: number) => {
-    if (!assignModePlayer) return;
+    const player = assignModePlayerRef.current;
+    if (!player) return;
 
     const key = `${x},${y}`;
 
@@ -1245,7 +1247,7 @@ const SquareScreen = ({ route }) => {
       return;
     }
 
-    const assignToUserId = assignModePlayer.userId;
+    const assignToUserId = player.userId;
     const isGuestPlayer = assignToUserId.startsWith("guest_");
 
     try {
@@ -1299,7 +1301,7 @@ const SquareScreen = ({ route }) => {
         } else {
           Toast.show({
             type: "success",
-            text1: `Square assigned to ${assignModePlayer.username}`,
+            text1: `Square assigned to ${player.username}`,
             position: "bottom",
             visibilityTime: 1500,
           });
@@ -1313,7 +1315,7 @@ const SquareScreen = ({ route }) => {
             x,
             y,
             userId: assignToUserId,
-            username: assignModePlayer.username,
+            username: player.username,
           },
         });
 
@@ -1328,7 +1330,7 @@ const SquareScreen = ({ route }) => {
         } else {
           Toast.show({
             type: "success",
-            text1: `Square assigned to ${assignModePlayer.username}`,
+            text1: `Square assigned to ${player.username}`,
             position: "bottom",
             visibilityTime: 1500,
           });
@@ -1344,6 +1346,140 @@ const SquareScreen = ({ route }) => {
         text2: String(err),
         position: "bottom",
       });
+    }
+  };
+
+  const handleUnassignSquare = async (x: number, y: number) => {
+    const key = `${x},${y}`;
+    const color = squareColors[key];
+    if (!color) return;
+
+    const ownerEntry = Object.entries(playerColors).find(([, c]) => c === color);
+    if (!ownerEntry) return;
+    const [ownerUserId] = ownerEntry;
+    const ownerUsername = playerUsernames[ownerUserId] || "";
+    const isGuestOwner = ownerUserId.startsWith("guest_");
+
+    try {
+      if (isGuestOwner) {
+        const { data, error } = await supabase
+          .from("squares")
+          .select("selections")
+          .eq("id", gridId)
+          .single();
+        if (error || !data) throw error;
+        const updated = (data.selections || []).filter(
+          (s: any) => !(s.x === x && s.y === y),
+        );
+        await supabase.from("squares").update({ selections: updated }).eq("id", gridId);
+      } else {
+        await supabase.rpc("remove_selection", {
+          grid_id: gridId,
+          selection_to_remove: { x, y, userId: ownerUserId, username: ownerUsername },
+        });
+      }
+      Toast.show({ type: "success", text1: "Square removed", position: "bottom", visibilityTime: 1500 });
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error("Error unassigning square:", err);
+      Toast.show({ type: "error", text1: "Failed to unassign square", position: "bottom" });
+    }
+  };
+
+  const handleUnassignBlock = async (squares: { x: number; y: number }[]) => {
+    if (squares.length === 0) return;
+    // Determine owner from the first square's color
+    const firstKey = `${squares[0].x},${squares[0].y}`;
+    const color = squareColors[firstKey];
+    if (!color) return;
+    const ownerEntry = Object.entries(playerColors).find(([, c]) => c === color);
+    if (!ownerEntry) return;
+    const [ownerUserId] = ownerEntry;
+    const ownerUsername = playerUsernames[ownerUserId] || "";
+    const isGuestOwner = ownerUserId.startsWith("guest_");
+
+    try {
+      if (isGuestOwner) {
+        // Single fetch → remove all → single write (avoids race condition)
+        const { data, error } = await supabase
+          .from("squares")
+          .select("selections")
+          .eq("id", gridId)
+          .single();
+        if (error || !data) throw error;
+        const coordSet = new Set(squares.map((sq) => `${sq.x},${sq.y}`));
+        const updated = (data.selections || []).filter(
+          (s: any) => !coordSet.has(`${s.x},${s.y}`),
+        );
+        await supabase.from("squares").update({ selections: updated }).eq("id", gridId);
+      } else {
+        await Promise.all(
+          squares.map((sq) =>
+            supabase.rpc("remove_selection", {
+              grid_id: gridId,
+              selection_to_remove: { x: sq.x, y: sq.y, userId: ownerUserId, username: ownerUsername },
+            }),
+          ),
+        );
+      }
+      Toast.show({ type: "success", text1: "Block removed", position: "bottom", visibilityTime: 1500 });
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error("Error unassigning block:", err);
+      Toast.show({ type: "error", text1: "Failed to unassign block", position: "bottom" });
+    }
+  };
+
+  const handleAssignBlockToPlayer = async (x: number, y: number) => {
+    const player = assignModePlayerRef.current;
+    if (!player) return;
+    const blockSquares = getBlockSquares(x, y);
+
+    // Check all 4 are empty
+    for (const sq of blockSquares) {
+      if (squareColors[`${sq.x},${sq.y}`]) {
+        Toast.show({ type: "error", text1: "A square in this block is already claimed", position: "bottom" });
+        return;
+      }
+    }
+
+    const assignToUserId = player.userId;
+    const isGuestPlayer = assignToUserId.startsWith("guest_");
+
+    try {
+      if (isGuestPlayer) {
+        const { data, error } = await supabase
+          .from("squares")
+          .select("selections")
+          .eq("id", gridId)
+          .single();
+        if (error || !data) throw error;
+        const now = new Date().toISOString();
+        const newSelections = blockSquares.map((sq) => ({
+          oddsId: null, oddsStatus: "unknown", oddsUpdatedAt: now,
+          oddsValue: null, oddsBookmaker: null, oddsType: null,
+          x: sq.x, y: sq.y, oddsDescription: null, userId: assignToUserId,
+        }));
+        const { error: updateError } = await supabase
+          .from("squares")
+          .update({ selections: [...(data.selections || []), ...newSelections] })
+          .eq("id", gridId);
+        if (updateError) throw updateError;
+      } else {
+        await Promise.all(
+          blockSquares.map((sq) =>
+            supabase.rpc("add_selection", {
+              grid_id: gridId,
+              new_selection: { x: sq.x, y: sq.y, userId: assignToUserId, username: player.username },
+            }),
+          ),
+        );
+      }
+      Toast.show({ type: "success", text1: `Block assigned to ${player.username}`, position: "bottom", visibilityTime: 1500 });
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      console.error("Error assigning block:", err);
+      Toast.show({ type: "error", text1: "Failed to assign block", position: "bottom" });
     }
   };
 
@@ -1523,7 +1659,7 @@ const SquareScreen = ({ route }) => {
         </View>
       ),
     });
-  }, [navigation, isOwner, inputTitle, title]);
+  }, [navigation, isOwner, inputTitle, title, isFocused]);
 
   const selectSquareInSupabase = async (x, y) => {
     await supabase.rpc("add_selection", {
@@ -1562,6 +1698,7 @@ const SquareScreen = ({ route }) => {
   }, []);
 
   const lastPressTime = useRef<Record<string, number>>({});
+  const lastLongPressKey = useRef<string | null>(null);
 
   const handlePress = useCallback(
     async (x, y) => {
@@ -2075,21 +2212,59 @@ const SquareScreen = ({ route }) => {
                   opacity: pressed ? 0.6 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                   borderBottomRightRadius: x === 10 && y === 10 ? 8 : 0,
-                  ...(blockMode ? blockBorderStyle : {}),
+                  // blockBorderStyle uses per-side colors that would override borderColor shorthand,
+                  // so skip it for winning squares to preserve the gold border
+                  ...(blockMode && !isWinner ? blockBorderStyle : {}),
+                  // Ensure winner's per-side colors are all gold (overrides any inherited per-side colors)
+                  ...(isWinner ? {
+                    borderLeftColor: "#FFD700",
+                    borderRightColor: "#FFD700",
+                    borderTopColor: "#FFD700",
+                    borderBottomColor: "#FFD700",
+                  } : {}),
                 },
                 isSelected && styles.selectedSquare,
               ]}
               onPress={() => {
-                // If assign mode is active, directly assign to the selected player
-                if (assignMode && assignModePlayer && isOwner && !squareColors[key]) {
-                  handleAssignSquareToPlayer(x - 1, y - 1);
+                // Suppress the press that fires immediately after a long press on the same cell
+                if (lastLongPressKey.current === key) {
+                  lastLongPressKey.current = null;
+                  return;
+                }
+                const ax = x - 1;
+                const ay = y - 1;
+                // Assign mode: owner managing squares on behalf of players
+                if (assignMode && isOwner) {
+                  const currentPlayer = assignModePlayerRef.current;
+                  const playerColor = currentPlayer ? playerColors[currentPlayer.userId] : null;
+                  if (blockMode) {
+                    const blockSquares = getBlockSquares(ax, ay);
+                    // Only interact with squares belonging to the current assign-mode player
+                    const playerClaimedSquares = blockSquares.filter((sq) => {
+                      const c = squareColors[`${sq.x},${sq.y}`];
+                      return c && c === playerColor;
+                    });
+                    if (playerClaimedSquares.length > 0) {
+                      handleUnassignBlock(playerClaimedSquares);
+                    } else if (currentPlayer) {
+                      handleAssignBlockToPlayer(ax, ay);
+                    }
+                  } else {
+                    const squareOwnerColor = squareColors[key];
+                    if (squareOwnerColor && playerColor && squareOwnerColor === playerColor) {
+                      handleUnassignSquare(ax, ay);
+                    } else if (!squareOwnerColor && currentPlayer) {
+                      handleAssignSquareToPlayer(ax, ay);
+                    }
+                  }
                   return;
                 }
                 if (editable || onSquarePress === handleSquarePress) {
-                  onSquarePress(x - 1, y - 1);
+                  onSquarePress(ax, ay);
                 }
               }}
               onLongPress={() => {
+                lastLongPressKey.current = key;
                 // Allow owners to open assign modal for empty squares
                 if (isOwner && !squareColors[key] && players.length > 0) {
                   setShowAssignSquareModal(true);
@@ -2860,6 +3035,10 @@ const SquareScreen = ({ route }) => {
     theme,
     winningsByUser,
     refreshing,
+    assignMode,
+    assignModePlayer,
+    isOwner,
+    blockMode,
   ]);
 
   const renderScene = useCallback(
@@ -3037,6 +3216,7 @@ const SquareScreen = ({ route }) => {
             onDismiss={() => setShowAddGuestModal(false)}
             onAddPlayer={handleAddGuestPlayer}
             currentUserId={userId || ""}
+            usedColors={players.map((p) => p.color).filter(Boolean)}
           />
 
           {/* Assign Mode Header Banner */}
@@ -3065,6 +3245,7 @@ const SquareScreen = ({ route }) => {
               <TouchableOpacity
                 onPress={() => {
                   setAssignMode(false);
+                  assignModePlayerRef.current = null;
                   setAssignModePlayer(null);
                 }}
                 style={{
@@ -3084,6 +3265,7 @@ const SquareScreen = ({ route }) => {
             visible={showAssignSquareModal}
             onDismiss={() => setShowAssignSquareModal(false)}
             onSelectPlayer={(player) => {
+              assignModePlayerRef.current = player;
               setAssignModePlayer(player);
               setAssignMode(true);
             }}
