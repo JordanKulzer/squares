@@ -8,9 +8,12 @@ import React, {
 } from "react";
 import { supabase } from "../lib/supabase";
 
+type PremiumType = "legacy_onetime" | "subscription" | null;
+
 interface PremiumContextType {
   isPremium: boolean;
   loading: boolean;
+  premiumType: PremiumType;
   refreshPremiumStatus: () => Promise<void>;
   setPremiumStatus: (status: boolean) => void;
   // Dev mode for testing
@@ -24,6 +27,7 @@ export const PremiumProvider = ({ children }: { children: ReactNode }) => {
   const [realPremiumStatus, setRealPremiumStatus] = useState(false);
   const [devModeOverride, setDevModeOverride] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [premiumType, setPremiumType] = useState<PremiumType>(null);
 
   // In dev mode, override real premium status
   const isPremium = __DEV__ && devModeOverride ? true : realPremiumStatus;
@@ -35,17 +39,43 @@ export const PremiumProvider = ({ children }: { children: ReactNode }) => {
       } = await supabase.auth.getUser();
       if (!user) {
         setRealPremiumStatus(false);
+        setPremiumType(null);
         setLoading(false);
         return;
       }
 
       const { data, error } = await supabase
         .from("users")
-        .select("is_premium")
+        .select(
+          "is_premium, premium_type, subscription_expires_at"
+        )
         .eq("id", user.id)
         .single();
 
       if (!error && data) {
+        setPremiumType(data.premium_type as PremiumType);
+
+        // Client-side subscription expiry check
+        if (
+          data.premium_type === "subscription" &&
+          data.subscription_expires_at
+        ) {
+          const expiresAt = new Date(data.subscription_expires_at);
+          if (expiresAt < new Date()) {
+            // Subscription expired — mark as not premium
+            setRealPremiumStatus(false);
+            // Update DB to reflect expired status
+            await supabase
+              .from("users")
+              .update({
+                is_premium: false,
+                subscription_status: "expired",
+              })
+              .eq("id", user.id);
+            return;
+          }
+        }
+
         setRealPremiumStatus(data.is_premium || false);
       }
     } catch (err) {
@@ -72,6 +102,7 @@ export const PremiumProvider = ({ children }: { children: ReactNode }) => {
         refreshPremiumStatus();
       } else {
         setRealPremiumStatus(false);
+        setPremiumType(null);
         setLoading(false);
       }
     });
@@ -86,6 +117,7 @@ export const PremiumProvider = ({ children }: { children: ReactNode }) => {
       value={{
         isPremium,
         loading,
+        premiumType,
         refreshPremiumStatus,
         setPremiumStatus: setRealPremiumStatus,
         isDevMode: __DEV__ && devModeOverride,

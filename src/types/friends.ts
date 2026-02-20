@@ -17,6 +17,7 @@ export interface FriendWithProfile extends Friend {
   friend_username: string | null;
   friend_email: string | null;
   friend_push_token: string | null;
+  friend_active_badge: string | null;
 }
 
 // Incoming friend request (where current user is the friend_id)
@@ -29,6 +30,7 @@ export interface FriendRequest {
   // Requester's info
   requester_username: string | null;
   requester_email: string | null;
+  requester_active_badge: string | null;
 }
 
 // User search result for adding friends
@@ -36,6 +38,7 @@ export interface UserSearchResult {
   id: string;
   username: string | null;
   email: string | null;
+  active_badge: string | null;
   // Relationship status with current user
   friendship_status: FriendStatus | 'none' | 'incoming_request';
   friendship_id: string | null;

@@ -12,9 +12,11 @@ import {
 } from "react-native";
 import { Portal, useTheme } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
 import { searchUsers, sendFriendRequest, acceptFriendRequest } from "../lib/friends";
 import { UserSearchResult } from "../types/friends";
+import UserAvatar from "./UserAvatar";
 import SkeletonLoader from "./SkeletonLoader";
 
 interface AddFriendModalProps {
@@ -120,16 +122,6 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
     }
   };
 
-  const getInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-    }
-    if (email) {
-      return email[0].toUpperCase();
-    }
-    return "?";
-  };
-
   const getStatusButton = (user: UserSearchResult) => {
     const isLoading = sendingTo === user.id;
 
@@ -193,13 +185,13 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
 
   const renderUser = ({ item }: { item: UserSearchResult }) => (
     <View style={[styles.userCard, { backgroundColor: theme.colors.surface }]}>
-      <View
-        style={[styles.avatarCircle, { backgroundColor: theme.colors.secondary }]}
-      >
-        <Text style={styles.avatarText}>
-          {getInitials(item.username, item.email)}
-        </Text>
-      </View>
+      <UserAvatar
+        username={item.username}
+        email={item.email}
+        activeBadge={item.active_badge}
+        size={44}
+        backgroundColor={theme.colors.secondary}
+      />
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text style={[styles.userName, { color: theme.colors.onSurface }]}>
           {item.username || "User"}
@@ -219,8 +211,6 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
   };
 
   const surfaceColor = theme.colors.surface;
-  const onSurfaceColor = theme.colors.onSurface;
-  const dividerColor = theme.dark ? "#333" : "#eee";
 
   return (
     <Portal>
@@ -250,10 +240,8 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
           right: 0,
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
-          paddingHorizontal: 20,
-          paddingTop: 24,
-          paddingBottom: 75,
           maxHeight: "80%",
+          overflow: "hidden",
           borderWidth: 1.5,
           borderLeftWidth: 5,
           borderBottomWidth: 0,
@@ -266,45 +254,28 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
           elevation: 10,
         }}
       >
-        <View
+        <LinearGradient
+          colors={["#6C63FF", "#4834DF"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
           style={{
             flexDirection: "row",
-            justifyContent: "space-between",
             alignItems: "center",
-            marginBottom: 20,
+            paddingHorizontal: 20,
+            paddingTop: 20,
+            paddingBottom: 16,
           }}
         >
-          <Text
-            style={{
-              fontSize: 20,
-              fontWeight: "700",
-              color: onSurfaceColor,
-              fontFamily: "SoraBold",
-            }}
-          >
+          <MaterialIcons name="person-add" size={22} color="#fff" style={{ marginRight: 10 }} />
+          <Text style={{ flex: 1, fontSize: 20, fontFamily: "SoraBold", color: "#fff" }}>
             Add Friends
           </Text>
           <TouchableOpacity onPress={handleClose}>
-            <Text
-              style={{
-                fontSize: 14,
-                color: theme.colors.error,
-                fontFamily: "Sora",
-              }}
-            >
-              Close
-            </Text>
+            <MaterialIcons name="close" size={24} color="#fff" />
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
 
-        <View
-          style={{
-            height: 1,
-            backgroundColor: dividerColor,
-            marginBottom: 16,
-          }}
-        />
-
+        <View style={{ paddingHorizontal: 20, paddingBottom: 75 }}>
         <View style={styles.searchContainer}>
           <MaterialIcons name="search" size={20} color={theme.colors.onSurfaceVariant} style={styles.searchIcon} />
           <RNTextInput
@@ -357,6 +328,7 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
             </Text>
           </View>
         )}
+        </View>
       </Animated.View>
     </Portal>
   );

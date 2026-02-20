@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import colors from "../../assets/constants/colorOptions";
-import { iconOptions } from "../../assets/constants/iconOptions";
+import { iconOptions, BADGE_EMOJI_MAP } from "../../assets/constants/iconOptions";
 import tinycolor from "tinycolor2";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
@@ -33,8 +33,12 @@ import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
 import PremiumBadge from "../components/PremiumBadge";
 import ColorPickerModal from "../components/ColorPickerModal";
 import {
-  getActiveCreatedCount,
-  FREE_MAX_CREATED,
+  getActiveSquareCount,
+  getAvailableCredits,
+  consumeCredit,
+  recordGameJoin,
+  awardBadgeIfNew,
+  FREE_MAX_ACTIVE,
 } from "../utils/squareLimits";
 
 type CreateSquareRouteParams = {
@@ -53,7 +57,6 @@ type CreateSquareRouteParams = {
     team1Abbr?: string;
     team2Abbr?: string;
     league?: string;
-    isPublic?: boolean;
     isCustomGame?: boolean;
   };
 };
@@ -77,18 +80,15 @@ const CreateSquareScreen = ({ navigation }) => {
   const [eventId, setEventId] = useState("");
   const [hideAxisUntilDeadline, setHideAxisUntilDeadline] = useState(true);
   const [blockMode, setBlockMode] = useState(false);
-  const [isPublic, setIsPublic] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [availableCredits, setAvailableCredits] = useState(0);
-  const [useCredit, setUseCredit] = useState(false);
-  const [publicQuarterWins, setPublicQuarterWins] = useState(0);
   const [displayType, setDisplayType] = useState<"color" | "icon" | "initial">(
     "color",
   );
   const [displayValue, setDisplayValue] = useState("");
+  const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
   const [notifySettings, setNotifySettings] = useState({
     deadlineReminders: false,
     playerJoined: false,
@@ -99,9 +99,9 @@ const CreateSquareScreen = ({ navigation }) => {
   // Premium and ad state
   const { isPremium } = usePremium();
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-  const [premiumFeature, setPremiumFeature] = useState("premium features");
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
-
+  const [adLoading, setAdLoading] = useState(false);
+  const [hasWatchedAd, setHasWatchedAd] = useState(false);
 
   const [fontsLoaded] = useFonts({
     Anton_400Regular,
@@ -113,32 +113,6 @@ const CreateSquareScreen = ({ navigation }) => {
   const route =
     useRoute<RouteProp<CreateSquareRouteParams, "CreateSquareScreen">>();
   const theme = useTheme();
-
-  // Fetch available credits
-  useEffect(() => {
-    const fetchCredits = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { count } = await supabase
-        .from("square_credits")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .is("used_at", null);
-
-      setAvailableCredits(count || 0);
-
-      const { data: lbData } = await supabase
-        .from("leaderboard_stats")
-        .select("public_quarters_won")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      setPublicQuarterWins(lbData?.public_quarters_won || 0);
-    };
-    fetchCredits();
-  }, []);
 
   useEffect(() => {
     const params = route.params || {};
@@ -152,19 +126,34 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.isCustomGame) setIsCustomGame(params.isCustomGame);
     if (params.deadline) setDeadline(new Date(params.deadline));
     if (params.inputTitle) setInputTitle(params.inputTitle);
-    // Fetch username from users table
-    const fetchUsername = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+    // Fetch username, active badge, and earned badges from users table
+    const fetchUserData = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         const { data: profile } = await supabase
           .from("users")
-          .select("username")
+          .select("username, active_badge")
           .eq("id", user.id)
           .single();
         if (profile?.username) setUsername(profile.username);
+        // Auto-default to active badge emoji if set
+        if (profile?.active_badge && BADGE_EMOJI_MAP[profile.active_badge]) {
+          setDisplayType("icon");
+          setDisplayValue(`emoji:${BADGE_EMOJI_MAP[profile.active_badge].emoji}`);
+        }
+        // Fetch earned badges for icon picker
+        const { data: badgeData } = await supabase
+          .from("badges")
+          .select("badge_type")
+          .eq("user_id", user.id);
+        if (badgeData) {
+          setEarnedBadges(badgeData.map((b) => b.badge_type));
+        }
       }
     };
-    if (!params.username) fetchUsername();
+    if (!params.username) fetchUserData();
     else setUsername(params.username);
     setMaxSelections(
       params.maxSelections !== undefined ? String(params.maxSelections) : "100",
@@ -172,12 +161,12 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.selectedColor) setSelectedColor(params.selectedColor);
     if (params.eventId) setEventId(params.eventId);
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
-    if (params.isPublic) setIsPublic(true);
   }, [route.params]);
 
-  // Preload interstitial ad when screen mounts (if not premium)
+  // Preload rewarded ad when screen mounts (if not premium)
   useEffect(() => {
     if (!isPremium) {
+      adService.loadRewardedAd().catch(console.error);
       adService.loadInterstitialAd().catch(console.error);
     }
   }, [isPremium]);
@@ -197,15 +186,16 @@ const CreateSquareScreen = ({ navigation }) => {
       return;
     }
     if (!username.trim()) {
-      Alert.alert("Missing Info", "Could not load your username. Please try again.");
+      Alert.alert(
+        "Missing Info",
+        "Could not load your username. Please try again.",
+      );
       return;
     }
     if (!team1 || !team2) {
       Alert.alert(
         "Missing Info",
-        isCustomGame
-          ? "Please enter both team names"
-          : "Please select a game"
+        isCustomGame ? "Please enter both team names" : "Please select a game",
       );
       return;
     }
@@ -222,6 +212,28 @@ const CreateSquareScreen = ({ navigation }) => {
       return;
     }
 
+    // Gate with rewarded ad if not premium and hasn't watched ad
+    if (!isPremium && !hasWatchedAd) {
+      setAdLoading(true);
+      try {
+        if (!adService.isRewardedAdReady()) {
+          await adService.loadRewardedAd();
+        }
+        const earned = await adService.showRewardedAd();
+        if (earned) {
+          setHasWatchedAd(true);
+        } else {
+          setAdLoading(false);
+          return; // User closed ad without watching
+        }
+      } catch (err) {
+        console.error("Ad error:", err);
+        // Allow creation if ad fails (graceful degradation)
+        setHasWatchedAd(true);
+      }
+      setAdLoading(false);
+    }
+
     setLoading(true);
 
     const {
@@ -232,14 +244,19 @@ const CreateSquareScreen = ({ navigation }) => {
       return;
     }
 
-    // Check square creation limit for free users
+    // Check active square limit for free users
+    let needsCredit = false;
     if (!isPremium) {
-      const activeCount = await getActiveCreatedCount(user.id);
-      if (activeCount >= FREE_MAX_CREATED) {
-        setLoading(false);
-        setPremiumFeature("creating unlimited squares");
-        setShowPremiumModal(true);
-        return;
+      const activeCount = await getActiveSquareCount(user.id);
+      if (activeCount >= FREE_MAX_ACTIVE) {
+        const credits = await getAvailableCredits(user.id);
+        if (credits > 0) {
+          needsCredit = true;
+        } else {
+          setLoading(false);
+          setShowPremiumModal(true);
+          return;
+        }
       }
     }
 
@@ -287,7 +304,6 @@ const CreateSquareScreen = ({ navigation }) => {
             team2_abbr: team2Abbr,
             league: league || (isCustomGame ? "Custom" : "NFL"),
             block_mode: blockMode,
-            is_public: isPublic,
             is_custom_game: isCustomGame,
           },
         ])
@@ -301,26 +317,12 @@ const CreateSquareScreen = ({ navigation }) => {
         return;
       }
 
-      // Consume a free credit if user opted to use one
-      if (useCredit && availableCredits > 0) {
-        const { data: creditData } = await supabase
-          .from("square_credits")
-          .select("id")
-          .eq("user_id", user.id)
-          .is("used_at", null)
-          .limit(1)
-          .single();
-
-        if (creditData) {
-          await supabase
-            .from("square_credits")
-            .update({
-              used_on_square_id: data.id,
-              used_at: new Date().toISOString(),
-            })
-            .eq("id", creditData.id);
-        }
+      // Consume credit if needed, and record the game join
+      if (needsCredit) {
+        await consumeCredit(user.id, data.id);
       }
+      recordGameJoin(user.id).catch(console.error);
+      awardBadgeIfNew(user.id, "first_public_create").catch(console.error);
 
       if (notifySettings.deadlineReminders) {
         await scheduleNotifications(deadline, data.id, notifySettings);
@@ -360,8 +362,7 @@ const CreateSquareScreen = ({ navigation }) => {
     }
   };
 
-  const isFormValid =
-    inputTitle.trim() && team1 && team2 && selectedColor;
+  const isFormValid = inputTitle.trim() && team1 && team2 && selectedColor;
 
   return (
     <LinearGradient
@@ -559,7 +560,10 @@ const CreateSquareScreen = ({ navigation }) => {
                       </Text>
                     </View>
                     <Text
-                      style={[styles.changeText, { color: theme.colors.primary }]}
+                      style={[
+                        styles.changeText,
+                        { color: theme.colors.primary },
+                      ]}
                     >
                       Change Game
                     </Text>
@@ -609,7 +613,10 @@ const CreateSquareScreen = ({ navigation }) => {
                     setTeam1(text); // Also set short name
                   }}
                   placeholder="e.g., Kansas City Chiefs"
-                  style={[styles.input, { backgroundColor: theme.colors.surface }]}
+                  style={[
+                    styles.input,
+                    { backgroundColor: theme.colors.surface },
+                  ]}
                   maxLength={50}
                 />
                 <PaperInput
@@ -621,16 +628,24 @@ const CreateSquareScreen = ({ navigation }) => {
                     setTeam2(text); // Also set short name
                   }}
                   placeholder="e.g., Philadelphia Eagles"
-                  style={[styles.input, { backgroundColor: theme.colors.surface, marginTop: 8 }]}
+                  style={[
+                    styles.input,
+                    { backgroundColor: theme.colors.surface, marginTop: 8 },
+                  ]}
                   maxLength={50}
                 />
                 <Text
                   style={[
                     styles.helperText,
-                    { color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: "left" },
+                    {
+                      color: theme.colors.onSurfaceVariant,
+                      marginTop: 8,
+                      textAlign: "left",
+                    },
                   ]}
                 >
-                  Enter your own team names. You'll be able to enter scores manually.
+                  Enter your own team names. You'll be able to enter scores
+                  manually.
                 </Text>
               </View>
             )}
@@ -672,7 +687,6 @@ const CreateSquareScreen = ({ navigation }) => {
                   if (isPremium) {
                     setShowColorPickerModal(true);
                   } else {
-                    setPremiumFeature("premium colors");
                     setShowPremiumModal(true);
                   }
                 }}
@@ -709,7 +723,6 @@ const CreateSquareScreen = ({ navigation }) => {
                     key={type}
                     onPress={() => {
                       if (isLocked) {
-                        setPremiumFeature("premium icons");
                         setShowPremiumModal(true);
                         return;
                       }
@@ -755,46 +768,89 @@ const CreateSquareScreen = ({ navigation }) => {
             </View>
 
             {displayType === "icon" && (
-              <View style={styles.iconGrid}>
-                {iconOptions.map((icon) => {
-                  const isLocked = icon.isPremium && !isPremium;
-                  return (
-                    <TouchableOpacity
-                      key={icon.name}
-                      onPress={() => {
-                        if (isLocked) {
-                          setPremiumFeature("premium icons");
-                          setShowPremiumModal(true);
-                        } else {
-                          setDisplayValue(icon.name);
-                        }
-                      }}
-                      style={[
-                        styles.iconButton,
-                        {
-                          backgroundColor: selectedColor
-                            ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
-                            : theme.dark
-                              ? "#333"
-                              : "#e8e8e8",
-                          borderWidth: displayValue === icon.name ? 3 : 0,
-                          borderColor: theme.colors.primary,
-                          transform: [
-                            { scale: displayValue === icon.name ? 1.1 : 1 },
-                          ],
-                          opacity: isLocked ? 0.5 : 1,
-                        },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name={icon.name}
-                        size={22}
-                        color={selectedColor || theme.colors.onBackground}
-                      />
-                      {isLocked && <PremiumBadge size={10} />}
-                    </TouchableOpacity>
-                  );
-                })}
+              <View>
+                {/* Earned Badge Emojis */}
+                {earnedBadges.length > 0 && (
+                  <>
+                    <Text style={{ fontSize: 12, fontFamily: "Rubik_500Medium", color: theme.colors.onSurfaceVariant, marginBottom: 6, marginTop: 4 }}>
+                      Earned Badges
+                    </Text>
+                    <View style={styles.iconGrid}>
+                      {earnedBadges.map((badgeType) => {
+                        const badge = BADGE_EMOJI_MAP[badgeType];
+                        if (!badge) return null;
+                        const val = `emoji:${badge.emoji}`;
+                        return (
+                          <TouchableOpacity
+                            key={badgeType}
+                            onPress={() => setDisplayValue(val)}
+                            style={[
+                              styles.iconButton,
+                              {
+                                backgroundColor: selectedColor
+                                  ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                                  : theme.dark
+                                    ? "#333"
+                                    : "#e8e8e8",
+                                borderWidth: displayValue === val ? 3 : 0,
+                                borderColor: theme.colors.primary,
+                                transform: [{ scale: displayValue === val ? 1.1 : 1 }],
+                              },
+                            ]}
+                          >
+                            <Text style={{ fontSize: 20 }}>{badge.emoji}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+                {/* Premium Icons */}
+                <Text style={{ fontSize: 12, fontFamily: "Rubik_500Medium", color: theme.colors.onSurfaceVariant, marginBottom: 6, marginTop: earnedBadges.length > 0 ? 12 : 4 }}>
+                  {isPremium ? "Icons" : "Premium Icons"}
+                </Text>
+                <View style={styles.iconGrid}>
+                  {iconOptions.map((icon) => {
+                    const isLocked = icon.isPremium && !isPremium;
+                    return (
+                      <TouchableOpacity
+                        key={icon.name}
+                        onPress={() => {
+                          if (isLocked) {
+                            setShowPremiumModal(true);
+                          } else {
+                            setDisplayValue(icon.name);
+                          }
+                        }}
+                        style={[
+                          styles.iconButton,
+                          {
+                            backgroundColor: selectedColor
+                              ? tinycolor(selectedColor)
+                                  .setAlpha(0.2)
+                                  .toRgbString()
+                              : theme.dark
+                                ? "#333"
+                                : "#e8e8e8",
+                            borderWidth: displayValue === icon.name ? 3 : 0,
+                            borderColor: theme.colors.primary,
+                            transform: [
+                              { scale: displayValue === icon.name ? 1.1 : 1 },
+                            ],
+                            opacity: isLocked ? 0.5 : 1,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={icon.name}
+                          size={22}
+                          color={selectedColor || theme.colors.onBackground}
+                        />
+                        {isLocked && <PremiumBadge size={10} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             )}
 
@@ -805,11 +861,20 @@ const CreateSquareScreen = ({ navigation }) => {
                   value={displayValue}
                   onChangeText={(text) => setDisplayValue(text.slice(0, 1))}
                   maxLength={1}
-                  style={[styles.initialInput, { backgroundColor: theme.dark ? "#1e1e1e" : "#fff" }]}
+                  style={[
+                    styles.initialInput,
+                    { backgroundColor: theme.dark ? "#1e1e1e" : "#fff" },
+                  ]}
                   autoCapitalize="characters"
                 />
                 <View style={{ alignItems: "center" }}>
-                  <Text style={{ fontSize: 11, color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: theme.colors.onSurfaceVariant,
+                      marginBottom: 4,
+                    }}
+                  >
                     Preview
                   </Text>
                   <View
@@ -821,13 +886,21 @@ const CreateSquareScreen = ({ navigation }) => {
                       alignItems: "center",
                       backgroundColor: selectedColor
                         ? tinycolor(selectedColor).setAlpha(0.3).toRgbString()
-                        : theme.dark ? "#333" : "#e8e8e8",
+                        : theme.dark
+                          ? "#333"
+                          : "#e8e8e8",
                       borderWidth: 1,
                       borderColor: theme.dark ? "#555" : "#ccc",
                     }}
                   >
                     {selectedColor && displayValue ? (
-                      <Text style={{ fontSize: 22, fontWeight: "700", color: selectedColor }}>
+                      <Text
+                        style={{
+                          fontSize: 22,
+                          fontWeight: "700",
+                          color: selectedColor,
+                        }}
+                      >
                         {displayValue.toUpperCase()}
                       </Text>
                     ) : null}
@@ -906,175 +979,6 @@ const CreateSquareScreen = ({ navigation }) => {
                 </TouchableOpacity>
               </View>
             </View>
-
-            {/* Public Game Toggle */}
-            <View
-              style={[
-                styles.settingCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <View style={styles.settingCardContent}>
-                <MaterialIcons
-                  name="public"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.settingInfo}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Public Game
-                  </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {isPublic
-                      ? "Anyone can browse and join"
-                      : "Invite only"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setIsPublic(!isPublic)}
-                  style={[
-                    styles.toggleButton,
-                    {
-                      backgroundColor: isPublic
-                        ? theme.colors.primary
-                        : theme.dark
-                          ? "#444"
-                          : "#ddd",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.toggleText,
-                      {
-                        color: isPublic ? "#fff" : theme.colors.onSurface,
-                      },
-                    ]}
-                  >
-                    {isPublic ? "ON" : "OFF"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Free Credit */}
-            {availableCredits > 0 && (
-              <View
-                style={[
-                  styles.settingCard,
-                  {
-                    backgroundColor: useCredit
-                      ? theme.colors.primaryContainer
-                      : theme.colors.surface,
-                    borderColor: useCredit ? theme.colors.primary : "rgba(0,0,0,0.1)",
-                  },
-                ]}
-              >
-                <View style={styles.settingCardContent}>
-                  <MaterialIcons
-                    name="card-giftcard"
-                    size={24}
-                    color={theme.colors.primary}
-                  />
-                  <View style={styles.settingInfo}>
-                    <Text
-                      style={[
-                        styles.settingTitle,
-                        { color: theme.colors.onBackground },
-                      ]}
-                    >
-                      Use Free Credit
-                    </Text>
-                    <Text
-                      style={[
-                        styles.settingValue,
-                        { color: theme.colors.onSurfaceVariant },
-                      ]}
-                    >
-                      {availableCredits} credit{availableCredits !== 1 ? "s" : ""} available
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    onPress={() => setUseCredit(!useCredit)}
-                    style={[
-                      styles.toggleButton,
-                      {
-                        backgroundColor: useCredit
-                          ? theme.colors.primary
-                          : theme.dark
-                            ? "#444"
-                            : "#ddd",
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        {
-                          color: useCredit ? "#fff" : theme.colors.onSurface,
-                        },
-                      ]}
-                    >
-                      {useCredit ? "ON" : "OFF"}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-
-            {/* Credit progress hint */}
-            {availableCredits === 0 && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  gap: 10,
-                }}
-              >
-                <MaterialIcons name="card-giftcard" size={18} color={theme.colors.onSurfaceVariant} />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontFamily: "Rubik_400Regular",
-                      color: theme.colors.onSurfaceVariant,
-                    }}
-                  >
-                    {publicQuarterWins % 4}/4 quarter wins to earn a free credit
-                  </Text>
-                  <View
-                    style={{
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: theme.dark ? "#333" : "#e0e0e0",
-                      marginTop: 4,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <View
-                      style={{
-                        height: "100%",
-                        width: `${((publicQuarterWins % 4) / 4) * 100}%`,
-                        backgroundColor: theme.colors.primary,
-                        borderRadius: 2,
-                      }}
-                    />
-                  </View>
-                </View>
-              </View>
-            )}
 
             {/* Per Square Settings */}
             <TouchableOpacity
@@ -1328,13 +1232,17 @@ const CreateSquareScreen = ({ navigation }) => {
           <Button
             mode="contained"
             onPress={createSquareSession}
-            loading={loading}
-            disabled={loading || !isFormValid}
+            loading={loading || adLoading}
+            disabled={loading || adLoading || !isFormValid}
             style={styles.createButton}
             contentStyle={styles.createButtonContent}
             labelStyle={styles.createButtonLabel}
           >
-            {loading ? "Creating..." : "Create Game"}
+            {adLoading
+              ? "Loading Ad..."
+              : loading
+                ? "Creating..."
+                : "Create Game"}
           </Button>
 
           <TouchableOpacity
@@ -1381,7 +1289,8 @@ const CreateSquareScreen = ({ navigation }) => {
       <PremiumUpgradeModal
         visible={showPremiumModal}
         onDismiss={() => setShowPremiumModal(false)}
-        feature={premiumFeature}
+        feature="premium icons"
+        context="square_limit"
       />
 
       <ColorPickerModal

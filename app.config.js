@@ -4,7 +4,7 @@ export default {
   expo: {
     name: "My Squares!",
     slug: "squares",
-    version: "1.7.9",
+    version: "2.0.0",
     orientation: "portrait",
     icon: "./assets/icons/New_New_Splash_Logo.png",
     userInterfaceStyle: "automatic",

@@ -199,13 +199,16 @@ Winners are determined at Q1, Q2, Q3, Q4, and any overtime periods. If a price p
           textColor={textColor}
           subColor={subColor}
         >
-          {`Free players can create 1 active square at a time. Upgrade to Premium for:
+          {`Free players can have up to 3 active squares at a time. Need more?
 
-\u2022 Unlimited square creation
-\u2022 Ad-free experience
-\u2022 25+ premium icons for your display
-\u2022 Custom color picker
-\u2022 Premium profile badge`}
+\u2022 Buy an extra square credit for $0.99 (single use)
+\u2022 Earn free credits by winning — every 4 quarter wins = 1 bonus credit
+\u2022 Subscribe to Premium for $4.99/month:
+  \u2014 Unlimited squares
+  \u2014 Ad-free experience
+  \u2014 25+ premium icons
+  \u2014 Custom color picker
+  \u2014 Premium profile badge`}
         </Section>
 
         <Section

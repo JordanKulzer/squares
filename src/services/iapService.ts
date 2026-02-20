@@ -4,8 +4,12 @@ import Constants from "expo-constants";
 
 const extra: any =
   Constants.expoConfig?.extra ?? (Constants as any).manifest?.extra ?? {};
-const PREMIUM_PRODUCT_ID =
+
+// Product IDs
+const LEGACY_PREMIUM_ID =
   extra.IAP_PREMIUM_PRODUCT_ID || "com.jkulzer.squaresgame.premium";
+const EXTRA_SQUARE_ID = "com.jkulzer.squaresgame.extra_square";
+const PREMIUM_MONTHLY_ID = "com.jkulzer.squaresgame.premium_monthly";
 
 const isExpoGo = Constants.appOwnership === "expo";
 
@@ -13,7 +17,9 @@ const isExpoGo = Constants.appOwnership === "expo";
 let initConnection: any = null;
 let endConnection: any = null;
 let getProducts: any = null;
+let getSubscriptions: any = null;
 let requestPurchase: any = null;
+let requestSubscription: any = null;
 let finishTransaction: any = null;
 let purchaseUpdatedListener: any = null;
 let purchaseErrorListener: any = null;
@@ -24,7 +30,9 @@ if (!isExpoGo) {
   initConnection = iap.initConnection;
   endConnection = iap.endConnection;
   getProducts = iap.getProducts;
+  getSubscriptions = iap.getSubscriptions;
   requestPurchase = iap.requestPurchase;
+  requestSubscription = iap.requestSubscription;
   finishTransaction = iap.finishTransaction;
   purchaseUpdatedListener = iap.purchaseUpdatedListener;
   purchaseErrorListener = iap.purchaseErrorListener;
@@ -32,11 +40,16 @@ if (!isExpoGo) {
 }
 
 const productIds = Platform.select({
-  ios: [PREMIUM_PRODUCT_ID],
-  android: [PREMIUM_PRODUCT_ID],
+  ios: [EXTRA_SQUARE_ID],
+  android: [EXTRA_SQUARE_ID],
 }) as string[];
 
-type PurchaseCallback = (success: boolean) => void;
+const subscriptionIds = Platform.select({
+  ios: [PREMIUM_MONTHLY_ID],
+  android: [PREMIUM_MONTHLY_ID],
+}) as string[];
+
+type PurchaseCallback = (success: boolean, productId?: string) => void;
 
 export const isIAPSupported = () => !isExpoGo;
 
@@ -68,9 +81,23 @@ class IAPService {
           async (purchase: any) => {
             const receipt = purchase.transactionReceipt;
             if (receipt) {
-              await this.validateAndStorePurchase(purchase);
-              await finishTransaction({ purchase, isConsumable: false });
-              this.onPurchaseComplete?.(true);
+              const pid = purchase.productId;
+
+              if (pid === EXTRA_SQUARE_ID) {
+                // Consumable: increment extra square slots
+                await this.handleExtraSquarePurchase();
+                await finishTransaction({ purchase, isConsumable: true });
+              } else if (pid === PREMIUM_MONTHLY_ID) {
+                // Subscription: activate premium
+                await this.handleSubscriptionPurchase(purchase);
+                await finishTransaction({ purchase, isConsumable: false });
+              } else {
+                // Legacy one-time purchase
+                await this.handleLegacyPurchase(purchase);
+                await finishTransaction({ purchase, isConsumable: false });
+              }
+
+              this.onPurchaseComplete?.(true, pid);
             }
           }
         );
@@ -96,7 +123,6 @@ class IAPService {
       await this.initPromise;
       return this.initialized;
     }
-    // If initialize() was never called, try connecting now
     try {
       await initConnection();
       this.initialized = true;
@@ -107,13 +133,37 @@ class IAPService {
     }
   }
 
-  async getProduct(): Promise<any | null> {
+  // --- Product fetching ---
+
+  async getExtraSquareProduct(): Promise<any | null> {
     if (isExpoGo) {
-      // Return mock product for UI testing in Expo Go
       return {
-        productId: PREMIUM_PRODUCT_ID,
-        title: "Premium (Dev)",
-        description: "Unlock all features",
+        productId: EXTRA_SQUARE_ID,
+        title: "Extra Square Slot (Dev)",
+        description: "Add 1 extra active square slot",
+        localizedPrice: "$0.99",
+        price: "0.99",
+      };
+    }
+
+    try {
+      const connected = await this.ensureConnection();
+      if (!connected) return null;
+
+      const products = await getProducts({ skus: [EXTRA_SQUARE_ID] });
+      return products?.[0] || null;
+    } catch (err) {
+      console.error("Error fetching extra square product:", err);
+      return null;
+    }
+  }
+
+  async getSubscriptionProduct(): Promise<any | null> {
+    if (isExpoGo) {
+      return {
+        productId: PREMIUM_MONTHLY_ID,
+        title: "Premium Monthly (Dev)",
+        description: "Unlimited squares, ad-free, premium icons & colors",
         localizedPrice: "$4.99",
         price: "4.99",
       };
@@ -123,25 +173,23 @@ class IAPService {
       const connected = await this.ensureConnection();
       if (!connected) return null;
 
-      const products = await getProducts({ skus: productIds });
-      if (!products || products.length === 0) {
-        console.warn(
-          "No IAP products found for SKU:",
-          productIds,
-          "— make sure the product is created in App Store Connect / Google Play Console"
-        );
-        return null;
-      }
-      return products[0];
+      const subs = await getSubscriptions({ skus: [PREMIUM_MONTHLY_ID] });
+      return subs?.[0] || null;
     } catch (err) {
-      console.error("Error fetching products:", err);
+      console.error("Error fetching subscription product:", err);
       return null;
     }
   }
 
-  async purchasePremium(): Promise<void> {
+  /** @deprecated Use getExtraSquareProduct or getSubscriptionProduct */
+  async getProduct(): Promise<any | null> {
+    return this.getSubscriptionProduct();
+  }
+
+  // --- Purchase methods ---
+
+  async purchaseExtraSquare(): Promise<void> {
     if (isExpoGo) {
-      console.log("Purchase not available in Expo Go");
       throw new Error("Purchase not available in Expo Go");
     }
 
@@ -149,12 +197,105 @@ class IAPService {
     if (!connected) throw new Error("IAP not connected");
 
     try {
-      await requestPurchase({ sku: PREMIUM_PRODUCT_ID });
+      await requestPurchase({ sku: EXTRA_SQUARE_ID });
     } catch (err) {
-      console.error("Purchase request error:", err);
+      console.error("Extra square purchase error:", err);
       throw err;
     }
   }
+
+  async purchaseSubscription(): Promise<void> {
+    if (isExpoGo) {
+      throw new Error("Purchase not available in Expo Go");
+    }
+
+    const connected = await this.ensureConnection();
+    if (!connected) throw new Error("IAP not connected");
+
+    try {
+      if (requestSubscription) {
+        await requestSubscription({ sku: PREMIUM_MONTHLY_ID });
+      } else {
+        await requestPurchase({ sku: PREMIUM_MONTHLY_ID });
+      }
+    } catch (err) {
+      console.error("Subscription purchase error:", err);
+      throw err;
+    }
+  }
+
+  /** @deprecated Use purchaseExtraSquare or purchaseSubscription */
+  async purchasePremium(): Promise<void> {
+    return this.purchaseSubscription();
+  }
+
+  // --- Purchase handlers ---
+
+  private async handleExtraSquarePurchase(): Promise<void> {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Insert a consumable credit (single-use, just like earned credits)
+      await supabase
+        .from("square_credits")
+        .insert({ user_id: user.id, reason: "purchased" });
+    } catch (err) {
+      console.error("Error handling extra square purchase:", err);
+    }
+  }
+
+  private async handleSubscriptionPurchase(purchase: any): Promise<void> {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Set expiration 30 days from now (store will handle actual renewal)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
+      await supabase
+        .from("users")
+        .update({
+          is_premium: true,
+          premium_type: "subscription",
+          subscription_status: "active",
+          subscription_expires_at: expiresAt.toISOString(),
+          premium_purchased_at: new Date().toISOString(),
+          premium_receipt: purchase.transactionReceipt,
+        })
+        .eq("id", user.id);
+    } catch (err) {
+      console.error("Error handling subscription purchase:", err);
+    }
+  }
+
+  private async handleLegacyPurchase(purchase: any): Promise<void> {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from("users")
+        .update({
+          is_premium: true,
+          premium_type: "legacy_onetime",
+          premium_purchased_at: new Date().toISOString(),
+          premium_receipt: purchase.transactionReceipt,
+        })
+        .eq("id", user.id);
+    } catch (err) {
+      console.error("Error storing legacy purchase:", err);
+    }
+  }
+
+  // --- Restore ---
 
   async restorePurchases(): Promise<boolean> {
     if (isExpoGo) {
@@ -167,38 +308,32 @@ class IAPService {
 
     try {
       const purchases = await getAvailablePurchases();
-      const premiumPurchase = purchases.find(
-        (p: any) => p.productId === PREMIUM_PRODUCT_ID
-      );
+      let restored = false;
 
-      if (premiumPurchase) {
-        await this.validateAndStorePurchase(premiumPurchase);
-        return true;
+      // Check for legacy one-time purchase
+      const legacyPurchase = purchases.find(
+        (p: any) => p.productId === LEGACY_PREMIUM_ID
+      );
+      if (legacyPurchase) {
+        await this.handleLegacyPurchase(legacyPurchase);
+        restored = true;
       }
-      return false;
+
+      // Check for subscription
+      const subPurchase = purchases.find(
+        (p: any) => p.productId === PREMIUM_MONTHLY_ID
+      );
+      if (subPurchase) {
+        await this.handleSubscriptionPurchase(subPurchase);
+        restored = true;
+      }
+
+      // Note: extra square consumables can't be restored (they're single-use)
+
+      return restored;
     } catch (err) {
       console.error("Restore purchases error:", err);
       return false;
-    }
-  }
-
-  private async validateAndStorePurchase(purchase: any): Promise<void> {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      await supabase
-        .from("users")
-        .update({
-          is_premium: true,
-          premium_purchased_at: new Date().toISOString(),
-          premium_receipt: purchase.transactionReceipt,
-        })
-        .eq("id", user.id);
-    } catch (err) {
-      console.error("Error storing purchase:", err);
     }
   }
 

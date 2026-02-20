@@ -8,7 +8,7 @@ const screenWidth = Dimensions.get("window").width;
 const SkeletonLoader = ({
   variant,
 }: {
-  variant: "gamePickerScreen" | "squareScreen" | "friendsList" | "friendRequests" | "homeScreen" | "list" | "profile";
+  variant: "gamePickerScreen" | "squareScreen" | "friendsList" | "friendRequests" | "homeScreen" | "list" | "profile" | "badgeGrid";
 }) => {
   const theme = useTheme();
   const isDark = theme.dark;
@@ -252,6 +252,39 @@ const SkeletonLoader = ({
                 marginBottom: 16,
               }}
             />
+          ))}
+        </View>
+      </SkeletonPlaceholder>
+    );
+  }
+
+  if (variant === "badgeGrid") {
+    const cardSize = (screenWidth - 20 * 2 - 10 * 2) / 3; // 3 columns, 10px gap, 10px side padding
+    return (
+      <SkeletonPlaceholder
+        backgroundColor={baseColor}
+        highlightColor={highlightColor}
+        borderRadius={14}
+      >
+        <View style={{ padding: 10, flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+          {[...Array(12)].map((_, i) => (
+            <View
+              key={i}
+              style={{
+                width: cardSize,
+                height: cardSize * 1.35,
+                borderRadius: 14,
+                padding: 12,
+                alignItems: "center",
+              }}
+            >
+              {/* Icon circle */}
+              <View style={{ width: 44, height: 44, borderRadius: 22, marginBottom: 10, marginTop: 4 }} />
+              {/* Name */}
+              <View style={{ width: "75%", height: 12, borderRadius: 4, marginBottom: 6 }} />
+              {/* Rarity chip */}
+              <View style={{ width: "55%", height: 10, borderRadius: 8 }} />
+            </View>
           ))}
         </View>
       </SkeletonPlaceholder>

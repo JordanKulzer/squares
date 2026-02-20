@@ -118,6 +118,7 @@ export function determineQuarterWinners(
     return {
       quarter: `Q${index + 1}`,
       username,
+      userId: matchingSelection?.userId || null,
       square: [xAxis[xIndex], yAxis[yIndex]],
     };
   });

@@ -20,6 +20,7 @@ import {
   acceptFriendRequest,
 } from "../lib/friends";
 import { UserSearchResult } from "../types/friends";
+import UserAvatar from "../components/UserAvatar";
 import SkeletonLoader from "../components/SkeletonLoader";
 
 const AddFriendsScreen = ({ navigation }: any) => {
@@ -103,21 +104,6 @@ const AddFriendsScreen = ({ navigation }: any) => {
     } finally {
       setSendingTo(null);
     }
-  };
-
-  const getInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email[0].toUpperCase();
-    }
-    return "?";
   };
 
   const formatEmail = (email: string | null) => {
@@ -243,16 +229,13 @@ const AddFriendsScreen = ({ navigation }: any) => {
 
   const renderUser = ({ item }: { item: UserSearchResult }) => (
     <View style={[styles.userCard, { backgroundColor: theme.colors.surface }]}>
-      <View
-        style={[
-          styles.avatarCircle,
-          { backgroundColor: theme.colors.secondary },
-        ]}
-      >
-        <Text style={styles.avatarText}>
-          {getInitials(item.username, item.email)}
-        </Text>
-      </View>
+      <UserAvatar
+        username={item.username}
+        email={item.email}
+        activeBadge={item.active_badge}
+        size={44}
+        backgroundColor={theme.colors.secondary}
+      />
       <View style={{ flex: 1, marginLeft: 12 }}>
         <Text style={[styles.userName, { color: theme.colors.onSurface }]}>
           {item.username || "User"}

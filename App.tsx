@@ -39,6 +39,7 @@ import EditSquareScreen from "./src/screens/EditSquareScreen";
 import BrowsePublicSquaresScreen from "./src/screens/BrowsePublicSquaresScreen";
 import LeaderboardScreen from "./src/screens/LeaderboardScreen";
 import BadgesScreen from "./src/screens/BadgesScreen";
+import CommentsScreen from "./src/screens/CommentsScreen";
 import { LightTheme, DarkTheme } from "./assets/constants/theme";
 import ForgotPasswordScreen from "./src/screens/ForgotPassword";
 import { registerPushToken } from "./src/utils/registerPushToken";
@@ -55,8 +56,44 @@ import {
   Rubik_600SemiBold,
 } from "@expo-google-fonts/rubik";
 import Constants from "expo-constants";
-import { PremiumProvider } from "./src/contexts/PremiumContext";
+import { PremiumProvider, usePremium } from "./src/contexts/PremiumContext";
 import { iapService } from "./src/services/iapService";
+
+// Initializes IAP inside PremiumProvider so refreshPremiumStatus is accessible
+const IAPInitializer: React.FC = () => {
+  const { refreshPremiumStatus } = usePremium();
+
+  useEffect(() => {
+    const isExpoGo = Constants.appOwnership === "expo";
+    if (isExpoGo) return;
+
+    iapService.initialize(async (success, productId) => {
+      if (!success) return;
+      await refreshPremiumStatus();
+      if (productId === "com.jkulzer.squaresgame.extra_square") {
+        Toast.show({
+          type: "success",
+          text1: "Extra square credit added!",
+          text2: "You can now create or join one more square",
+          position: "bottom",
+        });
+      } else {
+        Toast.show({
+          type: "success",
+          text1: "Welcome to Premium!",
+          text2: "All features are now unlocked",
+          position: "bottom",
+        });
+      }
+    });
+
+    return () => {
+      iapService.cleanup();
+    };
+  }, [refreshPremiumStatus]);
+
+  return null;
+};
 
 Sentry.init({
   dsn: "https://ad2eab012c320c284637c80f6b9cb1cd@o4509662000054272.ingest.us.sentry.io/4509662000316416",
@@ -138,24 +175,6 @@ const App: React.FC = () => {
     await AsyncStorage.setItem("theme", next ? "dark" : "light");
   };
 
-  // Initialize IAP service (skip in Expo Go)
-  useEffect(() => {
-    const isExpoGo = Constants.appOwnership === "expo";
-    if (isExpoGo) {
-      console.log("Skipping IAP initialization in Expo Go");
-      return;
-    }
-
-    iapService.initialize((success) => {
-      if (success) {
-        console.log("Purchase completed successfully");
-      }
-    });
-
-    return () => {
-      iapService.cleanup();
-    };
-  }, []);
 
   useEffect(() => {
     const handleDeepLink = async ({ url }: { url: string }) => {
@@ -374,6 +393,7 @@ const App: React.FC = () => {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <PremiumProvider>
+        <IAPInitializer />
         <StatusBar
           barStyle={isDarkTheme ? "light-content" : "dark-content"}
           backgroundColor={
@@ -486,6 +506,11 @@ const App: React.FC = () => {
                     name: "BadgesScreen",
                     component: BadgesScreen,
                     title: "Badges",
+                  },
+                  {
+                    name: "CommentsScreen",
+                    component: CommentsScreen,
+                    title: "Comments",
                   },
                 ].map(({ name, component, title }) => (
                   <Stack.Screen

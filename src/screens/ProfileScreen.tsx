@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   Keyboard,
   RefreshControl,
-  Alert,
+  FlatList,
 } from "react-native";
+import colors from "../../assets/constants/colorOptions";
+import { iconOptions } from "../../assets/constants/iconOptions";
 import { Button, TextInput, useTheme, Portal, Modal } from "react-native-paper";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
@@ -21,6 +23,8 @@ import SkeletonLoader from "../components/SkeletonLoader";
 import PendingInvitesSection from "../components/PendingInvitesSection";
 import { usePremium } from "../contexts/PremiumContext";
 import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
+import UserAvatar from "../components/UserAvatar";
+import ColorPickerModal from "../components/ColorPickerModal";
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -28,7 +32,7 @@ type Props = {
 
 const ProfileScreen = ({ navigation }: Props) => {
   const theme = useTheme();
-  const { isPremium, isDevMode, toggleDevPremium } = usePremium();
+  const { isPremium, isDevMode, toggleDevPremium, premiumType } = usePremium();
 
   const [username, setUsername] = useState("");
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -37,7 +41,6 @@ const ProfileScreen = ({ navigation }: Props) => {
   const [totalWinnings, setTotalWinnings] = useState(0);
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [quartersWon, setQuartersWon] = useState(0);
-  const [rawQuartersWon, setRawQuartersWon] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [friendsCount, setFriendsCount] = useState(0);
@@ -50,14 +53,18 @@ const ProfileScreen = ({ navigation }: Props) => {
   const [pwModalVisible, setPwModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [resetStatsModalVisible, setResetStatsModalVisible] = useState(false);
-  const [resetWinnings, setResetWinnings] = useState(false);
-  const [resetGames, setResetGames] = useState(false);
-  const [resetQuarters, setResetQuarters] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [availableCredits, setAvailableCredits] = useState(0);
   const [publicQuarterWins, setPublicQuarterWins] = useState(0);
+  const [activeBadge, setActiveBadge] = useState<string | null>(null);
+  const [profileColor, setProfileColor] = useState<string | null>(null);
+  const [profileIcon, setProfileIcon] = useState<string | null>(null);
+  const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+  const [draftColor, setDraftColor] = useState<string | null>(null);
+  const [draftIcon, setDraftIcon] = useState<string | null>(null);
+  const [savingAvatar, setSavingAvatar] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   useEffect(() => {
     const show = Keyboard.addListener("keyboardDidShow", () =>
@@ -109,7 +116,9 @@ const ProfileScreen = ({ navigation }: Props) => {
       // Fetch user profile data
       const { data, error: profileError } = await supabase
         .from("users")
-        .select("username, total_winnings, is_private, quarters_won_offset")
+        .select(
+          "username, total_winnings, is_private, active_badge, profile_color, profile_icon",
+        )
         .eq("id", user.id)
         .maybeSingle();
 
@@ -124,48 +133,19 @@ const ProfileScreen = ({ navigation }: Props) => {
         setNewUsername(currentUsername);
         setTotalWinnings(data.total_winnings || 0);
         setIsPrivate(!!data.is_private);
+        setActiveBadge(data.active_badge || null);
+        setProfileColor(data.profile_color || null);
+        setProfileIcon(data.profile_icon || null);
       }
 
-      // Fetch user's games directly from database
-      const { data: gamesData, error: gamesError } = await supabase
-        .from("squares")
-        .select("id, selections, game_completed, quarter_winners, players")
-        .contains("player_ids", [user.id]);
-
-      if (gamesError) {
-        throw gamesError;
-      }
-
-      if (gamesData) {
-        setGamesPlayed(gamesData.length);
-
-        // Count quarters won across all games
-        // quarter_winners structure: [{ quarter: "1", username: "user1", square: [3, 7] }, ...]
-        // Note: Users can have different usernames in each game, so we need to find
-        // the user's in-game username from the players array
-        let totalQuartersWon = 0;
-        gamesData.forEach((game) => {
-          if (game.quarter_winners && Array.isArray(game.quarter_winners)) {
-            // Find this user's in-game username from the players array
-            const playerEntry = game.players?.find(
-              (p: any) => p.userId === user.id,
-            );
-            const inGameUsername = playerEntry?.username;
-
-            if (inGameUsername) {
-              const trimmedName = inGameUsername.trim();
-              const userWins = game.quarter_winners.filter(
-                (qw: any) =>
-                  qw.username?.trim() === trimmedName && qw.username !== "No Winner",
-              );
-              totalQuartersWon += userWins.length;
-            }
-          }
-        });
-        setRawQuartersWon(totalQuartersWon);
-        const offset = data?.quarters_won_offset || 0;
-        setQuartersWon(Math.max(0, totalQuartersWon - offset));
-      }
+      // Fetch persistent stats from leaderboard_stats (survives square deletion)
+      const { data: statsData } = await supabase
+        .from("leaderboard_stats")
+        .select("quarters_won, games_played")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setQuartersWon(statsData?.quarters_won || 0);
+      setGamesPlayed(statsData?.games_played || 0);
 
       // Fetch friends count for display (count accepted friendships where user is either party)
       const friendsCountRes = await supabase
@@ -185,13 +165,13 @@ const ProfileScreen = ({ navigation }: Props) => {
         .is("used_at", null);
       setAvailableCredits(creditCount || 0);
 
-      // Fetch public quarter wins from leaderboard_stats
+      // Fetch quarter wins from leaderboard_stats
       const { data: lbData } = await supabase
         .from("leaderboard_stats")
-        .select("public_quarters_won")
+        .select("quarters_won")
         .eq("user_id", user.id)
         .maybeSingle();
-      setPublicQuarterWins(lbData?.public_quarters_won || 0);
+      setPublicQuarterWins(lbData?.quarters_won || 0);
     } catch (err) {
       console.error("Failed to fetch profile data:", err);
       showToast({
@@ -282,6 +262,27 @@ const ProfileScreen = ({ navigation }: Props) => {
       .maybeSingle();
 
     return !data;
+  };
+
+  const saveAvatarSettings = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    setSavingAvatar(true);
+    const { error } = await supabase
+      .from("users")
+      .update({ profile_color: draftColor, profile_icon: draftIcon })
+      .eq("id", user.id);
+    setSavingAvatar(false);
+    if (error) {
+      showToast({ type: "error", text1: "Failed to save avatar" });
+    } else {
+      setProfileColor(draftColor);
+      setProfileIcon(draftIcon);
+      setShowAvatarEditor(false);
+      showToast({ type: "success", text1: "Avatar updated!" });
+    }
   };
 
   const updateUsername = async () => {
@@ -388,16 +389,6 @@ const ProfileScreen = ({ navigation }: Props) => {
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as [string, string, ...string[]])
     : (["#fdfcf9", "#e0e7ff"] as [string, string]);
 
-  const getInitials = (name: string) => {
-    if (!name) return "?";
-    return name
-      .split(/[_\s]/)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
   if (loading) {
     return (
       <LinearGradient colors={gradientColors} style={{ flex: 1 }}>
@@ -422,83 +413,100 @@ const ProfileScreen = ({ navigation }: Props) => {
       >
         {/* Avatar Header */}
         <View style={styles.avatarSection}>
-          <View
-            style={[
-              styles.avatarCircle,
-              { backgroundColor: theme.colors.primary },
-            ]}
-          >
-            <Text style={styles.avatarText}>{getInitials(username)}</Text>
+          <View style={{ position: "relative" }}>
+            <UserAvatar
+              username={username}
+              activeBadge={activeBadge}
+              profileIcon={profileIcon}
+              profileColor={profileColor}
+              showRing
+              size={88}
+              backgroundColor={theme.colors.primary}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                setDraftColor(profileColor);
+                setDraftIcon(profileIcon);
+                setShowAvatarEditor(true);
+              }}
+              style={{
+                position: "absolute",
+                bottom: 0,
+                right: 0,
+                width: 26,
+                height: 26,
+                borderRadius: 13,
+                backgroundColor: theme.colors.primary,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 2,
+                borderColor: theme.dark ? "#1a1a1a" : "#f5f5f5",
+              }}
+            >
+              <MaterialIcons name="edit" size={13} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <View style={styles.usernameRow}>
+          <TouchableOpacity
+            onPress={() => setEditModalVisible(true)}
+            activeOpacity={0.7}
+            style={styles.usernameRow}
+          >
             <Text
               style={[styles.usernameText, { color: theme.colors.onSurface }]}
             >
               @{username || "username"}
             </Text>
-            <TouchableOpacity
-              onPress={() => setEditModalVisible(true)}
-              style={styles.editButton}
-            >
-              <MaterialIcons
-                name="edit"
-                size={18}
-                color={theme.colors.primary}
-              />
-            </TouchableOpacity>
-          </View>
-          {email ? (
-            <Text
-              style={[styles.emailText, { color: theme.colors.onSurfaceVariant }]}
-            >
-              {email}
-            </Text>
-          ) : null}
+            <MaterialIcons
+              name="edit"
+              size={14}
+              color={theme.colors.onSurfaceVariant}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Stats Cards */}
         <View style={styles.statsRow}>
           <View
-            style={[
-              styles.statCard,
-              { backgroundColor: theme.colors.surface },
-            ]}
+            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
           >
             <Text style={[styles.statValue, { color: theme.colors.primary }]}>
               {gamesPlayed}
             </Text>
             <Text
-              style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}
+              style={[
+                styles.statLabel,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
             >
               Played
             </Text>
           </View>
           <View
-            style={[
-              styles.statCard,
-              { backgroundColor: theme.colors.surface },
-            ]}
+            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
           >
             <Text style={[styles.statValue, { color: theme.colors.primary }]}>
               {quartersWon}
             </Text>
             <Text
-              style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}
+              style={[
+                styles.statLabel,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
             >
               Won
             </Text>
           </View>
           <View
-            style={[
-              styles.statCard,
-              { backgroundColor: theme.colors.surface },
-            ]}
+            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
           >
             <Text style={[styles.statValue, { color: theme.colors.primary }]}>
               ${totalWinnings.toFixed(2)}
             </Text>
             <Text
-              style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}
+              style={[
+                styles.statLabel,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
             >
               Winnings
             </Text>
@@ -517,8 +525,18 @@ const ProfileScreen = ({ navigation }: Props) => {
             },
           ]}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
-            <MaterialIcons name="card-giftcard" size={18} color={theme.colors.primary} />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 8,
+            }}
+          >
+            <MaterialIcons
+              name="card-giftcard"
+              size={18}
+              color={theme.colors.primary}
+            />
             <Text
               style={{
                 fontSize: 13,
@@ -528,7 +546,7 @@ const ProfileScreen = ({ navigation }: Props) => {
                 flex: 1,
               }}
             >
-              {publicQuarterWins % 4}/4 wins to free credit
+              {publicQuarterWins % 4}/4 quarter wins to free credit
             </Text>
             {availableCredits > 0 && (
               <Text
@@ -713,7 +731,7 @@ const ProfileScreen = ({ navigation }: Props) => {
                     fontFamily: "Sora",
                   }}
                 >
-                  ACTIVE
+                  {premiumType === "legacy_onetime" ? "LIFETIME" : "ACTIVE"}
                 </Text>
               </View>
             ) : (
@@ -736,14 +754,13 @@ const ProfileScreen = ({ navigation }: Props) => {
               />
               <View style={styles.settingsRow}>
                 <View style={styles.settingsLeft}>
-                  <MaterialIcons
-                    name="bug-report"
-                    size={22}
-                    color="#FF9800"
-                  />
+                  <MaterialIcons name="bug-report" size={22} color="#FF9800" />
                   <View style={{ marginLeft: 12 }}>
                     <Text
-                      style={[styles.settingsText, { color: theme.colors.onSurface, marginLeft: 0 }]}
+                      style={[
+                        styles.settingsText,
+                        { color: theme.colors.onSurface, marginLeft: 0 },
+                      ]}
                     >
                       Dev: Premium Mode
                     </Text>
@@ -835,7 +852,10 @@ const ProfileScreen = ({ navigation }: Props) => {
               />
               <View style={{ marginLeft: 12 }}>
                 <Text
-                  style={[styles.settingsText, { color: theme.colors.onSurface, marginLeft: 0 }]}
+                  style={[
+                    styles.settingsText,
+                    { color: theme.colors.onSurface, marginLeft: 0 },
+                  ]}
                 >
                   Private Account
                 </Text>
@@ -856,7 +876,9 @@ const ProfileScreen = ({ navigation }: Props) => {
                 const newValue = !isPrivate;
                 setIsPrivate(newValue);
                 try {
-                  const { data: { user } } = await supabase.auth.getUser();
+                  const {
+                    data: { user },
+                  } = await supabase.auth.getUser();
                   if (!user) return;
                   const { error: privacyError } = await supabase
                     .from("users")
@@ -865,11 +887,16 @@ const ProfileScreen = ({ navigation }: Props) => {
                   if (privacyError) throw privacyError;
                   showToast({
                     type: "success",
-                    text1: newValue ? "Account set to private" : "Account set to public",
+                    text1: newValue
+                      ? "Account set to private"
+                      : "Account set to public",
                   });
                 } catch {
                   setIsPrivate(!newValue);
-                  showToast({ type: "error", text1: "Failed to update privacy setting" });
+                  showToast({
+                    type: "error",
+                    text1: "Failed to update privacy setting",
+                  });
                 }
               }}
               style={{
@@ -896,42 +923,6 @@ const ProfileScreen = ({ navigation }: Props) => {
               </Text>
             </TouchableOpacity>
           </View>
-
-          <View
-            style={[
-              styles.settingsDivider,
-              { backgroundColor: theme.dark ? "#333" : "#eee" },
-            ]}
-          />
-
-          {/* Reset Stats */}
-          <TouchableOpacity
-            style={styles.settingsRow}
-            onPress={() => {
-              setResetWinnings(false);
-              setResetGames(false);
-              setResetQuarters(false);
-              setResetStatsModalVisible(true);
-            }}
-          >
-            <View style={styles.settingsLeft}>
-              <MaterialIcons
-                name="restart-alt"
-                size={22}
-                color={theme.colors.error}
-              />
-              <Text
-                style={[styles.settingsText, { color: theme.colors.error }]}
-              >
-                Reset Stats
-              </Text>
-            </View>
-            <MaterialIcons
-              name="chevron-right"
-              size={24}
-              color={theme.colors.onSurfaceVariant}
-            />
-          </TouchableOpacity>
         </View>
 
         <Button
@@ -970,60 +961,109 @@ const ProfileScreen = ({ navigation }: Props) => {
             visible={editModalVisible}
             onDismiss={() => setEditModalVisible(false)}
             contentContainerStyle={{
-              marginHorizontal: 32,
-              padding: 20,
-              borderRadius: 12,
+              marginHorizontal: 28,
+              borderRadius: 16,
               backgroundColor: theme.colors.surface,
-              borderWidth: 1.5,
-              borderColor: "rgba(94,96,206,0.4)",
-              borderLeftWidth: 5,
-              borderLeftColor: theme.colors.primary,
+              overflow: "hidden",
             }}
           >
-            <Text
-              style={{
-                fontSize: 18,
-                fontFamily: "SoraBold",
-                marginBottom: 12,
-                color: theme.colors.onSurface,
-              }}
-            >
-              Edit Username
-            </Text>
-            <TextInput
-              mode="outlined"
-              placeholder="Username"
-              value={newUsername}
-              onChangeText={setNewUsername}
-              style={[
-                styles.input,
-                { backgroundColor: theme.colors.background },
-              ]}
-            />
+            {/* Header */}
             <View
               style={{
+                backgroundColor: theme.colors.primary,
+                paddingVertical: 20,
+                paddingHorizontal: 20,
                 flexDirection: "row",
-                justifyContent: "flex-end",
+                alignItems: "center",
                 gap: 12,
               }}
             >
-              <Button
-                mode="text"
-                onPress={() => setEditModalVisible(false)}
-                textColor={theme.colors.onSurface}
-                disabled={usernameUpdating}
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  backgroundColor: "rgba(255,255,255,0.2)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                Cancel
-              </Button>
-              <Button
-                mode="contained"
-                onPress={updateUsername}
-                loading={usernameUpdating}
-                disabled={usernameUpdating}
-                labelStyle={{ fontFamily: "Sora" }}
+                <MaterialIcons name="alternate-email" size={20} color="#fff" />
+              </View>
+              <View>
+                <Text
+                  style={{
+                    fontSize: 17,
+                    fontFamily: "SoraBold",
+                    color: "#fff",
+                  }}
+                >
+                  Edit Username
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.75)",
+                    fontFamily: "Rubik_400Regular",
+                  }}
+                >
+                  Current: @{username}
+                </Text>
+              </View>
+            </View>
+
+            {/* Body */}
+            <View style={{ padding: 20 }}>
+              <TextInput
+                mode="outlined"
+                placeholder="New username"
+                value={newUsername}
+                onChangeText={setNewUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={20}
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.colors.background },
+                ]}
+              />
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Rubik_400Regular",
+                  color: theme.colors.onSurfaceVariant,
+                  textAlign: "right",
+                  marginTop: 4,
+                  marginBottom: 16,
+                }}
               >
-                Save
-              </Button>
+                {newUsername.length}/20
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                }}
+              >
+                <Button
+                  mode="text"
+                  onPress={() => setEditModalVisible(false)}
+                  textColor={theme.colors.onSurface}
+                  disabled={usernameUpdating}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={updateUsername}
+                  loading={usernameUpdating}
+                  disabled={usernameUpdating}
+                  labelStyle={{ fontFamily: "Sora" }}
+                >
+                  Save
+                </Button>
+              </View>
             </View>
           </Modal>
 
@@ -1031,82 +1071,117 @@ const ProfileScreen = ({ navigation }: Props) => {
             visible={pwModalVisible}
             onDismiss={() => setPwModalVisible(false)}
             contentContainerStyle={{
-              marginHorizontal: 32,
-              padding: 20,
-              borderRadius: 12,
+              marginHorizontal: 28,
+              borderRadius: 16,
               backgroundColor: theme.colors.surface,
-              borderWidth: 1.5,
-              borderColor: "rgba(94,96,206,0.4)",
-              borderLeftWidth: 5,
-              borderLeftColor: theme.colors.primary,
+              overflow: "hidden",
             }}
           >
-            <Text
-              style={{
-                fontSize: 18,
-                fontFamily: "SoraBold",
-                marginBottom: 12,
-                color: theme.colors.onSurface,
-              }}
-            >
-              Change Password
-            </Text>
-            <TextInput
-              mode="outlined"
-              placeholder="New password"
-              secureTextEntry={!showNewPassword}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              style={[
-                styles.input,
-                { backgroundColor: theme.colors.background },
-              ]}
-              right={
-                <TextInput.Icon
-                  icon={showNewPassword ? "eye-off" : "eye"}
-                  onPress={() => setShowNewPassword(!showNewPassword)}
-                />
-              }
-            />
-            <TextInput
-              mode="outlined"
-              placeholder="Confirm new password"
-              secureTextEntry={!showConfirmPassword}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              style={[
-                styles.input,
-                { backgroundColor: theme.colors.background },
-              ]}
-              right={
-                <TextInput.Icon
-                  icon={showConfirmPassword ? "eye-off" : "eye"}
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                />
-              }
-            />
+            {/* Header */}
             <View
               style={{
+                backgroundColor: theme.colors.primary,
+                paddingVertical: 20,
+                paddingHorizontal: 20,
                 flexDirection: "row",
-                justifyContent: "flex-end",
+                alignItems: "center",
                 gap: 12,
               }}
             >
-              <Button
-                mode="text"
-                onPress={() => setPwModalVisible(false)}
-                textColor={theme.colors.onSurface}
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  backgroundColor: "rgba(255,255,255,0.2)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
               >
-                Cancel
-              </Button>
-              <Button
-                mode="contained"
-                onPress={updatePassword}
-                loading={pwUpdating}
-                labelStyle={{ fontFamily: "Sora" }}
+                <MaterialIcons name="lock-outline" size={20} color="#fff" />
+              </View>
+              <View>
+                <Text
+                  style={{
+                    fontSize: 17,
+                    fontFamily: "SoraBold",
+                    color: "#fff",
+                  }}
+                >
+                  Change Password
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.75)",
+                    fontFamily: "Rubik_400Regular",
+                  }}
+                >
+                  Must be at least 6 characters
+                </Text>
+              </View>
+            </View>
+
+            {/* Body */}
+            <View style={{ padding: 20 }}>
+              <TextInput
+                mode="outlined"
+                placeholder="New password"
+                secureTextEntry={!showNewPassword}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.colors.background },
+                ]}
+                right={
+                  <TextInput.Icon
+                    icon={showNewPassword ? "eye-off" : "eye"}
+                    onPress={() => setShowNewPassword(!showNewPassword)}
+                  />
+                }
+              />
+              <TextInput
+                mode="outlined"
+                placeholder="Confirm new password"
+                secureTextEntry={!showConfirmPassword}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.colors.background, marginTop: 10 },
+                ]}
+                right={
+                  <TextInput.Icon
+                    icon={showConfirmPassword ? "eye-off" : "eye"}
+                    onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  />
+                }
+              />
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                  marginTop: 16,
+                }}
               >
-                Change
-              </Button>
+                <Button
+                  mode="text"
+                  onPress={() => setPwModalVisible(false)}
+                  textColor={theme.colors.onSurface}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  mode="contained"
+                  onPress={updatePassword}
+                  loading={pwUpdating}
+                  labelStyle={{ fontFamily: "Sora" }}
+                >
+                  Change
+                </Button>
+              </View>
             </View>
           </Modal>
 
@@ -1124,8 +1199,18 @@ const ProfileScreen = ({ navigation }: Props) => {
               borderLeftColor: theme.colors.error,
             }}
           >
-            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-              <MaterialIcons name="warning" size={24} color={theme.colors.error} />
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <MaterialIcons
+                name="warning"
+                size={24}
+                color={theme.colors.error}
+              />
               <Text
                 style={{
                   fontSize: 18,
@@ -1145,7 +1230,8 @@ const ProfileScreen = ({ navigation }: Props) => {
                 marginBottom: 20,
               }}
             >
-              Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.
+              Are you sure you want to delete your account? This action cannot
+              be undone and all your data will be permanently removed.
             </Text>
             <View
               style={{
@@ -1171,15 +1257,19 @@ const ProfileScreen = ({ navigation }: Props) => {
               </Button>
             </View>
           </Modal>
-          {/* Reset Stats Modal */}
+          {/* Avatar Editor Modal */}
           <Modal
-            visible={resetStatsModalVisible}
-            onDismiss={() => setResetStatsModalVisible(false)}
+            visible={showAvatarEditor}
+            onDismiss={() => setShowAvatarEditor(false)}
             contentContainerStyle={{
-              margin: 20,
+              marginHorizontal: 20,
               padding: 20,
               borderRadius: 16,
               backgroundColor: theme.colors.surface,
+              borderWidth: 1.5,
+              borderColor: "rgba(94,96,206,0.4)",
+              borderLeftWidth: 5,
+              borderLeftColor: theme.colors.primary,
             }}
           >
             <Text
@@ -1187,122 +1277,233 @@ const ProfileScreen = ({ navigation }: Props) => {
                 fontSize: 18,
                 fontFamily: "SoraBold",
                 color: theme.colors.onSurface,
-                marginBottom: 4,
-              }}
-            >
-              Reset Stats
-            </Text>
-            <Text
-              style={{
-                fontSize: 13,
-                fontFamily: "Sora",
-                color: theme.colors.onSurfaceVariant,
                 marginBottom: 16,
               }}
             >
-              Select which stats to reset. This cannot be undone.
+              Customize Avatar
             </Text>
 
-            <TouchableOpacity
-              onPress={() => setResetWinnings(!resetWinnings)}
+            {/* Live preview */}
+            <View style={{ alignItems: "center", marginBottom: 20 }}>
+              <UserAvatar
+                username={username}
+                activeBadge={activeBadge}
+                profileIcon={draftIcon}
+                profileColor={draftColor}
+                showRing
+                size={72}
+                backgroundColor={theme.colors.primary}
+              />
+            </View>
+
+            {/* Color picker — available to everyone */}
+            <View
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                paddingVertical: 12,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.dark ? "#333" : "#eee",
+                marginBottom: 10,
+                gap: 8,
               }}
             >
-              <MaterialIcons
-                name={resetWinnings ? "check-box" : "check-box-outline-blank"}
-                size={24}
-                color={resetWinnings ? theme.colors.error : theme.colors.onSurfaceVariant}
-              />
-              <View style={{ marginLeft: 12 }}>
-                <Text style={{ fontFamily: "SoraBold", color: theme.colors.onSurface }}>
-                  Total Winnings
-                </Text>
-                <Text style={{ fontFamily: "Sora", fontSize: 12, color: theme.colors.onSurfaceVariant }}>
-                  Currently: ${totalWinnings.toFixed(2)}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: "Rubik_600SemiBold",
+                  color: theme.colors.onSurfaceVariant,
+                }}
+              >
+                BACKGROUND COLOR
+              </Text>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 8,
+                marginBottom: isPremium ? 8 : 20,
+              }}
+            >
+              {colors.colorOptions.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  onPress={() => setDraftColor(c)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: c,
+                    borderWidth: draftColor === c ? 3 : 1.5,
+                    borderColor: draftColor === c ? "#fff" : "transparent",
+                    shadowColor: draftColor === c ? c : "transparent",
+                    shadowRadius: draftColor === c ? 6 : 0,
+                    shadowOpacity: 0.8,
+                    elevation: draftColor === c ? 4 : 0,
+                  }}
+                />
+              ))}
+            </View>
 
-            <TouchableOpacity
-              onPress={() => setResetQuarters(!resetQuarters)}
+            {/* Custom color wheel — premium only */}
+            {isPremium ? (
+              <TouchableOpacity
+                onPress={() => setShowColorPicker(true)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginBottom: 20,
+                  alignSelf: "flex-start",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: theme.colors.primary,
+                }}
+              >
+                <MaterialIcons
+                  name="palette"
+                  size={16}
+                  color={theme.colors.primary}
+                />
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontFamily: "Rubik_500Medium",
+                    color: theme.colors.primary,
+                  }}
+                >
+                  Custom Color
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {/* Icon picker — premium only */}
+            <View
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                paddingVertical: 12,
-                borderBottomWidth: 1,
-                borderBottomColor: theme.dark ? "#333" : "#eee",
+                marginBottom: 10,
+                gap: 8,
               }}
             >
-              <MaterialIcons
-                name={resetQuarters ? "check-box" : "check-box-outline-blank"}
-                size={24}
-                color={resetQuarters ? theme.colors.error : theme.colors.onSurfaceVariant}
-              />
-              <View style={{ marginLeft: 12 }}>
-                <Text style={{ fontFamily: "SoraBold", color: theme.colors.onSurface }}>
-                  Quarters Won
-                </Text>
-                <Text style={{ fontFamily: "Sora", fontSize: 12, color: theme.colors.onSurfaceVariant }}>
-                  Currently: {quartersWon}
-                </Text>
-              </View>
-            </TouchableOpacity>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: "Rubik_600SemiBold",
+                  color: theme.colors.onSurfaceVariant,
+                }}
+              >
+                ICON
+              </Text>
+              {!isPremium && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 3,
+                    backgroundColor: "#FFD700" + "25",
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 8,
+                  }}
+                >
+                  <MaterialIcons name="lock" size={11} color="#c8860a" />
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "Rubik_600SemiBold",
+                      color: "#c8860a",
+                    }}
+                  >
+                    Premium
+                  </Text>
+                </View>
+              )}
+            </View>
+            <FlatList
+              data={iconOptions}
+              keyExtractor={(item) => item.name}
+              numColumns={5}
+              scrollEnabled={false}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!isPremium) {
+                      setShowAvatarEditor(false);
+                      setShowPremiumModal(true);
+                      return;
+                    }
+                    setDraftIcon(draftIcon === item.name ? null : item.name);
+                  }}
+                  style={{
+                    flex: 1,
+                    aspectRatio: 1,
+                    margin: 4,
+                    borderRadius: 10,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor:
+                      draftIcon === item.name
+                        ? theme.colors.primary + "30"
+                        : theme.dark
+                          ? "#2a2a2a"
+                          : "#f5f5f5",
+                    borderWidth: draftIcon === item.name ? 2 : 1,
+                    borderColor:
+                      draftIcon === item.name
+                        ? theme.colors.primary
+                        : "transparent",
+                    opacity: isPremium ? 1 : 0.4,
+                  }}
+                >
+                  <MaterialIcons
+                    name={item.name}
+                    size={22}
+                    color={
+                      draftIcon === item.name
+                        ? theme.colors.primary
+                        : theme.colors.onSurfaceVariant
+                    }
+                  />
+                </TouchableOpacity>
+              )}
+              style={{ marginBottom: 16 }}
+            />
 
-            <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 20, gap: 8 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "flex-end",
+                gap: 12,
+              }}
+            >
               <Button
                 mode="text"
-                onPress={() => setResetStatsModalVisible(false)}
-                textColor={theme.colors.onSurfaceVariant}
-                labelStyle={{ fontFamily: "Sora" }}
+                onPress={() => setShowAvatarEditor(false)}
+                textColor={theme.colors.onSurface}
               >
                 Cancel
               </Button>
               <Button
                 mode="contained"
-                disabled={!resetWinnings && !resetQuarters}
-                buttonColor={theme.colors.error}
+                onPress={saveAvatarSettings}
+                loading={savingAvatar}
                 labelStyle={{ fontFamily: "Sora" }}
-                onPress={async () => {
-                  try {
-                    const { data: { user } } = await supabase.auth.getUser();
-                    if (!user) return;
-
-                    if (resetWinnings) {
-                      await supabase
-                        .from("users")
-                        .update({ total_winnings: 0 })
-                        .eq("id", user.id);
-                      setTotalWinnings(0);
-                    }
-
-                    if (resetQuarters) {
-                      const { error: qError } = await supabase
-                        .from("users")
-                        .update({ quarters_won_offset: rawQuartersWon })
-                        .eq("id", user.id);
-                      if (qError) throw qError;
-                      setQuartersWon(0);
-                    }
-
-                    setResetStatsModalVisible(false);
-                    showToast({
-                      type: "success",
-                      text1: "Stats have been reset",
-                    });
-                  } catch {
-                    showToast({ type: "error", text1: "Failed to reset stats" });
-                  }
-                }}
               >
-                Reset Selected
+                Save
               </Button>
             </View>
           </Modal>
+
+          <ColorPickerModal
+            visible={showColorPicker}
+            onDismiss={() => setShowColorPicker(false)}
+            onColorSelect={(c) => {
+              setDraftColor(c);
+              setShowColorPicker(false);
+            }}
+            initialColor={draftColor || theme.colors.primary}
+          />
 
           <Toast config={getToastConfig(theme.dark)} />
         </Portal>
@@ -1351,7 +1552,8 @@ const styles = StyleSheet.create({
   usernameRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
+    marginTop: 14,
   },
   usernameText: {
     fontSize: 18,

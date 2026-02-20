@@ -17,6 +17,7 @@ import {
   Animated,
   Pressable,
   RefreshControl,
+  Image,
 } from "react-native";
 import {
   Button,
@@ -32,7 +33,7 @@ import {
   useNavigation,
   useFocusEffect,
 } from "@react-navigation/native";
-import { TabView, SceneMap, TabBar, TabBarProps } from "react-native-tab-view";
+import { TabView, TabBar } from "react-native-tab-view";
 import Toast from "react-native-toast-message";
 import colors from "../../assets/constants/colorOptions";
 import { LinearGradient } from "expo-linear-gradient";
@@ -59,6 +60,9 @@ import tinycolor from "tinycolor2";
 import ScoreEntryModal from "../components/ScoreEntryModal";
 import AddGuestPlayerModal from "../components/AddGuestPlayerModal";
 import AssignSquareModal from "../components/AssignSquareModal";
+import { recordQuarterWin } from "../utils/squareLimits";
+import { isBadgeEmoji, getBadgeEmoji } from "../../assets/constants/iconOptions";
+
 
 // ✨ Square size calculation - moved to component level for proper recalculation
 const getSquareSize = () => {
@@ -130,6 +134,30 @@ const calculatePlayerWinnings = (
   return winningsMap;
 };
 
+const formatTimeLeftStatic = (targetDate: Date) => {
+  const diff = targetDate.getTime() - Date.now();
+  if (diff <= 0) return "Deadline passed";
+  const seconds = Math.floor(diff / 1000) % 60;
+  const minutes = Math.floor(diff / (1000 * 60)) % 60;
+  const hours = Math.floor(diff / (1000 * 60 * 60)) % 24;
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m ${seconds}s`;
+  return `${seconds}s`;
+};
+
+const CountdownChip = React.memo(({ deadline }: { deadline: Date }) => {
+  const [text, setText] = useState(() => formatTimeLeftStatic(deadline));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setText(formatTimeLeftStatic(deadline));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [deadline]);
+  return <>{text}</>;
+});
+
 const SquareScreen = ({ route }) => {
   const {
     gridId,
@@ -194,6 +222,7 @@ const SquareScreen = ({ route }) => {
   const [winningsByUser, setWinningsByUser] = useState<Record<string, number>>(
     {},
   );
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [winnerModalVisible, setWinnerModalVisible] = useState(false);
   const [winnerModalData, setWinnerModalData] = useState<{
@@ -433,6 +462,9 @@ const SquareScreen = ({ route }) => {
     playerUsernames,
   ]);
 
+  // Track which quarters have already had credits awarded
+  const creditedQuartersRef = useRef<Set<string>>(new Set());
+
   // Save quarter_winners to database when they're calculated
   useEffect(() => {
     if (!quarterWinners || quarterWinners.length === 0) return;
@@ -455,6 +487,22 @@ const SquareScreen = ({ route }) => {
           "Failed to save quarter_winners:",
           JSON.stringify(error, null, 2),
         );
+        return;
+      }
+
+      // Award credits for new quarter wins (2+ players required)
+      const playerCount = players?.length || 0;
+      for (const winner of quarterWinners) {
+        if (
+          winner.userId &&
+          winner.username !== "No Winner" &&
+          !creditedQuartersRef.current.has(winner.quarter)
+        ) {
+          creditedQuartersRef.current.add(winner.quarter);
+          recordQuarterWin(winner.userId, playerCount).catch((err) =>
+            console.warn("Failed to record quarter win:", err),
+          );
+        }
       }
     };
 
@@ -1451,12 +1499,28 @@ const SquareScreen = ({ route }) => {
         </TouchableOpacity>
       ),
       headerRight: () => (
-        <TouchableOpacity
-          onPress={() => setSessionOptionsVisible(true)}
-          style={styles.headerButton}
-        >
-          <Icon name="more-vert" size={24} color={theme.colors.onBackground} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <TouchableOpacity
+            onPress={() =>
+              (navigation as any).navigate("CommentsScreen", {
+                gridId,
+                title: title || inputTitle,
+                isOwner,
+              })
+            }
+            style={styles.headerButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="chat-bubble-outline" size={22} color={theme.colors.onBackground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setSessionOptionsVisible(true)}
+            style={styles.headerButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Icon name="more-vert" size={24} color={theme.colors.onBackground} />
+          </TouchableOpacity>
+        </View>
       ),
     });
   }, [navigation, isOwner, inputTitle, title]);
@@ -1816,7 +1880,14 @@ const SquareScreen = ({ route }) => {
         (sel) => sel.userId === userId,
       );
       const mySet = new Set(mySelections.map((sel) => `${sel.x},${sel.y}`));
-      setSelectedSquares(mySet);
+      // Only update if selections actually changed to avoid unnecessary re-renders
+      setSelectedSquares((prev) => {
+        if (prev.size !== mySet.size) return mySet;
+        for (const key of prev) {
+          if (!mySet.has(key)) return mySet;
+        }
+        return prev;
+      });
     };
 
     fetchSelections();
@@ -1990,12 +2061,17 @@ const SquareScreen = ({ route }) => {
                 dynamicStyles.square,
                 {
                   backgroundColor: color,
-                  borderColor: isSelected
-                    ? selectedBorderColor
-                    : isDark
-                      ? "#333"
-                      : "#e0e0e0",
-                  borderWidth: isSelected ? 2.5 : 1,
+                  borderColor: isWinner
+                    ? "#FFD700"
+                    : isSelected
+                      ? selectedBorderColor
+                      : isDark
+                        ? "#333"
+                        : "#e0e0e0",
+                  borderWidth: isWinner ? 3 : isSelected ? 2.5 : 1,
+                  overflow: "visible",
+                  zIndex: isWinner ? 10 : 0,
+                  elevation: isWinner ? 10 : 0,
                   opacity: pressed ? 0.6 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
                   borderBottomRightRadius: x === 10 && y === 10 ? 8 : 0,
@@ -2022,15 +2098,19 @@ const SquareScreen = ({ route }) => {
               delayLongPress={500}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              {isWinner ? (
-                <Text style={dynamicStyles.trophyEmoji}>🏆</Text>
-              ) : hasCustomDisplay && displayValue ? (
+              {hasCustomDisplay && displayValue ? (
                 displayType === "icon" ? (
-                  <Icon
-                    name={displayValue}
-                    size={Math.min(20, squareSize * 0.5)}
-                    color={baseColor}
-                  />
+                  isBadgeEmoji(displayValue) ? (
+                    <Text style={{ fontSize: Math.min(16, squareSize * 0.4) }}>
+                      {getBadgeEmoji(displayValue)}
+                    </Text>
+                  ) : (
+                    <Icon
+                      name={displayValue}
+                      size={Math.min(20, squareSize * 0.5)}
+                      color={baseColor}
+                    />
+                  )
                 ) : (
                   <Text
                     style={{
@@ -2044,6 +2124,25 @@ const SquareScreen = ({ route }) => {
                   </Text>
                 )
               ) : null}
+              {isWinner && (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: "absolute",
+                    top: -7,
+                    right: -7,
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: "#FFD700",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 10,
+                  }}
+                >
+                  <Text style={{ fontSize: 8, lineHeight: 14, color: "#7a5000" }}>★</Text>
+                </View>
+              )}
             </Pressable>,
           );
         }
@@ -2122,9 +2221,23 @@ const SquareScreen = ({ route }) => {
                     ? count * pricePerSquare
                     : null;
 
+                const hasSelections = userSelections[userKey]?.length > 0 &&
+                  (!hideAxisUntilDeadline || isAfterDeadline);
+                const isExpanded = expandedPlayers.has(userKey);
+
                 return (
-                  <View
+                  <TouchableOpacity
                     key={uid}
+                    activeOpacity={hasSelections ? 0.7 : 1}
+                    onPress={() => {
+                      if (!hasSelections) return;
+                      setExpandedPlayers((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(userKey)) next.delete(userKey);
+                        else next.add(userKey);
+                        return next;
+                      });
+                    }}
                     style={[
                       styles.playerRow,
                       {
@@ -2134,137 +2247,177 @@ const SquareScreen = ({ route }) => {
                       },
                     ]}
                   >
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        flex: 1,
-                        alignItems: "center",
-                      }}
-                    >
-                      {(() => {
-                        const player = players.find((p) => p.userId === uid);
-                        const dType = player?.displayType || "color";
-                        const dValue = player?.displayValue;
-                        return (
-                          <View
-                            style={[
-                              styles.colorIndicator,
-                              {
-                                backgroundColor:
-                                  dType === "color"
-                                    ? (color as string)
-                                    : tinycolor(color as string)
-                                        .setAlpha(0.3)
-                                        .toRgbString(),
-                                borderColor: theme.dark ? "#444" : "#ddd",
-                              },
-                            ]}
-                          >
-                            {dType === "icon" && dValue ? (
-                              <Icon
-                                name={dValue}
-                                size={12}
-                                color={color as string}
-                              />
-                            ) : dType === "initial" && dValue ? (
-                              <Text
+                    <View style={{ flex: 1 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                      >
+                        {(() => {
+                          const player = players.find((p) => p.userId === uid);
+                          const dType = player?.displayType || "color";
+                          const dValue = player?.displayValue;
+                          return (
+                            <View
+                              style={[
+                                styles.colorIndicator,
+                                {
+                                  backgroundColor:
+                                    dType === "color"
+                                      ? (color as string)
+                                      : tinycolor(color as string)
+                                          .setAlpha(0.3)
+                                          .toRgbString(),
+                                  borderColor: theme.dark ? "#444" : "#ddd",
+                                },
+                              ]}
+                            >
+                              {dType === "icon" && dValue ? (
+                                isBadgeEmoji(dValue) ? (
+                                  <Text style={{ fontSize: 10 }}>
+                                    {getBadgeEmoji(dValue)}
+                                  </Text>
+                                ) : (
+                                  <Icon
+                                    name={dValue}
+                                    size={12}
+                                    color={color as string}
+                                  />
+                                )
+                              ) : dType === "initial" && dValue ? (
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: "700",
+                                    color: color as string,
+                                  }}
+                                >
+                                  {dValue.toUpperCase()}
+                                </Text>
+                              ) : null}
+                            </View>
+                          );
+                        })()}
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                            <Text
+                              style={[
+                                styles.playerName,
+                                { color: theme.colors.onSurface },
+                              ]}
+                            >
+                              {username}
+                            </Text>
+                            {uid === createdBy && (
+                              <View
                                 style={{
-                                  fontSize: 11,
-                                  fontWeight: "700",
-                                  color: color as string,
+                                  backgroundColor: theme.colors.primary,
+                                  paddingHorizontal: 6,
+                                  paddingVertical: 2,
+                                  borderRadius: 8,
                                 }}
                               >
-                                {dValue.toUpperCase()}
-                              </Text>
-                            ) : null}
+                                <Text
+                                  style={{
+                                    fontSize: 9,
+                                    fontWeight: "700",
+                                    color: "#fff",
+                                  }}
+                                >
+                                  OWNER
+                                </Text>
+                              </View>
+                            )}
                           </View>
-                        );
-                      })()}
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <Text
-                            style={[
-                              styles.playerName,
-                              { color: theme.colors.onSurface },
-                            ]}
-                          >
-                            {username}
-                          </Text>
-                          {uid === createdBy && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Text
+                              style={[
+                                styles.playerSubtext,
+                                { color: theme.colors.onSurfaceVariant },
+                              ]}
+                            >
+                              {count} / {maxSelections} selected
+                            </Text>
+                            {hasSelections && (
+                              <Icon
+                                name={isExpanded ? "expand-less" : "expand-more"}
+                                size={16}
+                                color={theme.colors.onSurfaceVariant}
+                              />
+                            )}
+                          </View>
+                        </View>
+
+                        <View style={styles.statsColumn}>
+                          {totalOwed !== null && totalOwed > 0 && (
+                            <Chip
+                              mode="flat"
+                              textStyle={styles.chipText}
+                              style={[
+                                styles.betChip,
+                                {
+                                  backgroundColor: theme.colors.secondaryContainer,
+                                },
+                              ]}
+                            >
+                              ${totalOwed.toFixed(2)}
+                            </Chip>
+                          )}
+                          {winningsMap[userKey] > 0 && (
+                            <Chip
+                              mode="flat"
+                              icon="trophy"
+                              textStyle={[styles.chipText, { color: "#2e7d32" }]}
+                              style={[
+                                styles.winChip,
+                                { backgroundColor: "#e8f5e9" },
+                              ]}
+                            >
+                              ${winningsMap[userKey].toFixed(2)}
+                            </Chip>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Expandable selections */}
+                      {hasSelections && isExpanded && (
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            flexWrap: "wrap",
+                            gap: 4,
+                            marginTop: 8,
+                            marginLeft: 32,
+                          }}
+                        >
+                          {userSelections[userKey].map((sq, i) => (
                             <View
+                              key={i}
                               style={{
-                                backgroundColor: theme.colors.primary,
-                                paddingHorizontal: 6,
-                                paddingVertical: 2,
-                                borderRadius: 8,
+                                backgroundColor: theme.dark
+                                  ? "rgba(255,255,255,0.08)"
+                                  : "rgba(0,0,0,0.05)",
+                                paddingHorizontal: 8,
+                                paddingVertical: 3,
+                                borderRadius: 10,
                               }}
                             >
                               <Text
                                 style={{
-                                  fontSize: 9,
-                                  fontWeight: "700",
-                                  color: "#fff",
+                                  fontSize: 11,
+                                  fontFamily: "Rubik_500Medium",
+                                  color: theme.colors.onSurfaceVariant,
                                 }}
                               >
-                                OWNER
+                                {sq}
                               </Text>
                             </View>
-                          )}
+                          ))}
                         </View>
-                        <Text
-                          style={[
-                            styles.playerSubtext,
-                            { color: theme.colors.onSurfaceVariant },
-                          ]}
-                        >
-                          {count} / {maxSelections} selected
-                        </Text>
-
-                        {userSelections[userKey]?.length > 0 &&
-                          (!hideAxisUntilDeadline || isAfterDeadline) && (
-                            <Text
-                              style={[
-                                styles.squaresList,
-                                { color: theme.colors.onSurfaceVariant },
-                              ]}
-                              numberOfLines={2}
-                            >
-                              {userSelections[userKey].join(", ")}
-                            </Text>
-                          )}
-                      </View>
-                    </View>
-
-                    <View style={styles.statsColumn}>
-                      {totalOwed !== null && totalOwed > 0 && (
-                        <Chip
-                          mode="flat"
-                          textStyle={styles.chipText}
-                          style={[
-                            styles.betChip,
-                            {
-                              backgroundColor: theme.colors.secondaryContainer,
-                            },
-                          ]}
-                        >
-                          ${totalOwed.toFixed(2)}
-                        </Chip>
-                      )}
-                      {winningsMap[userKey] > 0 && (
-                        <Chip
-                          mode="flat"
-                          icon="trophy"
-                          textStyle={[styles.chipText, { color: "#2e7d32" }]}
-                          style={[
-                            styles.winChip,
-                            { backgroundColor: "#e8f5e9" },
-                          ]}
-                        >
-                          ${winningsMap[userKey].toFixed(2)}
-                        </Chip>
                       )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })
             )}
@@ -2287,6 +2440,7 @@ const SquareScreen = ({ route }) => {
     isAfterDeadline,
     winningsByUser,
     refreshing,
+    expandedPlayers,
   ]);
 
   // ✨ Modernized Winners tab
@@ -2397,11 +2551,17 @@ const SquareScreen = ({ route }) => {
                               ]}
                             >
                               {dType === "icon" && dValue ? (
-                                <Icon
-                                  name={dValue}
-                                  size={10}
-                                  color={winnerColor}
-                                />
+                                isBadgeEmoji(dValue) ? (
+                                  <Text style={{ fontSize: 8 }}>
+                                    {getBadgeEmoji(dValue)}
+                                  </Text>
+                                ) : (
+                                  <Icon
+                                    name={dValue}
+                                    size={10}
+                                    color={winnerColor}
+                                  />
+                                )
                               ) : dType === "initial" && dValue ? (
                                 <Text
                                   style={{
@@ -2474,10 +2634,7 @@ const SquareScreen = ({ route }) => {
     refreshing,
   ]);
 
-  const renderScene = useMemo(
-    () =>
-      SceneMap({
-        squares: () => {
+  const renderSquaresTab = useCallback(() => {
           if (!isFocused) return null;
 
           const selectedCount = blockMode
@@ -2561,7 +2718,7 @@ const SquareScreen = ({ route }) => {
                         ? "Game Completed"
                         : isAfterDeadline
                           ? "Game in Progress"
-                          : formatTimeLeft(deadlineValue, now)}
+                          : <CountdownChip deadline={deadlineValue} />}
                     </Chip>
                   </Animated.View>
                 )}
@@ -2684,31 +2841,41 @@ const SquareScreen = ({ route }) => {
               </Card>
             </ScrollView>
           );
-        },
-        players: renderPlayers,
-        winners: renderWinners,
-      }),
-    [
-      title,
-      team1,
-      team2,
-      team1Mascot,
-      team2Mascot,
-      deadlineValue,
-      now,
-      selectedSquares,
-      pricePerSquare,
-      playerColors,
-      playerUsernames,
-      squareColors,
-      maxSelections,
-      quarterScores,
-      quarterWinners,
-      isFocused,
-      theme,
-      winningsByUser,
-      refreshing,
-    ],
+  }, [
+    title,
+    team1,
+    team2,
+    team1Mascot,
+    team2Mascot,
+    deadlineValue,
+    selectedSquares,
+    pricePerSquare,
+    playerColors,
+    playerUsernames,
+    squareColors,
+    maxSelections,
+    quarterScores,
+    quarterWinners,
+    isFocused,
+    theme,
+    winningsByUser,
+    refreshing,
+  ]);
+
+  const renderScene = useCallback(
+    ({ route: tabRoute }: { route: { key: string } }) => {
+      switch (tabRoute.key) {
+        case "squares":
+          return renderSquaresTab();
+        case "players":
+          return renderPlayers();
+        case "winners":
+          return renderWinners();
+        default:
+          return null;
+      }
+    },
+    [renderSquaresTab, renderPlayers, renderWinners],
   );
 
   return (
@@ -2734,7 +2901,7 @@ const SquareScreen = ({ route }) => {
             initialLayout={{ width: Dimensions.get("window").width }}
             renderTabBar={(props) => (
               <TabBar
-                {...(props as TabBarProps)}
+                {...props}
                 indicatorStyle={styles.tabIndicator}
                 style={[
                   styles.tabBar,
@@ -3278,11 +3445,17 @@ const SquareScreen = ({ route }) => {
                                 ]}
                               >
                                 {mDType === "icon" && mDValue ? (
-                                  <Icon
-                                    name={mDValue}
-                                    size={20}
-                                    color={mColor}
-                                  />
+                                  isBadgeEmoji(mDValue) ? (
+                                    <Text style={{ fontSize: 16 }}>
+                                      {getBadgeEmoji(mDValue)}
+                                    </Text>
+                                  ) : (
+                                    <Icon
+                                      name={mDValue}
+                                      size={20}
+                                      color={mColor}
+                                    />
+                                  )
                                 ) : mDType === "initial" && mDValue ? (
                                   <Text
                                     style={{
@@ -3421,9 +3594,6 @@ const getDynamicStyles = (squareSize: number) =>
       letterSpacing: 0.5,
       lineHeight: squareSize,
       textAlign: "center",
-    },
-    trophyEmoji: {
-      fontSize: Math.min(22, squareSize * 0.6),
     },
   });
 
@@ -3588,6 +3758,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginRight: 12,
     borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   playerName: {
     fontSize: 16,

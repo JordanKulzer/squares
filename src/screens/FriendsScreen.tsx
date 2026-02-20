@@ -22,6 +22,7 @@ import {
   removeFriend,
 } from "../lib/friends";
 import { FriendWithProfile, FriendRequest } from "../types/friends";
+import UserAvatar from "../components/UserAvatar";
 import SkeletonLoader from "../components/SkeletonLoader";
 
 type TabType = "all" | "requests";
@@ -124,21 +125,6 @@ const FriendsScreen = ({ navigation }: any) => {
     }
   };
 
-  const getInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email[0].toUpperCase();
-    }
-    return "?";
-  };
-
   const renderRightActions = (friend: FriendWithProfile) => (
     <TouchableOpacity
       style={[styles.swipeAction, { backgroundColor: "#f44336" }]}
@@ -196,16 +182,13 @@ const FriendsScreen = ({ navigation }: any) => {
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.avatarCircle,
-                  { backgroundColor: theme.colors.primary },
-                ]}
-              >
-                <Text style={styles.avatarText}>
-                  {getInitials(friend.friend_username, friend.friend_email)}
-                </Text>
-              </View>
+              <UserAvatar
+                username={friend.friend_username}
+                email={friend.friend_email}
+                activeBadge={friend.friend_active_badge}
+                size={56}
+                backgroundColor={theme.colors.primary}
+              />
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text
                   style={[styles.friendName, { color: theme.colors.onSurface }]}
@@ -265,19 +248,13 @@ const FriendsScreen = ({ navigation }: any) => {
               { backgroundColor: theme.colors.surface },
             ]}
           >
-            <View
-              style={[
-                styles.avatarCircle,
-                { backgroundColor: theme.colors.secondary },
-              ]}
-            >
-              <Text style={styles.avatarText}>
-                {getInitials(
-                  request.requester_username,
-                  request.requester_email,
-                )}
-              </Text>
-            </View>
+            <UserAvatar
+              username={request.requester_username}
+              email={request.requester_email}
+              activeBadge={request.requester_active_badge}
+              size={56}
+              backgroundColor={theme.colors.secondary}
+            />
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text
                 style={[styles.friendName, { color: theme.colors.onSurface }]}

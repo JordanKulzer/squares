@@ -13,6 +13,7 @@ import { useTheme, Chip } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import SkeletonLoader from "../components/SkeletonLoader";
+import UserAvatar from "../components/UserAvatar";
 import { supabase } from "../lib/supabase";
 
 type TabType = "weekly" | "all-time";
@@ -20,9 +21,8 @@ type TabType = "weekly" | "all-time";
 type LeaderboardEntry = {
   user_id: string;
   username: string;
-  public_quarters_won: number;
-  public_games_played: number;
-  public_sweeps: number;
+  quarters_won: number;
+  active_badge: string | null;
 };
 
 const LeaderboardScreen = () => {
@@ -70,10 +70,10 @@ const LeaderboardScreen = () => {
     if (!user) return;
     setUserId(user.id);
 
-    const { data, error } = await supabase
+    const { data: rawData, error } = await supabase
       .from("leaderboard_stats")
-      .select("user_id, username, public_quarters_won, public_games_played, public_sweeps")
-      .order("public_quarters_won", { ascending: false })
+      .select("user_id, quarters_won, users!inner(username, active_badge)")
+      .order("quarters_won", { ascending: false })
       .limit(50);
 
     if (error) {
@@ -81,7 +81,14 @@ const LeaderboardScreen = () => {
       return;
     }
 
-    setLeaderboard(data || []);
+    const data: LeaderboardEntry[] = (rawData || []).map((row: any) => ({
+      user_id: row.user_id,
+      quarters_won: row.quarters_won,
+      username: row.users?.username || "Unknown",
+      active_badge: row.users?.active_badge || null,
+    }));
+
+    setLeaderboard(data);
 
     // Find user's rank
     const idx = (data || []).findIndex((e) => e.user_id === user.id);
@@ -90,19 +97,25 @@ const LeaderboardScreen = () => {
       setUserStats(data![idx]);
     } else {
       // User not in top 50, fetch their stats
-      const { data: myStats } = await supabase
+      const { data: myRaw } = await supabase
         .from("leaderboard_stats")
-        .select("user_id, username, public_quarters_won, public_games_played, public_sweeps")
+        .select("user_id, quarters_won, users!inner(username, active_badge)")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      if (myStats) {
+      if (myRaw) {
+        const myStats: LeaderboardEntry = {
+          user_id: (myRaw as any).user_id,
+          quarters_won: (myRaw as any).quarters_won,
+          username: (myRaw as any).users?.username || "Unknown",
+          active_badge: (myRaw as any).users?.active_badge || null,
+        };
         setUserStats(myStats);
         // Count how many are above them
         const { count } = await supabase
           .from("leaderboard_stats")
           .select("user_id", { count: "exact", head: true })
-          .gt("public_quarters_won", myStats.public_quarters_won);
+          .gt("quarters_won", myStats.quarters_won);
         setUserRank((count || 0) + 1);
       }
     }
@@ -119,16 +132,6 @@ const LeaderboardScreen = () => {
     setRefreshing(true);
     await fetchLeaderboard();
     setRefreshing(false);
-  };
-
-  const getInitials = (name: string) => {
-    if (!name) return "?";
-    return name
-      .split(/[_\s]/)
-      .map((part) => part[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
   };
 
   const getMedalColor = (rank: number) => {
@@ -227,18 +230,10 @@ const LeaderboardScreen = () => {
             <View style={styles.yourStatsRow}>
               <View style={styles.yourStat}>
                 <Text style={[styles.yourStatValue, { color: theme.colors.onBackground }]}>
-                  {userStats.public_quarters_won}
+                  {userStats.quarters_won}
                 </Text>
                 <Text style={[styles.yourStatLabel, { color: theme.colors.onSurfaceVariant }]}>
                   WINS
-                </Text>
-              </View>
-              <View style={styles.yourStat}>
-                <Text style={[styles.yourStatValue, { color: theme.colors.onBackground }]}>
-                  {userStats.public_games_played}
-                </Text>
-                <Text style={[styles.yourStatLabel, { color: theme.colors.onSurfaceVariant }]}>
-                  SQUARES
                 </Text>
               </View>
               <View style={styles.yourStat}>
@@ -288,26 +283,12 @@ const LeaderboardScreen = () => {
                       key={entry.user_id}
                       style={[styles.podiumItem, isFirst && styles.podiumFirst]}
                     >
-                      <View
-                        style={[
-                          styles.podiumAvatar,
-                          {
-                            backgroundColor: getAvatarColor(rank),
-                            width: isFirst ? 64 : 48,
-                            height: isFirst ? 64 : 48,
-                            borderRadius: isFirst ? 32 : 24,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.podiumAvatarText,
-                            { fontSize: isFirst ? 22 : 16 },
-                          ]}
-                        >
-                          {getInitials(entry.username)}
-                        </Text>
-                      </View>
+                      <UserAvatar
+                        username={entry.username}
+                        activeBadge={entry.active_badge}
+                        size={isFirst ? 64 : 48}
+                        backgroundColor={getAvatarColor(rank)}
+                      />
                       <Text
                         style={[
                           styles.podiumName,
@@ -318,7 +299,7 @@ const LeaderboardScreen = () => {
                         {entry.username}
                       </Text>
                       <Text style={[styles.podiumWins, { color: theme.colors.primary }]}>
-                        {entry.public_quarters_won}
+                        {entry.quarters_won}
                       </Text>
                       <Text
                         style={[
@@ -365,16 +346,12 @@ const LeaderboardScreen = () => {
                   >
                     {rank}
                   </Text>
-                  <View
-                    style={[
-                      styles.rowAvatar,
-                      { backgroundColor: theme.dark ? "#555" : "#ccc" },
-                    ]}
-                  >
-                    <Text style={styles.rowAvatarText}>
-                      {getInitials(entry.username)}
-                    </Text>
-                  </View>
+                  <UserAvatar
+                    username={entry.username}
+                    activeBadge={entry.active_badge}
+                    size={36}
+                    backgroundColor={theme.dark ? "#555" : "#ccc"}
+                  />
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text
@@ -396,7 +373,7 @@ const LeaderboardScreen = () => {
                     </View>
                   </View>
                   <Text style={[styles.rowWins, { color: theme.colors.onBackground }]}>
-                    {entry.public_quarters_won}
+                    {entry.quarters_won}
                   </Text>
                   <Text
                     style={[

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Modal, Portal, Button, useTheme, Checkbox } from "react-native-paper";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
+import { LinearGradient } from "expo-linear-gradient";
 import Toast from "react-native-toast-message";
 import { getToastConfig } from "./ToastConfig";
 import * as Clipboard from "expo-clipboard";
@@ -17,6 +18,7 @@ import { getFriends, getTop4 } from "../lib/friends";
 import { FriendWithProfile } from "../types/friends";
 import { sendGameInviteNotification } from "../utils/notifications";
 import { sendGameInvites } from "../lib/gameInvites";
+import UserAvatar from "./UserAvatar";
 import SkeletonLoader from "./SkeletonLoader";
 
 const InviteFriendsModal = ({
@@ -195,21 +197,6 @@ const InviteFriendsModal = ({
     }
   };
 
-  const getInitials = (name: string | null, email: string | null) => {
-    if (name) {
-      return name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase()
-        .slice(0, 2);
-    }
-    if (email) {
-      return email[0].toUpperCase();
-    }
-    return "?";
-  };
-
   const renderFriend = ({ item }: { item: FriendWithProfile }) => {
     const isSelected = selectedIds.has(item.friend_id);
 
@@ -233,16 +220,13 @@ const InviteFriendsModal = ({
           onPress={() => toggleSelection(item.friend_id)}
           color={theme.colors.primary}
         />
-        <View
-          style={[
-            styles.avatarCircle,
-            { backgroundColor: theme.colors.primary },
-          ]}
-        >
-          <Text style={styles.avatarText}>
-            {getInitials(item.friend_username, item.friend_email)}
-          </Text>
-        </View>
+        <UserAvatar
+          username={item.friend_username}
+          email={item.friend_email}
+          activeBadge={item.friend_active_badge}
+          size={36}
+          backgroundColor={theme.colors.primary}
+        />
         <View style={{ flex: 1, marginLeft: 8 }}>
           <Text style={[styles.friendName, { color: theme.colors.onSurface }]}>
             {item.friend_username ||
@@ -268,29 +252,32 @@ const InviteFriendsModal = ({
             borderLeftColor: theme.colors.primary,
             zIndex: 0,
             elevation: 0,
+            padding: 0,
+            overflow: "hidden",
           },
         ]}
       >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+        <LinearGradient
+          colors={["#6C63FF", "#4834DF"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            padding: 20,
+            paddingBottom: 16,
+          }}
+        >
+          <MaterialIcons name="people" size={22} color="#fff" style={{ marginRight: 10 }} />
+          <Text style={{ flex: 1, fontSize: 20, fontFamily: "SoraBold", color: "#fff" }}>
             Invite Friends
           </Text>
           <TouchableOpacity onPress={onDismiss}>
-            <MaterialIcons
-              name="close"
-              size={24}
-              color={theme.colors.onSurface}
-            />
+            <MaterialIcons name="close" size={24} color="#fff" />
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
 
-        <View
-          style={[
-            styles.divider,
-            { backgroundColor: theme.dark ? "#333" : "#eee" },
-          ]}
-        />
-
+        <View style={{ padding: 20, paddingTop: 12 }}>
         {/* Friends List Section */}
         <Text style={[styles.sectionLabel, { color: theme.colors.onSurface }]}>
           Send invites to friends
@@ -472,6 +459,7 @@ const InviteFriendsModal = ({
           </TouchableOpacity>
         </View>
         {/* global Toast will be used and should appear above this modal */}
+        </View>
       </Modal>
       <View
         style={{
@@ -499,7 +487,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     margin: 20,
     borderRadius: 16,
-    padding: 24,
     borderWidth: 1.5,
     borderLeftWidth: 5,
     elevation: 8,

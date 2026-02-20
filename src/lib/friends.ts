@@ -252,7 +252,7 @@ export const getFriends = async (): Promise<FriendWithProfile[]> => {
     // Fetch user profiles
     const { data: profiles } = await supabase
       .from("users")
-      .select("id, username, email, push_token")
+      .select("id, username, email, push_token, active_badge")
       .in("id", friendIds);
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
@@ -273,6 +273,7 @@ export const getFriends = async (): Promise<FriendWithProfile[]> => {
         friend_username: profile?.username || null,
         friend_email: profile?.email || null,
         friend_push_token: profile?.push_token || null,
+        friend_active_badge: profile?.active_badge || null,
       };
     });
   } catch (err) {
@@ -306,7 +307,7 @@ export const getPendingRequests = async (): Promise<FriendRequest[]> => {
     const requesterIds = requests.map((r) => r.user_id);
     const { data: profiles } = await supabase
       .from("users")
-      .select("id, username, email")
+      .select("id, username, email, active_badge")
       .in("id", requesterIds);
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
@@ -316,6 +317,7 @@ export const getPendingRequests = async (): Promise<FriendRequest[]> => {
       status: "pending" as const,
       requester_username: profileMap.get(request.user_id)?.username || null,
       requester_email: profileMap.get(request.user_id)?.email || null,
+      requester_active_badge: profileMap.get(request.user_id)?.active_badge || null,
     }));
   } catch (err) {
     console.error("getPendingRequests error:", err);
@@ -438,7 +440,7 @@ export const searchUsers = async (
     // Filter out current user by both ID and email to handle ID mismatches
     let queryBuilder = supabase
       .from("users")
-      .select("id, username, email")
+      .select("id, username, email, active_badge")
       .or(`username.ilike.%${query}%,email.ilike.%${query}%`)
       .neq("id", user.id)
       .is("deleted_at", null)
@@ -490,6 +492,7 @@ export const searchUsers = async (
         id: u.id,
         username: u.username,
         email: u.email,
+        active_badge: u.active_badge || null,
         friendship_status: friendshipStatus,
         friendship_id: friendship?.id || null,
       };

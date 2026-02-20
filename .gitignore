@@ -45,3 +45,6 @@ yarn-error.*
 .vscode/
 
 .env.local
+
+# Claude Code local settings
+.claude/settings.local.json

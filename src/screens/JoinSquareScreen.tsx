@@ -15,7 +15,7 @@ import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { Card, TextInput as PaperInput, useTheme } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "../../assets/constants/colorOptions";
-import { iconOptions } from "../../assets/constants/iconOptions";
+import { iconOptions, BADGE_EMOJI_MAP } from "../../assets/constants/iconOptions";
 import tinycolor from "tinycolor2";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
@@ -33,6 +33,13 @@ import { usePremium } from "../contexts/PremiumContext";
 import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
 import PremiumBadge from "../components/PremiumBadge";
 import ColorPickerModal from "../components/ColorPickerModal";
+import {
+  getActiveSquareCount,
+  getAvailableCredits,
+  consumeCredit,
+  recordGameJoin,
+  FREE_MAX_ACTIVE,
+} from "../utils/squareLimits";
 
 const JoinSquareScreen = () => {
   const navigation =
@@ -50,14 +57,28 @@ const JoinSquareScreen = () => {
         navigation.goBack();
       } else {
         setUser(data.user);
-        // Fetch username from users table
+        // Fetch username and active badge from users table
         const { data: profile } = await supabase
           .from("users")
-          .select("username")
+          .select("username, active_badge")
           .eq("id", data.user.id)
           .single();
         if (profile?.username) {
           setUsername(profile.username);
+        }
+        // Auto-default to active badge emoji if set
+        if (profile?.active_badge && BADGE_EMOJI_MAP[profile.active_badge]) {
+          setDisplayType("icon");
+          setDisplayValue(`emoji:${BADGE_EMOJI_MAP[profile.active_badge].emoji}`);
+        }
+
+        // Fetch earned badges
+        const { data: badgeData } = await supabase
+          .from("badges")
+          .select("badge_type")
+          .eq("user_id", data.user.id);
+        if (badgeData) {
+          setEarnedBadges(badgeData.map((b) => b.badge_type));
         }
       }
     };
@@ -106,6 +127,7 @@ const JoinSquareScreen = () => {
     "color",
   );
   const [displayValue, setDisplayValue] = useState("");
+  const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
 
   // Premium state
   const { isPremium } = usePremium();
@@ -188,6 +210,22 @@ const JoinSquareScreen = () => {
     }
 
     setIsJoining(true);
+
+    // Check active square limit for free users
+    let needsCredit = false;
+    if (!isPremium) {
+      const activeCount = await getActiveSquareCount(user.id);
+      if (activeCount >= FREE_MAX_ACTIVE) {
+        const credits = await getAvailableCredits(user.id);
+        if (credits > 0) {
+          needsCredit = true;
+        } else {
+          setIsJoining(false);
+          setShowPremiumModal(true);
+          return;
+        }
+      }
+    }
 
     try {
       const { data: square, error: fetchError } = await supabase
@@ -286,6 +324,12 @@ const JoinSquareScreen = () => {
       if (inviteId) {
         await acceptInvite(inviteId);
       }
+
+      // Consume credit if needed, and record the game join
+      if (needsCredit) {
+        await consumeCredit(user.id, gridId);
+      }
+      recordGameJoin(user.id).catch(console.error);
 
       // Navigate to SquareScreen - use replace to prevent going back to join screen
       navigation.replace("SquareScreen", {
@@ -456,45 +500,87 @@ const JoinSquareScreen = () => {
             </View>
 
             {displayType === "icon" && (
-              <View style={styles.iconGrid}>
-                {iconOptions.map((icon) => {
-                  const isLocked = icon.isPremium && !isPremium;
-                  return (
-                    <TouchableOpacity
-                      key={icon.name}
-                      onPress={() => {
-                        if (isLocked) {
-                          setShowPremiumModal(true);
-                        } else {
-                          setDisplayValue(icon.name);
-                        }
-                      }}
-                      style={[
-                        styles.iconButton,
-                        {
-                          backgroundColor: selectedColor
-                            ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
-                            : theme.dark
-                              ? "#333"
-                              : "#e8e8e8",
-                          borderWidth: displayValue === icon.name ? 3 : 0,
-                          borderColor: theme.colors.primary,
-                          transform: [
-                            { scale: displayValue === icon.name ? 1.1 : 1 },
-                          ],
-                          opacity: isLocked ? 0.5 : 1,
-                        },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name={icon.name}
-                        size={22}
-                        color={selectedColor || theme.colors.onBackground}
-                      />
-                      {isLocked && <PremiumBadge size={10} />}
-                    </TouchableOpacity>
-                  );
-                })}
+              <View>
+                {/* Earned Badge Emojis */}
+                {earnedBadges.length > 0 && (
+                  <>
+                    <Text style={{ fontSize: 12, fontFamily: "Rubik_500Medium", color: theme.colors.onSurfaceVariant, marginBottom: 6, marginTop: 4 }}>
+                      Earned Badges
+                    </Text>
+                    <View style={styles.iconGrid}>
+                      {earnedBadges.map((badgeType) => {
+                        const badge = BADGE_EMOJI_MAP[badgeType];
+                        if (!badge) return null;
+                        const val = `emoji:${badge.emoji}`;
+                        return (
+                          <TouchableOpacity
+                            key={badgeType}
+                            onPress={() => setDisplayValue(val)}
+                            style={[
+                              styles.iconButton,
+                              {
+                                backgroundColor: selectedColor
+                                  ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                                  : theme.dark
+                                    ? "#333"
+                                    : "#e8e8e8",
+                                borderWidth: displayValue === val ? 3 : 0,
+                                borderColor: theme.colors.primary,
+                                transform: [{ scale: displayValue === val ? 1.1 : 1 }],
+                              },
+                            ]}
+                          >
+                            <Text style={{ fontSize: 20 }}>{badge.emoji}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+                {/* Premium Icons */}
+                <Text style={{ fontSize: 12, fontFamily: "Rubik_500Medium", color: theme.colors.onSurfaceVariant, marginBottom: 6, marginTop: earnedBadges.length > 0 ? 12 : 4 }}>
+                  {isPremium ? "Icons" : "Premium Icons"}
+                </Text>
+                <View style={styles.iconGrid}>
+                  {iconOptions.map((icon) => {
+                    const isLocked = icon.isPremium && !isPremium;
+                    return (
+                      <TouchableOpacity
+                        key={icon.name}
+                        onPress={() => {
+                          if (isLocked) {
+                            setShowPremiumModal(true);
+                          } else {
+                            setDisplayValue(icon.name);
+                          }
+                        }}
+                        style={[
+                          styles.iconButton,
+                          {
+                            backgroundColor: selectedColor
+                              ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                              : theme.dark
+                                ? "#333"
+                                : "#e8e8e8",
+                            borderWidth: displayValue === icon.name ? 3 : 0,
+                            borderColor: theme.colors.primary,
+                            transform: [
+                              { scale: displayValue === icon.name ? 1.1 : 1 },
+                            ],
+                            opacity: isLocked ? 0.5 : 1,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={icon.name}
+                          size={22}
+                          color={selectedColor || theme.colors.onBackground}
+                        />
+                        {isLocked && <PremiumBadge size={10} />}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
             )}
 
@@ -665,6 +751,7 @@ const JoinSquareScreen = () => {
         visible={showPremiumModal}
         onDismiss={() => setShowPremiumModal(false)}
         feature="premium icons"
+        context="square_limit"
       />
 
       <ColorPickerModal

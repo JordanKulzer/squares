@@ -93,7 +93,7 @@ const HomeScreen = () => {
         const { data, error } = await supabase
           .from("squares")
           .select(
-            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids, game_completed, created_by",
+            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids, game_completed, created_by, team1, team2, team1_full_name, team2_full_name, max_selection, is_public",
           )
           .contains("player_ids", [user.id]);
 
@@ -425,13 +425,11 @@ const HomeScreen = () => {
       style={{ flex: 1 }}
     >
       <View style={{ flex: 1 }}>
-        <View
-          style={{
-            alignItems: "center",
-            justifyContent: "center",
-            marginVertical: 10,
-          }}
-        >
+        {/* Welcome Header */}
+        <View style={styles.welcomeHeader}>
+          {/* <View style={[styles.welcomeIconWrap, { backgroundColor: theme.dark ? "rgba(108,99,255,0.15)" : "rgba(108,99,255,0.1)" }]}>
+            <MaterialIcons name="grid-on" size={28} color={theme.colors.primary} />
+          </View> */}
           <Text
             style={{
               fontSize: 22,
@@ -446,10 +444,10 @@ const HomeScreen = () => {
           </Text>
           <Text
             style={{
-              fontSize: 16,
+              fontSize: 14,
               color: theme.colors.onSurfaceVariant,
-              marginTop: 4,
-              fontFamily: "Rubik_600SemiBold",
+              marginTop: 2,
+              fontFamily: "Rubik_400Regular",
               textAlign: "center",
             }}
           >
@@ -457,102 +455,107 @@ const HomeScreen = () => {
           </Text>
         </View>
 
-        {/* Public Games Section */}
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: "600",
-            marginTop: 15,
-            marginBottom: 10,
-            marginHorizontal: 10,
-            fontFamily: "Rubik_600SemiBold",
-            color: theme.colors.onBackground,
-          }}
-        >
-          Public Games
-        </Text>
-        <View style={{ paddingHorizontal: 5 }}>
+        {/* Action Buttons */}
+        <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
-            onPress={() => navigation.navigate("BrowsePublicSquaresScreen")}
-          >
-            <MaterialIcons name="public" size={20} color="#fff" />
-            <View style={{ marginLeft: 8, flex: 1 }}>
-              <Text style={styles.buttonText}>Browse Public Games</Text>
-              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Rubik_400Regular" }}>
-                Join games with players worldwide
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.outlineButton, { borderColor: theme.colors.primary }]}
-            onPress={() => {
-              navigation.navigate("CreateSquareScreen", { isPublic: true });
-            }}
-          >
-            <MaterialIcons name="add-circle-outline" size={20} color={theme.colors.primary} />
-            <View style={{ marginLeft: 8, flex: 1 }}>
-              <Text style={[styles.outlineButtonText, { color: theme.colors.onBackground }]}>
-                Create Public Game
-              </Text>
-              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontFamily: "Rubik_400Regular" }}>
-                Host a game for everyone to join
-              </Text>
-            </View>
-            <MaterialIcons name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Private Games Section */}
-        <Text
-          style={{
-            fontSize: 16,
-            fontWeight: "600",
-            marginTop: 15,
-            marginBottom: 10,
-            marginHorizontal: 10,
-            fontFamily: "Rubik_600SemiBold",
-            color: theme.colors.onBackground,
-          }}
-        >
-          Private Games
-        </Text>
-        <View style={{ paddingHorizontal: 5 }}>
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            style={[
+              styles.actionCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
             onPress={() => navigation.navigate("CreateSquareScreen")}
           >
-            <MaterialIcons name="add-box" size={20} color="#fff" />
-            <View style={{ marginLeft: 8, flex: 1 }}>
-              <Text style={styles.buttonText}>Create Private Game</Text>
-              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12, fontFamily: "Rubik_400Regular" }}>
-                Invite-only game with custom settings
-              </Text>
+            <View
+              style={[
+                styles.actionIconWrap,
+                {
+                  backgroundColor: theme.dark
+                    ? "rgba(108,99,255,0.2)"
+                    : "rgba(108,99,255,0.1)",
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="add"
+                size={24}
+                color={theme.colors.primary}
+              />
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="rgba(255,255,255,0.7)" />
+            <Text
+              style={[
+                styles.actionCardTitle,
+                { color: theme.colors.onBackground },
+              ]}
+            >
+              Create
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.outlineButton, { borderColor: theme.colors.primary }]}
+            style={[
+              styles.actionCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
             onPress={() => setVisible(true)}
           >
-            <MaterialIcons name="vpn-key" size={20} color={theme.colors.primary} />
-            <View style={{ marginLeft: 8, flex: 1 }}>
-              <Text style={[styles.outlineButtonText, { color: theme.colors.onBackground }]}>
-                Join By Code
-              </Text>
-              <Text style={{ color: theme.colors.onSurfaceVariant, fontSize: 12, fontFamily: "Rubik_400Regular" }}>
-                Enter a game code to join
-              </Text>
+            <View
+              style={[
+                styles.actionIconWrap,
+                {
+                  backgroundColor: theme.dark
+                    ? "rgba(108,99,255,0.2)"
+                    : "rgba(108,99,255,0.1)",
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="vpn-key"
+                size={22}
+                color={theme.colors.primary}
+              />
             </View>
-            <MaterialIcons name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />
+            <Text
+              style={[
+                styles.actionCardTitle,
+                { color: theme.colors.onBackground },
+              ]}
+            >
+              Join
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.actionCard,
+              { backgroundColor: theme.colors.surface },
+            ]}
+            onPress={() => navigation.navigate("BrowsePublicSquaresScreen")}
+          >
+            <View
+              style={[
+                styles.actionIconWrap,
+                {
+                  backgroundColor: theme.dark
+                    ? "rgba(108,99,255,0.2)"
+                    : "rgba(108,99,255,0.1)",
+                },
+              ]}
+            >
+              <MaterialIcons
+                name="public"
+                size={22}
+                color={theme.colors.primary}
+              />
+            </View>
+            <Text
+              style={[
+                styles.actionCardTitle,
+                { color: theme.colors.onBackground },
+              ]}
+            >
+              Browse
+            </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Pending Game Invites */}
-        {/* <PendingInvitesSection /> */}
 
         <View
           style={{
@@ -675,11 +678,7 @@ const HomeScreen = () => {
                       }}
                     >
                       <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
+                        style={{ flexDirection: "row", alignItems: "center" }}
                       >
                         {editMode && (
                           <MaterialIcons
@@ -690,10 +689,12 @@ const HomeScreen = () => {
                           />
                         )}
                         <View style={{ flex: 1 }}>
+                          {/* Title row */}
                           <View
                             style={{
                               flexDirection: "row",
                               alignItems: "center",
+                              marginBottom: 4,
                             }}
                           >
                             <Text
@@ -704,31 +705,183 @@ const HomeScreen = () => {
                                 fontWeight: "600",
                                 color: theme.colors.onBackground,
                                 fontFamily: "SoraBold",
-                                flexShrink: 1,
+                                flex: 1,
                                 marginRight: 8,
                               }}
                             >
                               {item.title}
                             </Text>
-                            <Text
-                              style={{
-                                fontSize: 14,
-                                color: theme.colors.onSurface,
-                                fontFamily: "Rubik_500Medium",
-                              }}
-                            >
-                              {item.players?.length || 0} players •{" "}
-                              {selectionCounts[item.id] || 0} selected
-                            </Text>
+                            {item.is_public && (
+                              <View
+                                style={[
+                                  styles.cardBadge,
+                                  {
+                                    backgroundColor: theme.dark
+                                      ? "rgba(108,99,255,0.2)"
+                                      : "rgba(108,99,255,0.1)",
+                                  },
+                                ]}
+                              >
+                                <MaterialIcons
+                                  name="public"
+                                  size={12}
+                                  color={theme.colors.primary}
+                                />
+                                <Text
+                                  style={{
+                                    fontSize: 10,
+                                    color: theme.colors.primary,
+                                    fontFamily: "Rubik_500Medium",
+                                    marginLeft: 2,
+                                  }}
+                                >
+                                  Public
+                                </Text>
+                              </View>
+                            )}
                           </View>
-                          <Text
+
+                          {/* Teams row */}
+                          {(item.team1_full_name || item.team1) &&
+                            (item.team2_full_name || item.team2) && (
+                              <Text
+                                numberOfLines={1}
+                                style={{
+                                  fontSize: 13,
+                                  color: theme.colors.onSurfaceVariant,
+                                  fontFamily: "Rubik_500Medium",
+                                  marginBottom: 6,
+                                }}
+                              >
+                                {item.team1_full_name || item.team1} vs{" "}
+                                {item.team2_full_name || item.team2}
+                              </Text>
+                            )}
+
+                          {/* Stats row */}
+                          <View
                             style={{
-                              fontSize: 14,
-                              color: theme.colors.onSurface,
-                              fontFamily: "Rubik_500Medium",
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 12,
+                              marginBottom: 6,
                             }}
                           >
-                            {" "}
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 3,
+                              }}
+                            >
+                              <MaterialIcons
+                                name="people"
+                                size={14}
+                                color={theme.colors.onSurfaceVariant}
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  color: theme.colors.onSurfaceVariant,
+                                  fontFamily: "Rubik_400Regular",
+                                }}
+                              >
+                                {item.players?.length || 0}
+                              </Text>
+                            </View>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 3,
+                              }}
+                            >
+                              <MaterialIcons
+                                name="grid-on"
+                                size={14}
+                                color={theme.colors.onSurfaceVariant}
+                              />
+                              <Text
+                                style={{
+                                  fontSize: 12,
+                                  color: theme.colors.onSurfaceVariant,
+                                  fontFamily: "Rubik_400Regular",
+                                }}
+                              >
+                                {Math.round(
+                                  ((item.selections?.length || 0) / 100) * 100,
+                                )}
+                                % filled
+                              </Text>
+                            </View>
+                            {item.league ? (
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 3,
+                                }}
+                              >
+                                <MaterialIcons
+                                  name="sports-football"
+                                  size={14}
+                                  color={theme.colors.onSurfaceVariant}
+                                />
+                                <Text
+                                  style={{
+                                    fontSize: 12,
+                                    color: theme.colors.onSurfaceVariant,
+                                    fontFamily: "Rubik_400Regular",
+                                  }}
+                                >
+                                  {item.league?.toUpperCase()}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+
+                          {/* Fill bar */}
+                          {(() => {
+                            const totalSelections =
+                              item.selections?.length || 0;
+                            const maxSquares =
+                              item.max_selection && item.max_selection < 100
+                                ? item.max_selection *
+                                  (item.players?.length || 1)
+                                : 100;
+                            const fillPct = Math.min(totalSelections / 100, 1);
+                            return (
+                              <View
+                                style={{
+                                  height: 4,
+                                  borderRadius: 2,
+                                  backgroundColor: theme.dark
+                                    ? "#333"
+                                    : "#e8e8e8",
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <View
+                                  style={{
+                                    height: "100%",
+                                    width: `${fillPct * 100}%`,
+                                    borderRadius: 2,
+                                    backgroundColor: borderColor,
+                                  }}
+                                />
+                              </View>
+                            );
+                          })()}
+
+                          {/* Countdown */}
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: borderColor,
+                              fontFamily: "Rubik_500Medium",
+                              marginTop: 6,
+                            }}
+                          >
                             {formatCountdown(
                               item.deadline,
                               item.game_completed,
@@ -741,6 +894,7 @@ const HomeScreen = () => {
                             name="chevron-right"
                             size={24}
                             color={theme.colors.onSurfaceVariant}
+                            style={{ marginLeft: 8 }}
                           />
                         )}
                       </View>
@@ -857,37 +1011,56 @@ const HomeScreen = () => {
 export default HomeScreen;
 
 const styles = StyleSheet.create({
-  button: {
+  welcomeHeader: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  welcomeIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  actionRow: {
     flexDirection: "row",
+    paddingHorizontal: 10,
+    gap: 10,
+    marginBottom: 8,
+  },
+  actionCard: {
+    flex: 1,
     alignItems: "center",
     paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginVertical: 6,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
+    borderRadius: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  buttonText: {
-    color: "#fff",
-    fontSize: 16,
+  actionIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 6,
+  },
+  actionCardTitle: {
+    fontSize: 13,
     fontWeight: "600",
     fontFamily: "Rubik_600SemiBold",
   },
-  outlineButton: {
+  cardBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginVertical: 6,
-    borderWidth: 1.5,
-  },
-  outlineButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    fontFamily: "Rubik_600SemiBold",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   gameCard: {
     borderRadius: 16,

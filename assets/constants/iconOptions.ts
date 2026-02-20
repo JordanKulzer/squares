@@ -59,3 +59,37 @@ export const getPremiumIcons = (): IconOption[] =>
 
 export const getAvailableIcons = (isPremium: boolean): IconOption[] =>
   isPremium ? iconOptions : getFreeIcons();
+
+// Badge type → emoji mapping (must match BadgesScreen definitions)
+export const BADGE_EMOJI_MAP: Record<string, { emoji: string; label: string }> = {
+  first_public_win: { emoji: "🏆", label: "First Win" },
+  "5_wins": { emoji: "⭐", label: "5 Wins" },
+  "10_public_wins": { emoji: "🎯", label: "10 Wins" },
+  "25_public_wins": { emoji: "💎", label: "25 Wins" },
+  "50_public_wins": { emoji: "👑", label: "50 Wins" },
+  sweep: { emoji: "🧹", label: "Sweep" },
+  hot_streak: { emoji: "🔥", label: "Hot Streak" },
+  first_public_game: { emoji: "👋", label: "Welcome" },
+  social_butterfly: { emoji: "🦋", label: "Social" },
+  creator: { emoji: "🎮", label: "Creator" },
+  early_bird: { emoji: "🐦", label: "Early Bird" },
+  full_house: { emoji: "🏠", label: "Full House" },
+  "100_public_wins": { emoji: "💯", label: "Century" },
+  double_sweep: { emoji: "✨", label: "Double Sweep" },
+  "5_sweeps": { emoji: "🌟", label: "Sweep Master" },
+  "3_games": { emoji: "🎲", label: "Getting Started" },
+  "20_games": { emoji: "📅", label: "Regular" },
+  "50_games": { emoji: "🏅", label: "Veteran" },
+  multi_league: { emoji: "🌍", label: "Multi-Sport" },
+  credit_earner: { emoji: "💰", label: "Credit Earner" },
+  featured_winner: { emoji: "🏅", label: "Featured" },
+  first_public_create: { emoji: "🛠️", label: "Game Maker" },
+};
+
+// Helper to check if a displayValue is a badge emoji
+export const isBadgeEmoji = (displayValue: string): boolean =>
+  displayValue.startsWith("emoji:");
+
+// Extract the emoji character from a badge displayValue
+export const getBadgeEmoji = (displayValue: string): string =>
+  displayValue.replace("emoji:", "");
