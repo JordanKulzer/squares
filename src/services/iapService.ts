@@ -1,4 +1,3 @@
-import { Platform } from "react-native";
 import { supabase } from "../lib/supabase";
 import Constants from "expo-constants";
 
@@ -16,10 +15,8 @@ const isExpoGo = Constants.appOwnership === "expo";
 // Only import native IAP module if not in Expo Go
 let initConnection: any = null;
 let endConnection: any = null;
-let getProducts: any = null;
-let getSubscriptions: any = null;
+let fetchProducts: any = null;
 let requestPurchase: any = null;
-let requestSubscription: any = null;
 let finishTransaction: any = null;
 let purchaseUpdatedListener: any = null;
 let purchaseErrorListener: any = null;
@@ -29,25 +26,13 @@ if (!isExpoGo) {
   const iap = require("react-native-iap");
   initConnection = iap.initConnection;
   endConnection = iap.endConnection;
-  getProducts = iap.getProducts;
-  getSubscriptions = iap.getSubscriptions;
+  fetchProducts = iap.fetchProducts;
   requestPurchase = iap.requestPurchase;
-  requestSubscription = iap.requestSubscription;
   finishTransaction = iap.finishTransaction;
   purchaseUpdatedListener = iap.purchaseUpdatedListener;
   purchaseErrorListener = iap.purchaseErrorListener;
   getAvailablePurchases = iap.getAvailablePurchases;
 }
-
-const productIds = Platform.select({
-  ios: [EXTRA_SQUARE_ID],
-  android: [EXTRA_SQUARE_ID],
-}) as string[];
-
-const subscriptionIds = Platform.select({
-  ios: [PREMIUM_MONTHLY_ID],
-  android: [PREMIUM_MONTHLY_ID],
-}) as string[];
 
 type PurchaseCallback = (success: boolean, productId?: string) => void;
 
@@ -59,6 +44,8 @@ class IAPService {
   private onPurchaseComplete: PurchaseCallback | null = null;
   private initialized = false;
   private initPromise: Promise<void> | null = null;
+  // Guard against concurrent ensureConnection calls
+  private connectionPromise: Promise<boolean> | null = null;
 
   async initialize(onPurchaseComplete: PurchaseCallback): Promise<void> {
     // Skip in Expo Go
@@ -79,7 +66,8 @@ class IAPService {
 
         this.purchaseUpdateSubscription = purchaseUpdatedListener(
           async (purchase: any) => {
-            const receipt = purchase.transactionReceipt;
+            // v14: use purchaseToken instead of transactionReceipt
+            const receipt = purchase.purchaseToken ?? purchase.transactionReceipt;
             if (receipt) {
               const pid = purchase.productId;
 
@@ -119,21 +107,37 @@ class IAPService {
 
   private async ensureConnection(): Promise<boolean> {
     if (this.initialized) return true;
+
+    // If initialize() already started, wait for it
     if (this.initPromise) {
       await this.initPromise;
       return this.initialized;
     }
-    try {
-      await initConnection();
-      this.initialized = true;
-      return true;
-    } catch (err) {
-      console.error("IAP connection error:", err);
-      return false;
+
+    // Guard against concurrent bare ensureConnection calls
+    if (this.connectionPromise) {
+      return this.connectionPromise;
     }
+
+    this.connectionPromise = (async () => {
+      try {
+        await initConnection();
+        this.initialized = true;
+        this.connectionPromise = null;
+        return true;
+      } catch (err) {
+        console.error("IAP connection error:", err);
+        this.connectionPromise = null;
+        return false;
+      }
+    })();
+
+    return this.connectionPromise;
   }
 
   // --- Product fetching ---
+  // v14: fetchProducts({ skus, type }) replaces getProducts/getSubscriptions
+  // Returns a normalized object matching the ProductInfo interface in the modal
 
   async getExtraSquareProduct(): Promise<any | null> {
     if (isExpoGo) {
@@ -150,8 +154,18 @@ class IAPService {
       const connected = await this.ensureConnection();
       if (!connected) return null;
 
-      const products = await getProducts({ skus: [EXTRA_SQUARE_ID] });
-      return products?.[0] || null;
+      const products = await fetchProducts({ skus: [EXTRA_SQUARE_ID], type: "in-app" });
+      const product = products?.[0];
+      if (!product) return null;
+
+      // Normalize v14 field names to match the modal's ProductInfo interface
+      return {
+        productId: product.id ?? product.productId,
+        title: product.displayName ?? product.title,
+        description: product.description,
+        localizedPrice: product.displayPrice ?? product.localizedPrice,
+        price: String(product.price ?? "0.99"),
+      };
     } catch (err) {
       console.error("Error fetching extra square product:", err);
       return null;
@@ -173,8 +187,18 @@ class IAPService {
       const connected = await this.ensureConnection();
       if (!connected) return null;
 
-      const subs = await getSubscriptions({ skus: [PREMIUM_MONTHLY_ID] });
-      return subs?.[0] || null;
+      const subs = await fetchProducts({ skus: [PREMIUM_MONTHLY_ID], type: "subs" });
+      const sub = subs?.[0];
+      if (!sub) return null;
+
+      // Normalize v14 field names to match the modal's ProductInfo interface
+      return {
+        productId: sub.id ?? sub.productId,
+        title: sub.displayName ?? sub.title,
+        description: sub.description,
+        localizedPrice: sub.displayPrice ?? sub.localizedPrice,
+        price: String(sub.price ?? "4.99"),
+      };
     } catch (err) {
       console.error("Error fetching subscription product:", err);
       return null;
@@ -187,6 +211,7 @@ class IAPService {
   }
 
   // --- Purchase methods ---
+  // v14: requestPurchase({ request: { apple: { sku } }, type })
 
   async purchaseExtraSquare(): Promise<void> {
     if (isExpoGo) {
@@ -197,7 +222,13 @@ class IAPService {
     if (!connected) throw new Error("IAP not connected");
 
     try {
-      await requestPurchase({ sku: EXTRA_SQUARE_ID });
+      await requestPurchase({
+        request: {
+          apple: { sku: EXTRA_SQUARE_ID },
+          google: { skus: [EXTRA_SQUARE_ID] },
+        },
+        type: "in-app",
+      });
     } catch (err) {
       console.error("Extra square purchase error:", err);
       throw err;
@@ -213,11 +244,13 @@ class IAPService {
     if (!connected) throw new Error("IAP not connected");
 
     try {
-      if (requestSubscription) {
-        await requestSubscription({ sku: PREMIUM_MONTHLY_ID });
-      } else {
-        await requestPurchase({ sku: PREMIUM_MONTHLY_ID });
-      }
+      await requestPurchase({
+        request: {
+          apple: { sku: PREMIUM_MONTHLY_ID },
+          google: { skus: [PREMIUM_MONTHLY_ID] },
+        },
+        type: "subs",
+      });
     } catch (err) {
       console.error("Subscription purchase error:", err);
       throw err;
@@ -258,6 +291,9 @@ class IAPService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + 30);
 
+      // v14: purchaseToken replaces transactionReceipt
+      const receipt = purchase.purchaseToken ?? purchase.transactionReceipt;
+
       await supabase
         .from("users")
         .update({
@@ -266,7 +302,7 @@ class IAPService {
           subscription_status: "active",
           subscription_expires_at: expiresAt.toISOString(),
           premium_purchased_at: new Date().toISOString(),
-          premium_receipt: purchase.transactionReceipt,
+          premium_receipt: receipt,
         })
         .eq("id", user.id);
     } catch (err) {
@@ -281,13 +317,15 @@ class IAPService {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      const receipt = purchase.purchaseToken ?? purchase.transactionReceipt;
+
       await supabase
         .from("users")
         .update({
           is_premium: true,
           premium_type: "legacy_onetime",
           premium_purchased_at: new Date().toISOString(),
-          premium_receipt: purchase.transactionReceipt,
+          premium_receipt: receipt,
         })
         .eq("id", user.id);
     } catch (err) {
