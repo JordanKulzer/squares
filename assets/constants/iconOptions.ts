@@ -84,6 +84,12 @@ export const BADGE_EMOJI_MAP: Record<string, { emoji: string; label: string }> =
   credit_earner: { emoji: "💰", label: "Credit Earner" },
   featured_winner: { emoji: "🏅", label: "Featured" },
   first_public_create: { emoji: "🛠️", label: "Game Maker" },
+  premium_member: { emoji: "💎", label: "Premium" },
+  // Basketball badges
+  first_nba_win: { emoji: "🏀", label: "NBA Win" },
+  first_ncaab_win: { emoji: "🎓", label: "NCAAB Win" },
+  basketball_fan: { emoji: "🏀", label: "Hoops Fan" },
+  all_sports: { emoji: "🏟️", label: "All Sports" },
 };
 
 // Helper to check if a displayValue is a badge emoji

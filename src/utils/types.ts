@@ -40,10 +40,12 @@ export type RootStackParamList = {
 export const leagueMap: Record<string, string> = {
   NFL: "nfl",
   NCAAF: "ncaaf",
+  NBA: "nba",
+  NCAAB: "ncaab",
 };
 
 // Active leagues shown in Browse/Filter UI
-export const ACTIVE_LEAGUES = ["NFL", "NCAAF"];
+export const ACTIVE_LEAGUES = ["NFL", "NCAAF", "NBA", "NCAAB"];
 
 // Future leagues (uncomment when implemented)
 // export const FUTURE_LEAGUES = ["NHL", "MLB", "MLS"];

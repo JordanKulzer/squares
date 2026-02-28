@@ -694,6 +694,8 @@ const SquareScreen = ({ route }) => {
         const totalGames = prev.public_games_played + 1;
         const totalSweeps = prev.public_sweeps + (isSweep ? 1 : 0);
 
+        const leagueLower = league.toLowerCase();
+
         const badgesToCheck: { type: string; condition: boolean }[] = [
           { type: "first_public_game", condition: true },
           { type: "first_public_win", condition: myWins > 0 },
@@ -711,9 +713,49 @@ const SquareScreen = ({ route }) => {
           { type: "50_games", condition: totalGames >= 50 },
           { type: "credit_earner", condition: milestonesEarned > 0 || isSweep },
           { type: "featured_winner", condition: isFeaturedGame && myWins > 0 },
+          // Sport-specific win badges (first_nfl_win / first_ncaaf_win are stored
+          // silently and used to gate the all_sports multi-league achievement)
+          { type: "first_nfl_win", condition: leagueLower === "nfl" && myWins > 0 },
+          { type: "first_ncaaf_win", condition: leagueLower === "ncaaf" && myWins > 0 },
+          { type: "first_nba_win", condition: leagueLower === "nba" && myWins > 0 },
+          { type: "first_ncaab_win", condition: leagueLower === "ncaab" && myWins > 0 },
         ];
 
         for (const badge of badgesToCheck) {
+          if (badge.condition) {
+            await supabase
+              .from("badges")
+              .upsert(
+                { user_id: userId, badge_type: badge.type },
+                { onConflict: "user_id,badge_type" },
+              );
+          }
+        }
+
+        // Multi-sport achievements require checking badges earned across all games
+        const { data: existingBadges } = await supabase
+          .from("badges")
+          .select("badge_type")
+          .eq("user_id", userId);
+
+        const earnedTypes = new Set(existingBadges?.map((b) => b.badge_type) ?? []);
+
+        const multiBadges: { type: string; condition: boolean }[] = [
+          {
+            type: "basketball_fan",
+            condition: earnedTypes.has("first_nba_win") && earnedTypes.has("first_ncaab_win"),
+          },
+          {
+            type: "all_sports",
+            condition:
+              earnedTypes.has("first_nfl_win") &&
+              earnedTypes.has("first_ncaaf_win") &&
+              earnedTypes.has("first_nba_win") &&
+              earnedTypes.has("first_ncaab_win"),
+          },
+        ];
+
+        for (const badge of multiBadges) {
           if (badge.condition) {
             await supabase
               .from("badges")
@@ -948,9 +990,11 @@ const SquareScreen = ({ route }) => {
       setRefreshingScores(true);
 
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/apisports/scores?eventId=${eventId}&league=${league}&startDate=${startDate}&team1=${team1}&team2=${team2}`,
-        );
+        const isBasketball = league === "nba" || league === "NBA" || league === "ncaab" || league === "NCAAB";
+        const scoresUrl = isBasketball
+          ? `${API_BASE_URL}/apisports/basketball/scores?eventId=${eventId}&league=${league.toUpperCase()}`
+          : `${API_BASE_URL}/apisports/scores?eventId=${eventId}&league=${league}&startDate=${startDate}&team1=${team1}&team2=${team2}`;
+        const res = await fetch(scoresUrl);
 
         const text = await res.text();
         if (text.startsWith("<"))

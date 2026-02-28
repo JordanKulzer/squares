@@ -305,6 +305,14 @@ class IAPService {
           premium_receipt: receipt,
         })
         .eq("id", user.id);
+
+      // Award premium member badge
+      await supabase
+        .from("badges")
+        .upsert(
+          { user_id: user.id, badge_type: "premium_member", earned_at: new Date().toISOString() },
+          { onConflict: "user_id,badge_type" }
+        );
     } catch (err) {
       console.error("Error handling subscription purchase:", err);
     }
@@ -328,6 +336,14 @@ class IAPService {
           premium_receipt: receipt,
         })
         .eq("id", user.id);
+
+      // Award premium member badge
+      await supabase
+        .from("badges")
+        .upsert(
+          { user_id: user.id, badge_type: "premium_member", earned_at: new Date().toISOString() },
+          { onConflict: "user_id,badge_type" }
+        );
     } catch (err) {
       console.error("Error storing legacy purchase:", err);
     }

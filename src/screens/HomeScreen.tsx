@@ -823,7 +823,13 @@ const HomeScreen = () => {
                                 }}
                               >
                                 <MaterialIcons
-                                  name="sports-football"
+                                  name={
+                                    ["nba", "ncaab"].includes(item.league?.toLowerCase())
+                                      ? "sports-basketball"
+                                      : item.league?.toLowerCase() === "custom"
+                                      ? "edit"
+                                      : "sports-football"
+                                  }
                                   size={14}
                                   color={theme.colors.onSurfaceVariant}
                                 />

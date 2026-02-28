@@ -49,6 +49,12 @@ const BADGE_DEFINITIONS: BadgeDefinition[] = [
   { type: "multi_league", name: "Multi-Sport", description: "Win in 2 different leagues", icon: "🌍", rarity: "Rare" },
   { type: "credit_earner", name: "Credit Earner", description: "Earn your first free square credit", icon: "💰", rarity: "Common", progressKey: "credits", progressTarget: 1 },
   { type: "featured_winner", name: "Featured Winner", description: "Win a quarter in the Square of the Week", icon: "🏅", rarity: "Epic" },
+  { type: "premium_member", name: "Premium Member", description: "Subscribe to My Squares! Premium", icon: "💎", rarity: "Legendary" },
+  // Basketball
+  { type: "first_nba_win", name: "NBA Winner", description: "Win a quarter in an NBA squares game", icon: "🏀", rarity: "Common" },
+  { type: "first_ncaab_win", name: "March Madness", description: "Win a quarter in an NCAA Basketball squares game", icon: "🎓", rarity: "Common" },
+  { type: "basketball_fan", name: "Hoops Fan", description: "Win in both NBA and NCAAB games", icon: "🏀", rarity: "Rare" },
+  { type: "all_sports", name: "All Sports", description: "Win in NFL, NCAAF, NBA, and NCAAB games", icon: "🏟️", rarity: "Legendary" },
 ];
 
 type FilterType = "all" | "earned" | "locked";

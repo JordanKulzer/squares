@@ -39,12 +39,20 @@ import { formatKickoff } from "../utils/dateDisplay";
 const gameTypeBehaviors = {
   NFL: { usesWeeks: true, startDate: new Date("2025-07-28T12:00:00") },
   NCAAF: { usesWeeks: true, startDate: new Date("2025-08-24T12:00:00") },
-  // NBA: { usesWeeks: false },
+  NBA: { usesWeeks: false },
+  NCAAB: { usesWeeks: false },
   // MLB: { usesWeeks: false },
   // NHL: { usesWeeks: false },
 };
-const gameTypes = ["NFL", "NCAAF"] as const; // "NBA", "MLB", "NHL"];
-type GameType = (typeof gameTypes)[number]; // "NFL" | "NCAAF"
+const gameTypes = ["NFL", "NCAAF", "NBA", "NCAAB"] as const; // "MLB", "NHL"
+type GameType = (typeof gameTypes)[number]; // "NFL" | "NCAAF" | "NBA" | "NCAAB"
+
+const gameStartLabel: Record<string, string> = {
+  NFL: "Kickoff",
+  NCAAF: "Kickoff",
+  NBA: "Tip-off",
+  NCAAB: "Tip-off",
+};
 const AnimatedChipBase = Animated.createAnimatedComponent(Chip);
 
 type RootStackParamList = {
@@ -112,15 +120,15 @@ const GamePickerScreen = () => {
   const isDarkMode = theme.dark;
 
   const [games, setGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [weekStart, setWeekStart] = useState(getStartOfWeek("NFL"));
-  const [gameType, setGameType] = useState<GameType>("NFL");
+  const [gameType, setGameType] = useState<GameType | null>(null);
   const [deadline, setDeadline] = useState(new Date());
   const [showWeekModal, setShowWeekModal] = useState(false);
   const [calendarDate, setCalendarDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
-  const selectedSport = gameType.toLowerCase(); // derived, no state
+  const selectedSport = gameType?.toLowerCase() ?? ""; // derived, no state
   const fadeAnim = useRef(new Animated.Value(1)).current;
 
   const {
@@ -156,7 +164,10 @@ const GamePickerScreen = () => {
     const formattedDate = date.toLocaleDateString("en-CA");
 
     try {
-      const url = `${API_BASE_URL}/apisports/schedule?startDate=${formattedDate}&league=${gameType}`;
+      const url =
+        gameType === "NBA" || gameType === "NCAAB"
+          ? `${API_BASE_URL}/apisports/basketball/schedule?startDate=${formattedDate}&league=${gameType}`
+          : `${API_BASE_URL}/apisports/schedule?startDate=${formattedDate}&league=${gameType}`;
 
       const res = await fetch(url);
       const text = await res.text();
@@ -180,6 +191,8 @@ const GamePickerScreen = () => {
   };
 
   useEffect(() => {
+    if (!gameType) return;
+
     const loadGames = async () => {
       const dateToUse = gameTypeBehaviors[gameType]?.usesWeeks
         ? getStartOfWeek(gameType, weekOffset)
@@ -192,11 +205,21 @@ const GamePickerScreen = () => {
       setLoading(true);
       const weekGames = await fetchGamesForDate(dateToUse);
 
-      const extractedGames = Array.isArray(weekGames)
+      let extractedGames = Array.isArray(weekGames)
         ? weekGames
         : Array.isArray(weekGames?.games)
         ? weekGames.games
         : [];
+
+      // For day-by-day sports (NBA), the backend queries two UTC days to catch
+      // late-ET games that cross midnight UTC. Filter to only the selected local date.
+      if (!gameTypeBehaviors[gameType]?.usesWeeks) {
+        const targetDateStr = dateToUse.toLocaleDateString("en-CA");
+        extractedGames = extractedGames.filter((g) => {
+          if (!g.date) return true;
+          return new Date(g.date).toLocaleDateString("en-CA") === targetDateStr;
+        });
+      }
 
       setGames(extractedGames);
       setTimeout(() => setLoading(false), 400);
@@ -222,7 +245,9 @@ const GamePickerScreen = () => {
 
   const handleSelectGame = async (game) => {
     const res = await fetch(
-      `${API_BASE_URL}/apisports/scores?eventId=${game.id}&league=${gameType}`
+      gameType === "NBA" || gameType === "NCAAB"
+        ? `${API_BASE_URL}/apisports/basketball/scores?eventId=${game.id}&league=${gameType}`
+        : `${API_BASE_URL}/apisports/scores?eventId=${game.id}&league=${gameType}`
     );
     const detailedGame = await res.json();
 
@@ -322,7 +347,7 @@ const GamePickerScreen = () => {
           marginRight: 8,
           height: 36,
           alignSelf: "center",
-          minWidth: 175,
+          flex: 1,
           transform: [{ scale: localScale }],
           backgroundColor: isSelected
             ? theme.colors.primary
@@ -344,28 +369,22 @@ const GamePickerScreen = () => {
     const theme = useTheme();
 
     return (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8 }}
-        style={{ maxHeight: 48 }}
+      <View
+        style={{
+          flexDirection: "row",
+          paddingHorizontal: 12,
+          paddingVertical: 8,
+        }}
       >
-        {gameTypes.map((type) => {
-          const sportMap = {
-            NFL: "nfl",
-            NCAAF: "ncaaf",
-          };
-
-          return (
-            <AnimatedChip
-              key={type}
-              type={type}
-              selectedKey={selected}
-              onPress={() => onSelect(type)}
-            />
-          );
-        })}
-      </ScrollView>
+        {gameTypes.map((type) => (
+          <AnimatedChip
+            key={type}
+            type={type}
+            selectedKey={selected}
+            onPress={() => onSelect(type)}
+          />
+        ))}
+      </View>
     );
   };
 
@@ -399,7 +418,7 @@ const GamePickerScreen = () => {
         <SafeAreaView style={{ flex: 1 }}>
           <GameTypeSelector selected={gameType} onSelect={setGameType} />
 
-          <View
+          {gameType && <View
             style={[
               styles.header,
               {
@@ -523,10 +542,19 @@ const GamePickerScreen = () => {
                 </View>
               </>
             )}
-          </View>
+          </View>}
 
-          {
-            // gameType === "NBA" || gameType === "MLB" || gameType === "NHL" ? (
+          {!gameType ? (
+            <Text
+              style={[
+                styles.noGamesText,
+                { color: theme.colors.onSurfaceVariant },
+              ]}
+            >
+              Select a sport above to see games.
+            </Text>
+          ) : (
+          // gameType === "NBA" || gameType === "MLB" || gameType === "NHL" ? (
             //   <Text
             //     style={[
             //       styles.noGamesText,
@@ -601,7 +629,7 @@ const GamePickerScreen = () => {
                               { color: theme.colors.onSurfaceVariant },
                             ]}
                           >
-                            Kickoff: {formatKickoff(item.date)}
+                            {gameStartLabel[gameType] ?? "Kickoff"}: {formatKickoff(item.date)}
                           </Text>
                           <Text
                             style={[
@@ -624,7 +652,7 @@ const GamePickerScreen = () => {
                 />
               </View>
             )
-          }
+          )}
         </SafeAreaView>
       </LinearGradient>
 

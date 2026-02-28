@@ -283,7 +283,7 @@ Badges are awarded automatically when you hit the milestone.`}
         >
           {`Free players can have up to 3 active squares at a time. Need more?
 
-\u2022 Buy an extra square slot for $0.99 (permanently increases your limit by 1)
+\u2022 Buy a one-time extra square slot for $0.99 (single-use credit, stackable)
 \u2022 Earn free credits by winning (every 4 quarter wins = 1 bonus credit)
 \u2022 Subscribe to Premium for $4.99/month:
   \u2022 Unlimited squares

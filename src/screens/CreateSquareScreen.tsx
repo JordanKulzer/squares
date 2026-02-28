@@ -76,7 +76,11 @@ const CreateSquareScreen = ({ navigation }) => {
   const [team2Abbr, setTeam2Abbr] = useState("");
   const [league, setLeague] = useState("");
   const [isCustomGame, setIsCustomGame] = useState(false);
-  const [deadline, setDeadline] = useState(new Date());
+  const [deadline, setDeadline] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d;
+  });
   const [selectedColor, setSelectedColor] = useState(null);
   const [randomizeAxis, setRandomizeAxis] = useState(true);
   const [maxSelections, setMaxSelections] = useState("100");
@@ -371,8 +375,7 @@ const CreateSquareScreen = ({ navigation }) => {
     }
   };
 
-  const isFormValid =
-    inputTitle.trim() && team1 && team2 && selectedColor;
+  const isFormValid = inputTitle.trim() && team1 && team2 && selectedColor;
 
   return (
     <LinearGradient
@@ -419,7 +422,7 @@ const CreateSquareScreen = ({ navigation }) => {
               mode="outlined"
               value={inputTitle}
               onChangeText={setInputTitle}
-              placeholder="e.g., Super Bowl Squares 2025"
+              placeholder="e.g., Super Bowl 2026, Office Pool, etc."
               style={[styles.input, { backgroundColor: theme.colors.surface }]}
               maxLength={50}
             />
@@ -462,7 +465,7 @@ const CreateSquareScreen = ({ navigation }) => {
                 ]}
               >
                 <MaterialIcons
-                  name="sports-football"
+                  name="event"
                   size={18}
                   color={!isCustomGame ? "#fff" : theme.colors.onBackground}
                 />
@@ -580,11 +583,18 @@ const CreateSquareScreen = ({ navigation }) => {
                   </View>
                 ) : (
                   <View style={styles.selectButtonContent}>
-                    <MaterialIcons
-                      name="sports-football"
-                      size={32}
-                      color={theme.colors.primary}
-                    />
+                    <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                      <MaterialIcons
+                        name="sports-football"
+                        size={28}
+                        color={theme.colors.primary}
+                      />
+                      <MaterialIcons
+                        name="sports-basketball"
+                        size={28}
+                        color={theme.colors.primary}
+                      />
+                    </View>
                     <Text
                       style={[
                         styles.selectButtonText,

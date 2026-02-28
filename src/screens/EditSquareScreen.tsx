@@ -349,7 +349,7 @@ const EditSquareScreen = () => {
               mode="outlined"
               value={inputTitle}
               onChangeText={setInputTitle}
-              placeholder="e.g., Super Bowl Squares 2025"
+              placeholder="e.g., Super Bowl 2026, Office Pool, etc."
               style={[styles.input, { backgroundColor: theme.colors.surface }]}
               maxLength={50}
             />
@@ -791,9 +791,7 @@ const EditSquareScreen = () => {
                       { color: theme.colors.onSurfaceVariant },
                     ]}
                   >
-                    {isPublic
-                      ? "Anyone can browse and join"
-                      : "Invite only"}
+                    {isPublic ? "Anyone can browse and join" : "Invite only"}
                   </Text>
                 </View>
                 <TouchableOpacity
