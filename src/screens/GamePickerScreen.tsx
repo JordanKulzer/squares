@@ -347,7 +347,6 @@ const GamePickerScreen = () => {
           marginRight: 8,
           height: 36,
           alignSelf: "center",
-          flex: 1,
           transform: [{ scale: localScale }],
           backgroundColor: isSelected
             ? theme.colors.primary
@@ -369,8 +368,11 @@ const GamePickerScreen = () => {
     const theme = useTheme();
 
     return (
-      <View
-        style={{
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={{
           flexDirection: "row",
           paddingHorizontal: 12,
           paddingVertical: 8,
@@ -384,7 +386,7 @@ const GamePickerScreen = () => {
             onPress={() => onSelect(type)}
           />
         ))}
-      </View>
+      </ScrollView>
     );
   };
 
@@ -545,14 +547,35 @@ const GamePickerScreen = () => {
           </View>}
 
           {!gameType ? (
-            <Text
-              style={[
-                styles.noGamesText,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Select a sport above to see games.
-            </Text>
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+              <View style={{
+                flexDirection: "row",
+                gap: 16,
+                marginBottom: 20,
+              }}>
+                <MaterialIcons name="sports-football" size={40} color={theme.colors.primary} />
+                <MaterialIcons name="sports-basketball" size={40} color={theme.colors.primary} />
+              </View>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: "700",
+                fontFamily: "SoraBold",
+                color: theme.colors.onBackground,
+                textAlign: "center",
+                marginBottom: 8,
+              }}>
+                Pick a League
+              </Text>
+              <Text style={{
+                fontSize: 14,
+                fontFamily: "Sora",
+                color: theme.colors.onSurfaceVariant,
+                textAlign: "center",
+                lineHeight: 20,
+              }}>
+                Select NFL, NCAAF, NBA, or NCAAB above to browse upcoming games.
+              </Text>
+            </View>
           ) : (
           // gameType === "NBA" || gameType === "MLB" || gameType === "NHL" ? (
             //   <Text
