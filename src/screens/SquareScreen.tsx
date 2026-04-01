@@ -2819,11 +2819,18 @@ const SquareScreen = ({ route }) => {
               })
             ) : (
               <View style={styles.emptyState}>
-                <Icon
-                  name="sports-football"
-                  size={48}
-                  color={theme.colors.onSurfaceVariant}
-                />
+                <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                  <Icon
+                    name="sports-football"
+                    size={48}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                  <Icon
+                    name="sports-basketball"
+                    size={48}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                </View>
                 <Text
                   style={[
                     styles.emptyText,
