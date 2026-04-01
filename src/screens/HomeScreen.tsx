@@ -41,7 +41,7 @@ import {
   sendPlayerLeftNotification,
   sendSquareDeletedNotification,
 } from "../utils/notifications";
-import AdBanner from "../components/AdBanner";
+// import AdBanner from "../components/AdBanner";
 // import PendingInvitesSection from "../components/PendingInvitesSection";
 
 const HomeScreen = () => {
@@ -929,7 +929,7 @@ const HomeScreen = () => {
             paddingBottom: insets.bottom,
           }}
         >
-          <AdBanner />
+          {/* <AdBanner /> */}
         </View>
 
         {/* Confirmation Modal for Leave/Delete */}

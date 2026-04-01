@@ -287,7 +287,6 @@ Badges are awarded automatically when you hit the milestone.`}
 \u2022 Earn free credits by winning (every 4 quarter wins = 1 bonus credit)
 \u2022 Subscribe to Premium for $4.99/month:
   \u2022 Unlimited squares
-  \u2022 Ad-free experience
   \u2022 25+ premium icons
   \u2022 Custom color picker
   \u2022 Premium profile badge

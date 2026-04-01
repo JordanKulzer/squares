@@ -177,7 +177,7 @@ class IAPService {
       return {
         productId: PREMIUM_MONTHLY_ID,
         title: "Premium Monthly (Dev)",
-        description: "Unlimited squares, ad-free, premium icons & colors",
+        description: "Unlimited squares, premium icons & colors",
         localizedPrice: "$4.99",
         price: "4.99",
       };

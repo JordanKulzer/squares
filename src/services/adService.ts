@@ -152,79 +152,23 @@ class AdService {
   }
 
   isInterstitialReady(): boolean {
-    if (isExpoGo) return true;
-    return this.isInterstitialLoaded;
+    // Temporarily disabled ads - always return true
+    return true;
   }
 
   async showInterstitialAd(): Promise<boolean> {
-    if (isExpoGo || !InterstitialAd) {
-      return true;
-    }
-
-    return new Promise((resolve) => {
-      if (!this.interstitialAd || !this.isInterstitialLoaded) {
-        resolve(false);
-        return;
-      }
-
-      const unsubscribeClosed = this.interstitialAd.addAdEventListener(
-        AdEventType.CLOSED,
-        () => {
-          unsubscribeClosed();
-          this.isInterstitialLoaded = false;
-          // Preload next
-          this.loadInterstitialAd().catch(console.error);
-          resolve(true);
-        }
-      );
-
-      this.interstitialAd.show();
-    });
+    // Temporarily disabled ads - always return true
+    return true;
   }
 
   async showRewardedAd(): Promise<boolean> {
-    // In Expo Go, simulate successful ad watch
-    if (isExpoGo || !RewardedAd) {
-      return true;
-    }
-
-    return new Promise((resolve) => {
-      if (!this.rewardedAd || !this.isLoaded) {
-        resolve(false);
-        return;
-      }
-
-      let rewarded = false;
-
-      const unsubscribeEarned = this.rewardedAd.addAdEventListener(
-        RewardedAdEventType.EARNED_REWARD,
-        () => {
-          rewarded = true;
-        }
-      );
-
-      const unsubscribeClosed = this.rewardedAd.addAdEventListener(
-        AdEventType.CLOSED,
-        () => {
-          unsubscribeEarned();
-          unsubscribeClosed();
-          this.isLoaded = false;
-          // Preload next ad in background
-          this.loadRewardedAd().catch(console.error);
-          resolve(rewarded);
-        }
-      );
-
-      this.rewardedAd.show();
-    });
+    // Temporarily disabled ads - always return true
+    return true;
   }
 
   isRewardedAdReady(): boolean {
-    // In Expo Go, always return true to skip ad requirement
-    if (isExpoGo) {
-      return true;
-    }
-    return this.isLoaded;
+    // Temporarily disabled ads - always return true
+    return true;
   }
 }
 

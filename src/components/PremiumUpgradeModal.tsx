@@ -221,7 +221,6 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
 
   const subscriptionBenefits = [
     { icon: "all-inclusive", text: "Unlimited squares" },
-    { icon: "block", text: "Ad-free experience" },
     { icon: "palette", text: "Premium icons" },
     { icon: "brush", text: "Custom colors" },
     { icon: "star", text: "Profile badge" },
