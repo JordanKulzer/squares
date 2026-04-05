@@ -41,6 +41,8 @@ import {
   sendPlayerLeftNotification,
   sendSquareDeletedNotification,
 } from "../utils/notifications";
+import { API_BASE_URL } from "../utils/apiConfig";
+import { leagueMap } from "../utils/types";
 // import AdBanner from "../components/AdBanner";
 // import PendingInvitesSection from "../components/PendingInvitesSection";
 
@@ -74,6 +76,10 @@ const HomeScreen = () => {
     item: any;
     isOwner: boolean;
   }>({ visible: false, item: null, isOwner: false });
+  const [featuredGame, setFeaturedGame] = useState<{
+    loading: boolean;
+    game: any;
+  }>({ loading: true, game: null });
   const swipeableRefs = useRef<Record<string, SwipeableMethods | null>>({});
 
   useEffect(() => {
@@ -209,6 +215,194 @@ const HomeScreen = () => {
     fetchUsername();
   }, []);
 
+  const POPULAR_TEAMS = [
+    "Lakers",
+    "Warriors",
+    "Celtics",
+    "Knicks",
+    "Heat",
+    "Bulls",
+    "Duke",
+    "UNC",
+    "Kansas",
+    "Kentucky",
+    "UConn",
+  ];
+
+  const fetchFeaturedGame = async () => {
+    try {
+      setFeaturedGame({ loading: true, game: null });
+
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+
+      const dates = [today, tomorrow];
+      const leagues = ["NBA", "NCAAB"];
+
+      const allGames = [];
+
+      for (const league of leagues) {
+        for (const date of dates) {
+          const formattedDate = date.toLocaleDateString("en-CA");
+          const url = `${API_BASE_URL}/apisports/basketball/schedule?startDate=${formattedDate}&league=${league}`;
+
+          try {
+            const res = await fetch(url);
+            const games = await res.json();
+
+            if (Array.isArray(games)) {
+              games.forEach((game) => {
+                allGames.push({
+                  ...game,
+                  league,
+                  startTime: new Date(game.date),
+                });
+              });
+            }
+          } catch (err) {
+            console.warn(
+              `Failed to fetch ${league} games for ${formattedDate}:`,
+              err,
+            );
+          }
+        }
+      }
+
+      // Score and select the best game
+      const scoredGames = allGames
+        .filter((game) => game.startTime > new Date()) // Only future games
+        .map((game) => {
+          const now = new Date();
+          const timeDiff = game.startTime.getTime() - now.getTime();
+          const hoursDiff = timeDiff / (1000 * 60 * 60);
+
+          let score = 0;
+
+          // NBA priority
+          if (game.league === "NBA") score += 100;
+
+          // Prefer games starting in 2-6 hours
+          if (hoursDiff >= 2 && hoursDiff <= 6) score += 50;
+          else if (hoursDiff > 6) score += Math.max(0, 30 - hoursDiff); // Slight preference for closer games
+
+          // Popular teams boost
+          const homeTeam = game.homeTeam || "";
+          const awayTeam = game.awayTeam || "";
+          if (
+            POPULAR_TEAMS.some(
+              (team) => homeTeam.includes(team) || awayTeam.includes(team),
+            )
+          ) {
+            score += 20;
+          }
+
+          return { ...game, score };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      const bestGame = scoredGames[0] || null;
+
+      setFeaturedGame({ loading: false, game: bestGame });
+    } catch (err) {
+      console.error("Error fetching featured game:", err);
+      setFeaturedGame({ loading: false, game: null });
+    }
+  };
+
+  useEffect(() => {
+    fetchFeaturedGame();
+  }, []);
+
+  const formatGameCountdown = (
+    startTime: Date,
+  ): { text: string; isUrgent: boolean } => {
+    const now = new Date();
+    const diff = startTime.getTime() - now.getTime();
+
+    if (diff <= 0) return { text: "starting soon", isUrgent: true };
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const totalMins = hours * 60 + mins;
+
+    // Urgency logic: < 30 minutes or < 10 minutes gets emphasis
+    const isUrgent = totalMins < 30;
+
+    if (hours > 0) {
+      // For times > 2 hours, show standard format
+      if (hours > 2) {
+        return { text: `starts in ${hours}h ${mins}m`, isUrgent: false };
+      }
+      // For 30m-2h range, show with slight emphasis
+      return { text: `starts in ${hours}h ${mins}m`, isUrgent: true };
+    } else {
+      // Under 1 hour: emphasize with "starting in"
+      return { text: `starting in ${mins}m`, isUrgent: true };
+    }
+  };
+
+  const handleFeaturedGameTap = async () => {
+    if (!featuredGame.game) return;
+
+    const game = featuredGame.game;
+
+    try {
+      // Fetch detailed game info like in GamePickerScreen
+      const res = await fetch(
+        `${API_BASE_URL}/apisports/basketball/scores?eventId=${game.id}&league=${game.league}`,
+      );
+      const detailedGame = await res.json();
+
+      const awayAbbr = detailedGame.team1_abbr || game.awayTeam || "";
+      const homeAbbr = detailedGame.team2_abbr || game.homeTeam || "";
+
+      const awayFull = game.awayFullName || game.awayTeam || "";
+      const homeFull = game.homeFullName || game.homeTeam || "";
+
+      const awayAbbreviation = detailedGame.team1_abbr || "";
+      const homeAbbreviation = detailedGame.team2_abbr || "";
+
+      // Prefill title with game matchup
+      const gameTitle = `${awayFull} vs ${homeFull}`;
+
+      navigation.navigate("CreateSquareScreen", {
+        team1: awayAbbr,
+        team2: homeAbbr,
+        team1FullName: awayFull,
+        team2FullName: homeFull,
+        team1Abbr: awayAbbreviation,
+        team2Abbr: homeAbbreviation,
+        league: leagueMap[game.league],
+        deadline: game.date,
+        inputTitle: gameTitle,
+        username,
+        selectedColor: null,
+        maxSelections: "",
+        eventId: game.id,
+      });
+    } catch (err) {
+      console.error("Error fetching game details:", err);
+      // Fallback to basic info
+      const gameTitle = `${game.awayFullName || game.awayTeam || "Away"} vs ${game.homeFullName || game.homeTeam || "Home"}`;
+      navigation.navigate("CreateSquareScreen", {
+        team1: game.awayTeam || "",
+        team2: game.homeTeam || "",
+        team1FullName: game.awayFullName || game.awayTeam || "",
+        team2FullName: game.homeFullName || game.homeTeam || "",
+        team1Abbr: "",
+        team2Abbr: "",
+        league: leagueMap[game.league],
+        deadline: game.date,
+        inputTitle: gameTitle,
+        username,
+        selectedColor: null,
+        maxSelections: "",
+        eventId: game.id,
+      });
+    }
+  };
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerStyle: {
@@ -274,6 +468,74 @@ const HomeScreen = () => {
     parts.push(plural(mins, "min"));
 
     return `Deadline in ${parts.join(" ")}`;
+  };
+
+  const renderFeaturedCard = () => {
+    if (featuredGame.loading || !featuredGame.game) return null;
+
+    const game = featuredGame.game;
+    const matchup = `${game.awayTeam || "Away"} vs ${game.homeTeam || "Home"}`;
+    const countdownInfo = formatGameCountdown(game.startTime);
+    const ctaText = `Start ${matchup}`;
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.featuredCard,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.dark
+              ? "rgba(108,99,255,0.25)"
+              : "rgba(108,99,255,0.18)",
+            borderLeftColor: theme.colors.primary,
+          },
+        ]}
+        onPress={handleFeaturedGameTap}
+      >
+        <View style={styles.featuredHeader}>
+          <Text
+            style={[styles.featuredEyebrow, { color: theme.colors.primary }]}
+          >
+            Starting Soon
+          </Text>
+        </View>
+        <Text
+          style={[
+            styles.featuredCountdown,
+            {
+              color: countdownInfo.isUrgent
+                ? theme.colors.error
+                : theme.colors.onSurfaceVariant,
+            },
+          ]}
+        >
+          {countdownInfo.text}
+        </Text>
+        <Text
+          style={[styles.featuredMatchup, { color: theme.colors.onBackground }]}
+        >
+          {matchup}
+        </Text>
+        <View
+          style={[
+            styles.featuredButton,
+            {
+              borderColor: theme.colors.primary,
+              backgroundColor: theme.dark
+                ? "rgba(108,99,255,0.12)"
+                : "rgba(108,99,255,0.08)",
+            },
+          ]}
+        >
+          <Text
+            style={[styles.featuredButtonText, { color: theme.colors.primary }]}
+            numberOfLines={1}
+          >
+            Lock In This Square!
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
   const isNewUser = !loading && userGames.length === 0;
@@ -454,6 +716,9 @@ const HomeScreen = () => {
             {welcomeSubtitle}
           </Text>
         </View>
+
+        {/* Featured Game Card */}
+        {renderFeaturedCard()}
 
         {/* Action Buttons */}
         <View style={styles.actionRow}>
@@ -824,11 +1089,13 @@ const HomeScreen = () => {
                               >
                                 <MaterialIcons
                                   name={
-                                    ["nba", "ncaab"].includes(item.league?.toLowerCase())
+                                    ["nba", "ncaab"].includes(
+                                      item.league?.toLowerCase(),
+                                    )
                                       ? "sports-basketball"
                                       : item.league?.toLowerCase() === "custom"
-                                      ? "edit"
-                                      : "sports-football"
+                                        ? "edit"
+                                        : "sports-football"
                                   }
                                   size={14}
                                   color={theme.colors.onSurfaceVariant}
@@ -964,12 +1231,23 @@ const HomeScreen = () => {
                 color="#fff"
                 style={{ marginRight: 10 }}
               />
-              <Text style={{ flex: 1, fontSize: 20, fontFamily: "SoraBold", color: "#fff" }}>
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 20,
+                  fontFamily: "SoraBold",
+                  color: "#fff",
+                }}
+              >
                 {confirmModal.isOwner ? "Delete Session" : "Leave Session"}
               </Text>
               <TouchableOpacity
                 onPress={() =>
-                  setConfirmModal({ visible: false, item: null, isOwner: false })
+                  setConfirmModal({
+                    visible: false,
+                    item: null,
+                    isOwner: false,
+                  })
                 }
               >
                 <MaterialIcons name="close" size={24} color="#fff" />
@@ -1074,6 +1352,63 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     fontFamily: "Rubik_600SemiBold",
+  },
+  featuredCard: {
+    marginHorizontal: 10,
+    marginBottom: 24,
+    marginTop: 4,
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderLeftWidth: 5,
+    borderColor: "rgba(108,99,255,0.2)",
+    borderLeftColor: "#6C63FF",
+    shadowColor: "#6C63FF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  featuredHeader: {
+    marginBottom: 8,
+  },
+  featuredEyebrow: {
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: "Rubik_600SemiBold",
+    textTransform: "uppercase",
+  },
+  featuredMatchup: {
+    fontSize: 18,
+    fontWeight: "700",
+    fontFamily: "Rubik_600SemiBold",
+    marginBottom: 4,
+  },
+  featuredCountdown: {
+    fontSize: 12,
+    fontWeight: "600",
+    fontFamily: "Rubik_600SemiBold",
+    marginBottom: 12,
+  },
+  featuredPromo: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+    marginBottom: 12,
+  },
+  featuredButton: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#6C63FF",
+    backgroundColor: "rgba(108,99,255,0.08)",
+  },
+  featuredButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    fontFamily: "Rubik_600SemiBold",
+    textTransform: "uppercase",
   },
   cardBadge: {
     flexDirection: "row",
