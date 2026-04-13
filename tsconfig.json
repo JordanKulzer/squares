@@ -1,7 +1,7 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "jsx": "react-native" // 👈 add this line
   }

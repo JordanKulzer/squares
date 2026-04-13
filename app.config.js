@@ -1,10 +1,8 @@
-import "dotenv/config";
-
 export default {
   expo: {
     name: "My Squares!",
     slug: "squares",
-    version: "2.0.3",
+    version: "2.0.4",
     orientation: "portrait",
     icon: "./assets/icons/New_New_Splash_Logo.png",
     userInterfaceStyle: "automatic",
