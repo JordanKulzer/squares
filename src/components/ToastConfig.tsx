@@ -19,7 +19,7 @@ export const getToastConfig = (isDarkMode: boolean) => {
           {
             backgroundColor,
             borderLeftColor,
-            borderColor: "rgba(94, 96, 206, 0.4)",
+            borderColor: "rgba(94, 96, 206, 0.25)",
           },
         ]}
         contentContainerStyle={styles.contentContainer}
@@ -34,7 +34,7 @@ export const getToastConfig = (isDarkMode: boolean) => {
           {
             backgroundColor,
             borderLeftColor,
-            borderColor: "rgba(94, 96, 206, 0.4)",
+            borderColor: "rgba(94, 96, 206, 0.25)",
           },
         ]}
         contentContainerStyle={styles.contentContainer}
@@ -61,23 +61,24 @@ export const getToastConfig = (isDarkMode: boolean) => {
 
 const styles = StyleSheet.create({
   toastContainer: {
-    marginHorizontal: 8,
-    borderRadius: 16,
-    borderLeftWidth: 5,
+    marginHorizontal: 12,
+    borderRadius: 12,
+    borderLeftWidth: 3,
     borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 2,
-    elevation: 2,
-    paddingVertical: 10,
-    paddingHorizontal: 15,
+    elevation: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    height: 44,
   },
   contentContainer: {
     paddingHorizontal: 0,
   },
   text: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
     fontFamily: "Sora",
   },

@@ -51,6 +51,8 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
 }) => {
   const theme = useTheme();
   const translateY = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
+  const previewScaleAnim = useRef(new Animated.Value(1)).current;
   const [selectedColor, setSelectedColor] = useState(initialColor);
   const [hexInput, setHexInput] = useState(initialColor);
   const [savedColors, setSavedColors] = useState<string[]>([]);
@@ -61,17 +63,31 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
       setSelectedColor(initialColor);
       setHexInput(initialColor);
       loadSavedColors();
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 600,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [visible, initialColor]);
 
@@ -133,6 +149,19 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   const handleColorSelect = (color: string) => {
     setSelectedColor(color.toUpperCase());
     setHexInput(color.toUpperCase());
+    previewScaleAnim.setValue(1);
+    Animated.sequence([
+      Animated.timing(previewScaleAnim, {
+        toValue: 1.12,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(previewScaleAnim, {
+        toValue: 1.0,
+        duration: 120,
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   const handleConfirm = () => {
@@ -150,6 +179,10 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
     return selectedColor.toUpperCase() === color.toUpperCase();
   };
 
+  const livePreviewColor = tinycolor(hexInput).isValid()
+    ? tinycolor(hexInput).toHexString()
+    : selectedColor;
+
   const surfaceColor = theme.colors.surface;
   const dividerColor = theme.dark ? "#333" : "#eee";
 
@@ -166,7 +199,11 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
         style={[
           styles.container,
           {
-            transform: [{ translateY }],
+            transform: [
+              { translateY },
+              { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+            opacity: openAnim,
             backgroundColor: surfaceColor,
           },
         ]}
@@ -198,8 +235,14 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
         >
           {/* Color Preview */}
           <View style={styles.previewContainer}>
-            <View
-              style={[styles.colorPreview, { backgroundColor: selectedColor }]}
+            <Animated.View
+              style={[
+                styles.colorPreview,
+                {
+                  backgroundColor: livePreviewColor,
+                  transform: [{ scale: previewScaleAnim }],
+                },
+              ]}
             />
             <View style={styles.hexInputContainer}>
               <TextInput
@@ -294,6 +337,7 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
             mode="contained"
             onPress={handleConfirm}
             style={styles.confirmButton}
+            labelStyle={{ fontWeight: "800", letterSpacing: 0.3 }}
           >
             Select Color
           </Button>
@@ -310,7 +354,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   container: {
     position: "absolute",
@@ -329,10 +373,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(94, 96, 206, 0.4)",
     borderLeftColor: "#5E60CE",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 24,
   },
   header: {
     flexDirection: "row",

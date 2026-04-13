@@ -18,7 +18,15 @@ import {
   Pressable,
   RefreshControl,
   Image,
+  Modal as RNModal,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from "react-native";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import {
   Button,
   Card,
@@ -49,20 +57,28 @@ import {
 import { supabase } from "../lib/supabase";
 import { API_BASE_URL } from "../utils/apiConfig";
 import * as Sentry from "@sentry/react-native";
+import {
+  determineGameCompletion,
+  maybeUpdateLastScoreCheckAt,
+} from "../utils/gameStatus";
 import { useFonts, Anton_400Regular } from "@expo-google-fonts/anton";
 import {
   Rubik_400Regular,
   Rubik_500Medium,
   Rubik_600SemiBold,
 } from "@expo-google-fonts/rubik";
-import SkeletonLoader from "../components/SkeletonLoader";
 import tinycolor from "tinycolor2";
 import ScoreEntryModal from "../components/ScoreEntryModal";
 import AddGuestPlayerModal from "../components/AddGuestPlayerModal";
 import AssignSquareModal from "../components/AssignSquareModal";
-import { recordQuarterWin } from "../utils/squareLimits";
-import { isBadgeEmoji, getBadgeEmoji } from "../../assets/constants/iconOptions";
-
+import LegendModal from "../components/LegendModal";
+import { recordQuarterWin, getAvailableCredits } from "../utils/squareLimits";
+import { FreeSquareRewardModal } from "../components/FreeSquareRewardModal";
+import { useQuarterWinReward } from "../hooks/useQuarterWinReward";
+import {
+  isBadgeEmoji,
+  getBadgeEmoji,
+} from "../../assets/constants/iconOptions";
 
 // ✨ Square size calculation - moved to component level for proper recalculation
 const getSquareSize = () => {
@@ -192,8 +208,8 @@ const SquareScreen = ({ route }) => {
   const [players, setPlayers] = useState([]);
   const [title, setTitle] = useState(route.params.inputTitle);
   const [maxSelections, setMaxSelections] = useState(0);
-  const [quarterScores, setQuarterScores] = useState([]);
-  const [quarterWinners, setQuarterWinners] = useState([]);
+  const [quarterScores, setQuarterScores] = useState<any[]>([]);
+  const [quarterWinners, setQuarterWinners] = useState<any[]>([]);
   const [selections, setSelections] = useState([]);
   const [selectedSquares, setSelectedSquares] = useState<Set<string>>(
     new Set(),
@@ -217,21 +233,45 @@ const SquareScreen = ({ route }) => {
     username: string;
     color: string;
   } | null>(null);
-  const assignModePlayerRef = useRef<{ userId: string; username: string; color: string } | null>(null);
+  const [showLegendModal, setShowLegendModal] = useState(false);
+  const assignModePlayerRef = useRef<{
+    userId: string;
+    username: string;
+    color: string;
+  } | null>(null);
+  const [squareToast, setSquareToast] = useState<{ text: string } | null>(null);
+  const squareToastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [highlightedPlayerId, setHighlightedPlayerId] = useState<string | null>(
+    null,
+  );
+  const highlightedPlayerTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [isTeam1Home, setIsTeam1Home] = useState<boolean | null>(null);
   const [manualOverride, setManualOverride] = useState(false);
   const [winningsByUser, setWinningsByUser] = useState<Record<string, number>>(
     {},
   );
-  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
+  const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(
+    new Set(),
+  );
   const [refreshing, setRefreshing] = useState(false);
+  const [nextGame, setNextGame] = useState<any | null>(null);
+  const [reengageBannerVisible, setReengageBannerVisible] = useState(false);
+  const reengageBannerAnim = useRef(new Animated.Value(0)).current;
+  // Tracks the last time we wrote last_score_check_at so we don't write on
+  // every 30-second poll tick. Pass this to maybeUpdateLastScoreCheckAt.
+  const lastCheckWrittenAtRef = useRef<number>(0);
+  const quarterWinReward = useQuarterWinReward();
   const [winnerModalVisible, setWinnerModalVisible] = useState(false);
   const [winnerModalData, setWinnerModalData] = useState<{
-    username: string;
+    currentUserWon: boolean; // true if current user owns the winning square
+    username: string; // winner's name or "No Winner"
     userColor: string;
     winningQuarters: { label: string; score: string; payout: number }[];
     totalWinnings: number;
     squareCoords: [number, number];
+    quarterLabel?: string; // e.g., "Q1" or "OT1"
   } | null>(null);
 
   const [fontsLoaded] = useFonts({
@@ -252,7 +292,15 @@ const SquareScreen = ({ route }) => {
       setDimensions({ width: window.width, height: window.height });
     });
 
-    return () => subscription?.remove();
+    return () => {
+      subscription?.remove();
+      if (squareToastTimeout.current) {
+        clearTimeout(squareToastTimeout.current);
+      }
+      if (highlightedPlayerTimer.current) {
+        clearTimeout(highlightedPlayerTimer.current);
+      }
+    };
   }, []);
 
   const squareSize = useMemo(() => getSquareSize(), [dimensions]);
@@ -270,9 +318,13 @@ const SquareScreen = ({ route }) => {
   const pulseAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const [refreshingScores, setRefreshingScores] = useState(false);
+  // Critical: minimum data required to stop showing the full skeleton.
+  // Set to true once the square row has been fetched (success or failure).
+  // Secondary data (scores, quarter results, user-specific state) resolves
+  // after initial render without blocking the transition.
   const [squareDataLoaded, setSquareDataLoaded] = useState(false);
   const [scoresLoaded, setScoresLoaded] = useState(false);
-  const loading = !squareDataLoaded || !scoresLoaded;
+  const loading = !squareDataLoaded;
 
   const screenHeight = Dimensions.get("window").height;
   const insets = useSafeAreaInsets();
@@ -420,8 +472,14 @@ const SquareScreen = ({ route }) => {
     });
   };
 
+  // Log mount once
+  useEffect(() => {
+    console.log(`[squareScreen] square_screen_mount gridId=${gridId}`);
+  }, []);
+
   useEffect(() => {
     if (loading) {
+      console.log("[squareScreen] square_screen_render_skeleton");
       fadeAnim.setValue(0);
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -491,7 +549,10 @@ const SquareScreen = ({ route }) => {
         return;
       }
 
-      // Award credits for new quarter wins (2+ players required)
+      // Award credits for new quarter wins (2+ players required).
+      // recordQuarterWin is idempotent via the DB unique constraint —
+      // creditedQuartersRef guards against redundant RPC calls in the
+      // same app session, but a second call would be a safe no-op anyway.
       const playerCount = players?.length || 0;
       for (const winner of quarterWinners) {
         if (
@@ -500,9 +561,30 @@ const SquareScreen = ({ route }) => {
           !creditedQuartersRef.current.has(winner.quarter)
         ) {
           creditedQuartersRef.current.add(winner.quarter);
-          recordQuarterWin(winner.userId, playerCount).catch((err) =>
-            console.warn("Failed to record quarter win:", err),
-          );
+
+          recordQuarterWin(winner.userId, gridId, String(winner.quarter), playerCount)
+            .then(async (result) => {
+              if (!result.credited || !result.milestoneId) return;
+
+              // Only surface the reward modal for the currently signed-in user.
+              // Other players' wins are recorded silently in the background.
+              if (winner.userId !== userId) {
+                console.log(`[rewardUI] premium_user_credit_granted (other user) userId=${winner.userId}`);
+                return;
+              }
+
+              // NOTE — Premium users still earn quarter-win progress and receive
+              // free square credits here. We do NOT skip credit granting while
+              // premium is active. Credits are stored and remain available after
+              // any premium subscription expires. The credit is only *consumed*
+              // at square creation/join time, and that flow already checks premium
+              // status before deducting a credit.
+              console.log(`[rewardUI] premium_user_credit_granted userId=${winner.userId} milestone=${result.milestoneId}`);
+
+              const balance = await getAvailableCredits(winner.userId);
+              quarterWinReward.show(result.milestoneId, balance);
+            })
+            .catch((err) => console.warn("Failed to record quarter win:", err));
         }
       }
     };
@@ -640,7 +722,9 @@ const SquareScreen = ({ route }) => {
 
         // Count user's quarter wins in this game
         const myWins = quarterWinners.filter(
-          (w: any) => w.username?.trim() === myUsername.trim() && w.username !== "No Winner",
+          (w: any) =>
+            w.username?.trim() === myUsername.trim() &&
+            w.username !== "No Winner",
         ).length;
 
         const isSweep = myWins === 4;
@@ -652,7 +736,11 @@ const SquareScreen = ({ route }) => {
           .eq("user_id", userId)
           .maybeSingle();
 
-        const prev = existing || { public_quarters_won: 0, public_games_played: 0, public_sweeps: 0 };
+        const prev = existing || {
+          public_quarters_won: 0,
+          public_games_played: 0,
+          public_sweeps: 0,
+        };
 
         await supabase.from("leaderboard_stats").upsert(
           {
@@ -715,10 +803,22 @@ const SquareScreen = ({ route }) => {
           { type: "featured_winner", condition: isFeaturedGame && myWins > 0 },
           // Sport-specific win badges (first_nfl_win / first_ncaaf_win are stored
           // silently and used to gate the all_sports multi-league achievement)
-          { type: "first_nfl_win", condition: leagueLower === "nfl" && myWins > 0 },
-          { type: "first_ncaaf_win", condition: leagueLower === "ncaaf" && myWins > 0 },
-          { type: "first_nba_win", condition: leagueLower === "nba" && myWins > 0 },
-          { type: "first_ncaab_win", condition: leagueLower === "ncaab" && myWins > 0 },
+          {
+            type: "first_nfl_win",
+            condition: leagueLower === "nfl" && myWins > 0,
+          },
+          {
+            type: "first_ncaaf_win",
+            condition: leagueLower === "ncaaf" && myWins > 0,
+          },
+          {
+            type: "first_nba_win",
+            condition: leagueLower === "nba" && myWins > 0,
+          },
+          {
+            type: "first_ncaab_win",
+            condition: leagueLower === "ncaab" && myWins > 0,
+          },
         ];
 
         for (const badge of badgesToCheck) {
@@ -738,12 +838,16 @@ const SquareScreen = ({ route }) => {
           .select("badge_type")
           .eq("user_id", userId);
 
-        const earnedTypes = new Set(existingBadges?.map((b) => b.badge_type) ?? []);
+        const earnedTypes = new Set(
+          existingBadges?.map((b) => b.badge_type) ?? [],
+        );
 
         const multiBadges: { type: string; condition: boolean }[] = [
           {
             type: "basketball_fan",
-            condition: earnedTypes.has("first_nba_win") && earnedTypes.has("first_ncaab_win"),
+            condition:
+              earnedTypes.has("first_nba_win") &&
+              earnedTypes.has("first_ncaab_win"),
           },
           {
             type: "all_sports",
@@ -773,17 +877,110 @@ const SquareScreen = ({ route }) => {
     awardPublicGameRewards();
   }, [gameCompleted, quarterWinners, userId]);
 
+  // ── Re-engagement: fetch next upcoming game when this game completes ──
+  useEffect(() => {
+    if (!gameCompleted) return;
+
+    const fetchNextGame = async () => {
+      try {
+        const leagueKey = league.toUpperCase();
+        const isBasketball = leagueKey === "NBA" || leagueKey === "NCAAB";
+        const today = new Date().toLocaleDateString("en-CA");
+        const url = isBasketball
+          ? `${API_BASE_URL}/apisports/basketball/schedule?startDate=${today}&league=${leagueKey}`
+          : `${API_BASE_URL}/apisports/schedule?startDate=${today}&league=${leagueKey}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+        const games: any[] = Array.isArray(data) ? data : [];
+
+        const upcoming = games
+          .filter((g) => {
+            const s = (g.status || "").toLowerCase().trim();
+            return (
+              s === "scheduled" ||
+              s === "pre" ||
+              s === "ns" ||
+              s === "not started" ||
+              s.includes("sched")
+            );
+          })
+          .sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+          );
+
+        if (upcoming.length > 0) {
+          setNextGame(upcoming[0]);
+          setReengageBannerVisible(true);
+          Animated.spring(reengageBannerAnim, {
+            toValue: 1,
+            friction: 7,
+            tension: 100,
+            useNativeDriver: true,
+          }).start();
+        }
+      } catch {
+        // Non-critical — silently skip if fetch fails
+      }
+    };
+
+    fetchNextGame();
+  }, [gameCompleted]);
+
+  const handleReengage = async () => {
+    if (!nextGame) return;
+    // Dismiss banner immediately
+    Animated.timing(reengageBannerAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => setReengageBannerVisible(false));
+
+    try {
+      const leagueKey = league.toUpperCase();
+      const isBasketball = leagueKey === "NBA" || leagueKey === "NCAAB";
+      const detailRes = await fetch(
+        isBasketball
+          ? `${API_BASE_URL}/apisports/basketball/scores?eventId=${nextGame.id}&league=${leagueKey}`
+          : `${API_BASE_URL}/apisports/scores?eventId=${nextGame.id}&league=${leagueKey}`,
+      );
+      const detail = await detailRes.json();
+
+      (navigation as any).navigate("CreateSquareScreen", {
+        team1: detail.team1_abbr || nextGame.awayTeam || "",
+        team2: detail.team2_abbr || nextGame.homeTeam || "",
+        team1FullName: nextGame.awayFullName || nextGame.awayTeam || "",
+        team2FullName: nextGame.homeFullName || nextGame.homeTeam || "",
+        team1Abbr: detail.team1_abbr || "",
+        team2Abbr: detail.team2_abbr || "",
+        league: league.toLowerCase(),
+        deadline: nextGame.date,
+        eventId: nextGame.id,
+      });
+    } catch {
+      // Fallback: open creation flow without prefill
+      (navigation as any).navigate("CreateSquareScreen", {
+        league: league.toLowerCase(),
+      });
+    }
+  };
+  // ─────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!isFocused || !userId) return;
 
     const fetchSelectionsAndWinners = async () => {
+      console.log("[squareScreen] square_screen_secondary_loading_start (scores+selections)");
       const { data, error } = await supabase
         .from("squares")
         .select("quarter_scores, selections")
         .eq("id", gridId)
         .single();
 
-      if (error || !data) return;
+      if (error || !data) {
+        console.warn("[squareScreen] secondary fetch (scores+selections) failed — rendering with existing data:", error?.message);
+        return;
+      }
 
       if (data.quarter_scores && data.quarter_scores.length > 0) {
         setQuarterScores((prev) => {
@@ -796,6 +993,7 @@ const SquareScreen = ({ route }) => {
       if (data.selections) {
         setSelections(data.selections);
       }
+      console.log("[squareScreen] square_screen_secondary_loading_complete (scores+selections)");
     };
 
     fetchSelectionsAndWinners();
@@ -825,10 +1023,15 @@ const SquareScreen = ({ route }) => {
     };
   }, []);
 
+  // ── CRITICAL LOADING ──────────────────────────────────────────────────────
+  // Fetches the minimum data needed to render the real screen shell.
+  // NOT gated on userId — user-specific state (isOwner, selectedSquares) is
+  // resolved separately below so a slow/failed auth lookup never blocks this.
   useEffect(() => {
-    if (!isFocused || !userId) return;
+    if (!isFocused) return;
 
     const fetchSquareData = async () => {
+      console.log("[squareScreen] square_screen_critical_loading_start");
       try {
         const { data, error } = await supabase
           .from("squares")
@@ -836,40 +1039,40 @@ const SquareScreen = ({ route }) => {
           .eq("id", gridId)
           .single();
 
-        if (error || !data) return;
+        if (error || !data) {
+          console.warn("[squareScreen] critical fetch failed — rendering shell with empty state:", error?.message);
+          return; // finally still runs → squareDataLoaded becomes true
+        }
 
         setManualOverride(!!data.manual_override);
         const customGame = !data.event_id;
         setIsCustomGame(customGame);
 
-        // Load persisted game_completed status from database
         if (data.game_completed) {
           setGameCompleted(true);
         }
 
-        // For custom games, load scores from database
+        // Custom games carry their scores in the DB row
         if (customGame && data.quarter_scores) {
           setQuarterScores(data.quarter_scores);
-          // Custom games use team1 as home by default
           setIsTeam1Home(true);
         }
 
-        const colorMapping = {};
-        const nameMapping = {};
+        const colorMapping: Record<string, string> = {};
+        const nameMapping: Record<string, string> = {};
 
         setTitle(data.title || "");
         setTeam1(data.team1 || "");
         setTeam2(data.team2 || "");
         setFullTeam1(data.team1_full_name || "");
         setFullTeam2(data.team2_full_name || "");
-
         setTeam1Mascot(data.team1?.split(" ").slice(-1)[0]);
         setTeam2Mascot(data.team2?.split(" ").slice(-1)[0]);
         setSelections(data.selections || []);
 
         if (data.players) {
           setPlayers(data.players);
-          data.players.forEach((p) => {
+          data.players.forEach((p: any) => {
             colorMapping[p.userId] = p.color || "#999";
             nameMapping[p.userId] = p.username || p.userId;
           });
@@ -878,49 +1081,71 @@ const SquareScreen = ({ route }) => {
         }
 
         if (data.selections) {
-          const squareMap = {};
-          data.selections.forEach((sel) => {
-            const id = `${sel.x},${sel.y}`;
-            squareMap[id] = colorMapping[sel.userId] || "#999";
+          const squareMap: Record<string, string> = {};
+          data.selections.forEach((sel: any) => {
+            squareMap[`${sel.x},${sel.y}`] = colorMapping[sel.userId] || "#999";
           });
           setSquareColors(squareMap);
-
-          if (userId) {
-            const mySelections = data.selections.filter(
-              (s) => s.userId === userId,
-            );
-            const mySet = new Set(mySelections.map((s) => `${s.x},${s.y}`));
-            const allPendingResolved = [...pendingSquares].every((sq) =>
-              mySet.has(sq),
-            );
-            if (allPendingResolved || pendingSquares.size === 0) {
-              setSelectedSquares(mySet);
-              setPendingSquares(new Set());
-            }
-          }
+          // User-specific selectedSquares resolved in the effect below
+          // once userId is available, so it never blocks this fetch.
         }
 
-        setXAxis(
-          data.x_axis?.length === 10 ? data.x_axis : [...Array(10).keys()],
-        );
-        setYAxis(
-          data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()],
-        );
-
+        setXAxis(data.x_axis?.length === 10 ? data.x_axis : [...Array(10).keys()]);
+        setYAxis(data.y_axis?.length === 10 ? data.y_axis : [...Array(10).keys()]);
         setCreatedBy(data.created_by);
-        if (data.created_by === userId) setIsOwner(true);
         if (data.deadline) setDeadlineValue(new Date(data.deadline));
         setMaxSelections(data.max_selection);
-        if (typeof data.axis_hidden === "boolean")
-          setHideAxisUntilDeadline(data.axis_hidden);
+        if (typeof data.axis_hidden === "boolean") setHideAxisUntilDeadline(data.axis_hidden);
         setBlockMode(!!data.block_mode);
+
+        console.log("[squareScreen] square_screen_critical_loading_complete");
+      } catch (err) {
+        console.warn("[squareScreen] fetchSquareData unexpected error:", err);
       } finally {
-        setTimeout(() => setSquareDataLoaded(true), 300);
+        // Always mark critical loading done — never leave the skeleton hanging
+        // because a secondary piece of data failed or userId wasn't ready.
+        setSquareDataLoaded(true);
+        console.log("[squareScreen] square_screen_render_content");
       }
     };
 
     fetchSquareData();
-  }, [gridId, userId, refreshKey, isFocused]);
+  }, [gridId, refreshKey, isFocused]); // userId intentionally NOT here
+
+  // ── USER-SPECIFIC STATE (secondary, non-blocking) ─────────────────────────
+  // Resolves isOwner and the current user's selected squares once userId is
+  // known. Runs after critical loading completes. Re-runs on every selections
+  // refresh (refreshKey → fetchSquareData → selections state update).
+  useEffect(() => {
+    if (!userId) return;
+
+    // Owner check
+    if (createdBy !== null) setIsOwner(createdBy === userId);
+
+    // Rebuild this user's selected squares, respecting optimistic pendingSquares
+    const mySelections = selections.filter((s: any) => s.userId === userId);
+    const mySet = new Set(mySelections.map((s: any) => `${s.x},${s.y}`));
+    const allPendingResolved = [...pendingSquares].every((sq) => mySet.has(sq));
+    if (allPendingResolved || pendingSquares.size === 0) {
+      setSelectedSquares(mySet);
+      setPendingSquares(new Set());
+    }
+  }, [userId, createdBy, selections]);
+
+  // ── TIMEOUT FALLBACK ──────────────────────────────────────────────────────
+  // If critical loading hasn't resolved within 7 s (network stall, auth race,
+  // etc.) force the skeleton off so the user isn't stuck forever.
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSquareDataLoaded((prev) => {
+        if (!prev) {
+          console.warn("[squareScreen] square_screen_loading_timeout_fallback — forcing content render after 7 s");
+        }
+        return true;
+      });
+    }, 7000);
+    return () => clearTimeout(timeout);
+  }, []); // runs once on mount
 
   useEffect(() => {
     if (!isFocused) return;
@@ -982,6 +1207,7 @@ const SquareScreen = ({ route }) => {
         if (!scoresLoaded) setScoresLoaded(true);
         return;
       }
+      console.log("[squareScreen] square_screen_secondary_loading_start (API scores)");
       await checkOverride();
       if (manualOverride) {
         console.log("⚙️ Manual override active – skipping API overwrite");
@@ -990,7 +1216,11 @@ const SquareScreen = ({ route }) => {
       setRefreshingScores(true);
 
       try {
-        const isBasketball = league === "nba" || league === "NBA" || league === "ncaab" || league === "NCAAB";
+        const isBasketball =
+          league === "nba" ||
+          league === "NBA" ||
+          league === "ncaab" ||
+          league === "NCAAB";
         const scoresUrl = isBasketball
           ? `${API_BASE_URL}/apisports/basketball/scores?eventId=${eventId}&league=${league.toUpperCase()}`
           : `${API_BASE_URL}/apisports/scores?eventId=${eventId}&league=${league}&startDate=${startDate}&team1=${team1}&team2=${team2}`;
@@ -1005,31 +1235,19 @@ const SquareScreen = ({ route }) => {
 
         if (!scoresLoaded) {
           setScoresLoaded(true);
+          console.log("[squareScreen] square_screen_secondary_loading_complete (API scores)");
         }
 
         const apiScores = game?.quarterScores ?? [];
         const isCompleted = game?.completed ?? false;
 
-        // Infer completion: if all 4 quarters have scores and deadline was 1+ hour ago
-        const allQuartersHaveScores =
-          apiScores.length >= 4 &&
-          apiScores
-            .slice(0, 4)
-            .every(
-              (q: { home: number | null; away: number | null }) =>
-                q.home !== null && q.away !== null,
-            );
-        const oneHourAgo = Date.now() - 60 * 60 * 1000;
-        const gameStartedOverOneHourAgo =
-          deadlineValue && deadlineValue.getTime() < oneHourAgo;
-        const inferredCompleted =
-          allQuartersHaveScores && gameStartedOverOneHourAgo;
+        // Use the single shared completion check — do not inline this logic.
+        // Both HomeScreen sync and SquareScreen must go through determineGameCompletion.
+        const isNowCompleted = determineGameCompletion(game, deadlineValue);
 
-        // Only update gameCompleted if API says it's complete OR we can infer it
-        // Don't overwrite a true value with false (preserves DB-loaded state)
-        if (isCompleted || inferredCompleted) {
+        // Only set gameCompleted forward (never overwrite true with false).
+        if (isNowCompleted) {
           setGameCompleted(true);
-          // Persist to database
           await supabase
             .from("squares")
             .update({ game_completed: true })
@@ -1093,9 +1311,22 @@ const SquareScreen = ({ route }) => {
 
           return merged;
         });
+
+        // Throttled write: only updates last_score_check_at if the previous
+        // write was > 2 minutes ago, so we don't hit Supabase every 30 seconds.
+        maybeUpdateLastScoreCheckAt(gridId, lastCheckWrittenAtRef.current)
+          .then((written) => {
+            if (written !== null) {
+              lastCheckWrittenAtRef.current = written;
+            }
+          })
+          .catch((err) => {
+            console.warn("[squareScreen] maybeUpdateLastScoreCheckAt error:", err);
+          });
       } catch (e) {
         Sentry.captureException(e);
-        console.warn("Error fetching quarter scores", e);
+        console.warn("[squareScreen] API scores fetch failed — screen renders without live scores:", e);
+        if (!scoresLoaded) setScoresLoaded(true); // don't leave Winners tab skeleton stuck
       } finally {
         setRefreshingScores(false);
       }
@@ -1398,7 +1629,9 @@ const SquareScreen = ({ route }) => {
     const color = squareColors[key];
     if (!color) return;
 
-    const ownerEntry = Object.entries(playerColors).find(([, c]) => c === color);
+    const ownerEntry = Object.entries(playerColors).find(
+      ([, c]) => c === color,
+    );
     if (!ownerEntry) return;
     const [ownerUserId] = ownerEntry;
     const ownerUsername = playerUsernames[ownerUserId] || "";
@@ -1415,18 +1648,35 @@ const SquareScreen = ({ route }) => {
         const updated = (data.selections || []).filter(
           (s: any) => !(s.x === x && s.y === y),
         );
-        await supabase.from("squares").update({ selections: updated }).eq("id", gridId);
+        await supabase
+          .from("squares")
+          .update({ selections: updated })
+          .eq("id", gridId);
       } else {
         await supabase.rpc("remove_selection", {
           grid_id: gridId,
-          selection_to_remove: { x, y, userId: ownerUserId, username: ownerUsername },
+          selection_to_remove: {
+            x,
+            y,
+            userId: ownerUserId,
+            username: ownerUsername,
+          },
         });
       }
-      Toast.show({ type: "success", text1: "Square removed", position: "bottom", visibilityTime: 1500 });
+      Toast.show({
+        type: "success",
+        text1: "Square removed",
+        position: "bottom",
+        visibilityTime: 1500,
+      });
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
       console.error("Error unassigning square:", err);
-      Toast.show({ type: "error", text1: "Failed to unassign square", position: "bottom" });
+      Toast.show({
+        type: "error",
+        text1: "Failed to unassign square",
+        position: "bottom",
+      });
     }
   };
 
@@ -1436,7 +1686,9 @@ const SquareScreen = ({ route }) => {
     const firstKey = `${squares[0].x},${squares[0].y}`;
     const color = squareColors[firstKey];
     if (!color) return;
-    const ownerEntry = Object.entries(playerColors).find(([, c]) => c === color);
+    const ownerEntry = Object.entries(playerColors).find(
+      ([, c]) => c === color,
+    );
     if (!ownerEntry) return;
     const [ownerUserId] = ownerEntry;
     const ownerUsername = playerUsernames[ownerUserId] || "";
@@ -1455,22 +1707,39 @@ const SquareScreen = ({ route }) => {
         const updated = (data.selections || []).filter(
           (s: any) => !coordSet.has(`${s.x},${s.y}`),
         );
-        await supabase.from("squares").update({ selections: updated }).eq("id", gridId);
+        await supabase
+          .from("squares")
+          .update({ selections: updated })
+          .eq("id", gridId);
       } else {
         await Promise.all(
           squares.map((sq) =>
             supabase.rpc("remove_selection", {
               grid_id: gridId,
-              selection_to_remove: { x: sq.x, y: sq.y, userId: ownerUserId, username: ownerUsername },
+              selection_to_remove: {
+                x: sq.x,
+                y: sq.y,
+                userId: ownerUserId,
+                username: ownerUsername,
+              },
             }),
           ),
         );
       }
-      Toast.show({ type: "success", text1: "Block removed", position: "bottom", visibilityTime: 1500 });
+      Toast.show({
+        type: "success",
+        text1: "Block removed",
+        position: "bottom",
+        visibilityTime: 1500,
+      });
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
       console.error("Error unassigning block:", err);
-      Toast.show({ type: "error", text1: "Failed to unassign block", position: "bottom" });
+      Toast.show({
+        type: "error",
+        text1: "Failed to unassign block",
+        position: "bottom",
+      });
     }
   };
 
@@ -1482,7 +1751,11 @@ const SquareScreen = ({ route }) => {
     // Check all 4 are empty
     for (const sq of blockSquares) {
       if (squareColors[`${sq.x},${sq.y}`]) {
-        Toast.show({ type: "error", text1: "A square in this block is already claimed", position: "bottom" });
+        Toast.show({
+          type: "error",
+          text1: "A square in this block is already claimed",
+          position: "bottom",
+        });
         return;
       }
     }
@@ -1500,13 +1773,22 @@ const SquareScreen = ({ route }) => {
         if (error || !data) throw error;
         const now = new Date().toISOString();
         const newSelections = blockSquares.map((sq) => ({
-          oddsId: null, oddsStatus: "unknown", oddsUpdatedAt: now,
-          oddsValue: null, oddsBookmaker: null, oddsType: null,
-          x: sq.x, y: sq.y, oddsDescription: null, userId: assignToUserId,
+          oddsId: null,
+          oddsStatus: "unknown",
+          oddsUpdatedAt: now,
+          oddsValue: null,
+          oddsBookmaker: null,
+          oddsType: null,
+          x: sq.x,
+          y: sq.y,
+          oddsDescription: null,
+          userId: assignToUserId,
         }));
         const { error: updateError } = await supabase
           .from("squares")
-          .update({ selections: [...(data.selections || []), ...newSelections] })
+          .update({
+            selections: [...(data.selections || []), ...newSelections],
+          })
           .eq("id", gridId);
         if (updateError) throw updateError;
       } else {
@@ -1514,16 +1796,30 @@ const SquareScreen = ({ route }) => {
           blockSquares.map((sq) =>
             supabase.rpc("add_selection", {
               grid_id: gridId,
-              new_selection: { x: sq.x, y: sq.y, userId: assignToUserId, username: player.username },
+              new_selection: {
+                x: sq.x,
+                y: sq.y,
+                userId: assignToUserId,
+                username: player.username,
+              },
             }),
           ),
         );
       }
-      Toast.show({ type: "success", text1: `Block assigned to ${player.username}`, position: "bottom", visibilityTime: 1500 });
+      Toast.show({
+        type: "success",
+        text1: `Block assigned to ${player.username}`,
+        position: "bottom",
+        visibilityTime: 1500,
+      });
       setRefreshKey((prev) => prev + 1);
     } catch (err) {
       console.error("Error assigning block:", err);
-      Toast.show({ type: "error", text1: "Failed to assign block", position: "bottom" });
+      Toast.show({
+        type: "error",
+        text1: "Failed to assign block",
+        position: "bottom",
+      });
     }
   };
 
@@ -1567,10 +1863,13 @@ const SquareScreen = ({ route }) => {
   const handleSquarePress = (x: number, y: number) => {
     const key = `${x},${y}`;
     const userColor = squareColors[key];
-    const squareUserId = Object.entries(playerColors).find(
-      ([, color]) => color === userColor,
-    )?.[0];
-    const username = playerUsernames[squareUserId];
+    // Use selections+players for ownership lookup — reliable even when multiple
+    // players share similar or identical custom colors.
+    const sel = (selections as { x: number; y: number; userId: string }[]).find(
+      (s) => s.x === x && s.y === y,
+    );
+    const squareOwnerPlayer = sel ? (players as { userId: string; username?: string }[]).find((p) => p.userId === sel.userId) : null;
+    const username = squareOwnerPlayer?.username;
     const xLabel = xAxis[x];
     const yLabel = yAxis[y];
 
@@ -1602,6 +1901,14 @@ const SquareScreen = ({ route }) => {
       .filter(Boolean);
 
     // If this is a winning square, show the detailed modal
+    if (highlightedPlayerId) {
+      setHighlightedPlayerId(null);
+      if (highlightedPlayerTimer.current) {
+        clearTimeout(highlightedPlayerTimer.current);
+        highlightedPlayerTimer.current = null;
+      }
+    }
+
     if (winningQuartersData.length > 0) {
       // If no owner, this is effectively "No Winner" for payout purposes
       const isUnclaimed = !userColor || !username;
@@ -1609,7 +1916,26 @@ const SquareScreen = ({ route }) => {
         ? 0
         : winningQuartersData.reduce((sum, q) => sum + q.payout, 0);
 
+      // Determine if current user won: check if winner is the current user
+      const currentUsername = playerUsernames[userId];
+      const currentUserWon = !isUnclaimed && username === currentUsername;
+
+      // Get quarter label from the first winning quarter
+      const firstQuarterIndex = quarterWinners.findIndex(
+        (w) => w?.square?.[0] === xLabel && w?.square?.[1] === yLabel,
+      );
+      const quarterLabel =
+        firstQuarterIndex >= 0
+          ? `Q${firstQuarterIndex < 4 ? firstQuarterIndex + 1 : `OT${firstQuarterIndex - 3}`}`
+          : "Quarter";
+
+      if (squareToastTimeout.current) {
+        clearTimeout(squareToastTimeout.current);
+        squareToastTimeout.current = null;
+      }
+      setSquareToast(null);
       setWinnerModalData({
+        currentUserWon,
         username: isUnclaimed ? "No Winner" : username,
         userColor: userColor || "#888888",
         winningQuarters: winningQuartersData.map((q) => ({
@@ -1618,21 +1944,61 @@ const SquareScreen = ({ route }) => {
         })),
         totalWinnings,
         squareCoords: [xLabel, yLabel],
+        quarterLabel,
       });
       setWinnerModalVisible(true);
       return;
     }
 
-    // For non-winning squares, show the simple toast
-    let message: string;
+    // For non-winning squares, show toast only when the square is owned
     if (userColor && username) {
-      message = `${username} • (${xLabel}, ${yLabel})`;
-    } else {
-      message = `Unclaimed • (${xLabel}, ${yLabel})`;
+      setSquareToast({ text: `${username} (${xLabel}, ${yLabel})` });
     }
-
-    showSquareToast(message);
   };
+
+  useEffect(() => {
+    if (!squareToast) return;
+
+    Toast.hide();
+    Toast.show({
+      type: "info",
+      text1: squareToast.text,
+      position: "bottom",
+      visibilityTime: 2000,
+      autoHide: true,
+      bottomOffset: 60,
+      text1Style: {
+        fontSize: 15,
+        fontWeight: "600",
+        color: theme.colors.onSurface,
+        textAlign: "center",
+      },
+    });
+
+    if (squareToastTimeout.current) {
+      clearTimeout(squareToastTimeout.current);
+    }
+    squareToastTimeout.current = setTimeout(() => {
+      setSquareToast(null);
+      squareToastTimeout.current = null;
+    }, 2000);
+
+    return () => {
+      if (squareToastTimeout.current) {
+        clearTimeout(squareToastTimeout.current);
+        squareToastTimeout.current = null;
+      }
+    };
+  }, [squareToast, theme.colors.onSurface]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightedPlayerTimer.current) {
+        clearTimeout(highlightedPlayerTimer.current);
+        highlightedPlayerTimer.current = null;
+      }
+    };
+  }, []);
 
   // ✨ Pull to refresh handler
   const onRefresh = useCallback(async () => {
@@ -1691,14 +2057,22 @@ const SquareScreen = ({ route }) => {
             style={styles.headerButton}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="chat-bubble-outline" size={22} color={theme.colors.onBackground} />
+            <Icon
+              name="chat-bubble-outline"
+              size={22}
+              color={theme.colors.onBackground}
+            />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setSessionOptionsVisible(true)}
             style={styles.headerButton}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Icon name="more-vert" size={24} color={theme.colors.onBackground} />
+            <Icon
+              name="more-vert"
+              size={24}
+              color={theme.colors.onBackground}
+            />
           </TouchableOpacity>
         </View>
       ),
@@ -1756,6 +2130,14 @@ const SquareScreen = ({ route }) => {
         return;
       }
       lastPressTime.current[squareId] = now;
+
+      if (highlightedPlayerId) {
+        setHighlightedPlayerId(null);
+        if (highlightedPlayerTimer.current) {
+          clearTimeout(highlightedPlayerTimer.current);
+          highlightedPlayerTimer.current = null;
+        }
+      }
 
       if (blockMode) {
         // Block mode: select/deselect a 2x2 block
@@ -2100,9 +2482,11 @@ const SquareScreen = ({ route }) => {
   const renderSquareGrid = ({
     editable,
     onSquarePress,
+    highlightedPlayerId,
   }: {
     editable: boolean;
     onSquarePress: (x: number, y: number) => void;
+    highlightedPlayerId: string | null;
   }) => {
     const numberColor = isDark ? "#f0f0f0" : "#1a1a1a";
     const axisSquareColor = isDark ? "#1a1a1a" : "#f5f5f5";
@@ -2190,6 +2574,9 @@ const SquareScreen = ({ route }) => {
             : baseColor;
           const isSelected = selectedSquares.has(key);
           const isWinner = winningSquares.has(key);
+          const isHighlightedPlayerSquare =
+            highlightedPlayerId != null &&
+            squarePlayer?.userId === highlightedPlayerId;
 
           // In block mode, determine which edges are outer vs inner within the 2x2 block
           const blockBorderStyle = blockMode
@@ -2241,17 +2628,27 @@ const SquareScreen = ({ route }) => {
               style={({ pressed }) => [
                 dynamicStyles.square,
                 {
-                  backgroundColor: color,
+                  backgroundColor: isHighlightedPlayerSquare
+                    ? tinycolor(color).lighten(8).toString()
+                    : color,
                   borderColor: isWinner
                     ? "#FFD700"
-                    : isSelected
-                      ? selectedBorderColor
-                      : isDark
-                        ? "#333"
-                        : "#e0e0e0",
-                  borderWidth: isWinner ? 3 : isSelected ? 2.5 : 1,
+                    : isHighlightedPlayerSquare
+                      ? theme.colors.primary
+                      : isSelected
+                        ? selectedBorderColor
+                        : isDark
+                          ? "#333"
+                          : "#e0e0e0",
+                  borderWidth: isWinner
+                    ? 3
+                    : isHighlightedPlayerSquare
+                      ? 2
+                      : isSelected
+                        ? 2.5
+                        : 1,
                   overflow: "visible",
-                  zIndex: isWinner ? 10 : 0,
+                  zIndex: isWinner || isHighlightedPlayerSquare ? 10 : 0,
                   elevation: isWinner ? 10 : 0,
                   opacity: pressed ? 0.6 : 1,
                   transform: [{ scale: pressed ? 0.95 : 1 }],
@@ -2260,12 +2657,14 @@ const SquareScreen = ({ route }) => {
                   // so skip it for winning squares to preserve the gold border
                   ...(blockMode && !isWinner ? blockBorderStyle : {}),
                   // Ensure winner's per-side colors are all gold (overrides any inherited per-side colors)
-                  ...(isWinner ? {
-                    borderLeftColor: "#FFD700",
-                    borderRightColor: "#FFD700",
-                    borderTopColor: "#FFD700",
-                    borderBottomColor: "#FFD700",
-                  } : {}),
+                  ...(isWinner
+                    ? {
+                        borderLeftColor: "#FFD700",
+                        borderRightColor: "#FFD700",
+                        borderTopColor: "#FFD700",
+                        borderBottomColor: "#FFD700",
+                      }
+                    : {}),
                 },
                 isSelected && styles.selectedSquare,
               ]}
@@ -2280,7 +2679,9 @@ const SquareScreen = ({ route }) => {
                 // Assign mode: owner managing squares on behalf of players
                 if (assignMode && isOwner) {
                   const currentPlayer = assignModePlayerRef.current;
-                  const playerColor = currentPlayer ? playerColors[currentPlayer.userId] : null;
+                  const playerColor = currentPlayer
+                    ? playerColors[currentPlayer.userId]
+                    : null;
                   if (blockMode) {
                     const blockSquares = getBlockSquares(ax, ay);
                     // Only interact with squares belonging to the current assign-mode player
@@ -2295,7 +2696,11 @@ const SquareScreen = ({ route }) => {
                     }
                   } else {
                     const squareOwnerColor = squareColors[key];
-                    if (squareOwnerColor && playerColor && squareOwnerColor === playerColor) {
+                    if (
+                      squareOwnerColor &&
+                      playerColor &&
+                      squareOwnerColor === playerColor
+                    ) {
                       handleUnassignSquare(ax, ay);
                     } else if (!squareOwnerColor && currentPlayer) {
                       handleAssignSquareToPlayer(ax, ay);
@@ -2312,6 +2717,13 @@ const SquareScreen = ({ route }) => {
                 // Allow owners to open assign modal for empty squares
                 if (isOwner && !squareColors[key] && players.length > 0) {
                   setShowAssignSquareModal(true);
+                  return;
+                }
+                // Show ownership info for claimed squares
+                if ((squareColors as Record<string, string>)[key] && squarePlayer?.username) {
+                  setSquareToast({
+                    text: `${squarePlayer.username} (${xAxis[x - 1]}, ${yAxis[y - 1]})`,
+                  });
                 }
               }}
               delayLongPress={500}
@@ -2359,7 +2771,11 @@ const SquareScreen = ({ route }) => {
                     zIndex: 10,
                   }}
                 >
-                  <Text style={{ fontSize: 8, lineHeight: 14, color: "#7a5000" }}>★</Text>
+                  <Text
+                    style={{ fontSize: 8, lineHeight: 14, color: "#7a5000" }}
+                  >
+                    ★
+                  </Text>
                 </View>
               )}
             </Pressable>,
@@ -2440,7 +2856,8 @@ const SquareScreen = ({ route }) => {
                     ? count * pricePerSquare
                     : null;
 
-                const hasSelections = userSelections[userKey]?.length > 0 &&
+                const hasSelections =
+                  userSelections[userKey]?.length > 0 &&
                   (!hideAxisUntilDeadline || isAfterDeadline);
                 const isExpanded = expandedPlayers.has(userKey);
 
@@ -2450,6 +2867,18 @@ const SquareScreen = ({ route }) => {
                     activeOpacity={hasSelections ? 0.7 : 1}
                     onPress={() => {
                       if (!hasSelections) return;
+                      if (highlightedPlayerTimer.current) {
+                        clearTimeout(highlightedPlayerTimer.current);
+                        highlightedPlayerTimer.current = null;
+                      }
+                      setHighlightedPlayerId(userKey);
+                      highlightedPlayerTimer.current = setTimeout(() => {
+                        setHighlightedPlayerId(null);
+                        highlightedPlayerTimer.current = null;
+                      }, 3200);
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.create(200, "easeInEaseOut", "opacity")
+                      );
                       setExpandedPlayers((prev) => {
                         const next = new Set(prev);
                         if (next.has(userKey)) next.delete(userKey);
@@ -2463,6 +2892,16 @@ const SquareScreen = ({ route }) => {
                         borderBottomColor:
                           theme.colors.outlineVariant || "rgba(0,0,0,0.05)",
                         borderBottomWidth: idx < playerList.length - 1 ? 1 : 0,
+                        backgroundColor:
+                          highlightedPlayerId === userKey
+                            ? tinycolor(theme.colors.primary)
+                                .setAlpha(0.08)
+                                .toString()
+                            : isExpanded
+                            ? theme.dark
+                              ? "rgba(255,255,255,0.05)"
+                              : "rgba(0,0,0,0.03)"
+                            : undefined,
                       },
                     ]}
                   >
@@ -2519,7 +2958,13 @@ const SquareScreen = ({ route }) => {
                           );
                         })()}
                         <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
                             <Text
                               style={[
                                 styles.playerName,
@@ -2549,7 +2994,13 @@ const SquareScreen = ({ route }) => {
                               </View>
                             )}
                           </View>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 4,
+                            }}
+                          >
                             <Text
                               style={[
                                 styles.playerSubtext,
@@ -2560,7 +3011,9 @@ const SquareScreen = ({ route }) => {
                             </Text>
                             {hasSelections && (
                               <Icon
-                                name={isExpanded ? "expand-less" : "expand-more"}
+                                name={
+                                  isExpanded ? "expand-less" : "expand-more"
+                                }
                                 size={16}
                                 color={theme.colors.onSurfaceVariant}
                               />
@@ -2572,28 +3025,36 @@ const SquareScreen = ({ route }) => {
                           {totalOwed !== null && totalOwed > 0 && (
                             <Chip
                               mode="flat"
-                              textStyle={styles.chipText}
+                              textStyle={[
+                                styles.chipText,
+                                { color: theme.dark ? "#ef9a9a" : "#c62828" },
+                              ]}
                               style={[
                                 styles.betChip,
                                 {
-                                  backgroundColor: theme.colors.secondaryContainer,
+                                  backgroundColor: theme.dark
+                                    ? "rgba(211,47,47,0.15)"
+                                    : "rgba(211,47,47,0.08)",
                                 },
                               ]}
                             >
-                              ${totalOwed.toFixed(2)}
+                              {`\u2013$${totalOwed.toFixed(2)}`}
                             </Chip>
                           )}
                           {winningsMap[userKey] > 0 && (
                             <Chip
                               mode="flat"
                               icon="trophy"
-                              textStyle={[styles.chipText, { color: "#2e7d32" }]}
+                              textStyle={[
+                                styles.chipText,
+                                { color: "#2e7d32" },
+                              ]}
                               style={[
                                 styles.winChip,
                                 { backgroundColor: "#e8f5e9" },
                               ]}
                             >
-                              ${winningsMap[userKey].toFixed(2)}
+                              {`+$${winningsMap[userKey].toFixed(2)}`}
                             </Chip>
                           )}
                         </View>
@@ -2660,11 +3121,16 @@ const SquareScreen = ({ route }) => {
     winningsByUser,
     refreshing,
     expandedPlayers,
+    highlightedPlayerId,
   ]);
 
   // ✨ Modernized Winners tab
   const renderWinners = useCallback(() => {
     if (!isFocused) return null;
+
+    const scoresStillLoading = !scoresLoaded && quarterScores.length === 0 && isAfterDeadline;
+    const skeletonColor = isDark ? "#2b2b2d" : "#e8e8f0";
+    const skeletonDim = isDark ? "#1e1e20" : "#f0f0f8";
 
     return (
       <ScrollView
@@ -2678,148 +3144,158 @@ const SquareScreen = ({ route }) => {
         >
           <Card.Content>
             <Text style={[styles.cardTitle, { color: theme.colors.primary }]}>
-              {gameCompleted
-                ? quarterWinners.some(
-                    (w) => w?.username && w.username !== "No Winner",
-                  )
-                  ? "🏆 Results"
-                  : "No Winners"
-                : "⏱️ Awaiting Results"}
+              {scoresStillLoading
+                ? " "
+                : gameCompleted
+                  ? (quarterWinners as { username?: string }[]).some(
+                      (w) => w?.username && w.username !== "No Winner",
+                    )
+                    ? "Results"
+                    : "No Winners"
+                  : "Awaiting Results"}
             </Text>
 
-            {quarterScores.length > 0 ? (
-              quarterScores.map((q, i) => {
-                const { home, away, completed } = q;
-                const winner = quarterWinners[i];
-                if (home == null || away == null || !winner) return null;
+            {scoresStillLoading ? (
+              [0, 1, 2, 3].map((i) => (
+                <View
+                  key={i}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    paddingVertical: 10,
+                    borderBottomWidth: i < 3 ? 1 : 0,
+                    borderBottomColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+                  }}
+                >
+                  <View style={{ width: 28, height: 14, borderRadius: 4, backgroundColor: skeletonColor }} />
+                  <View style={{ flex: 1, gap: 5 }}>
+                    <View style={{ width: "55%", height: 13, borderRadius: 4, backgroundColor: skeletonColor }} />
+                    <View style={{ width: "35%", height: 11, borderRadius: 3, backgroundColor: skeletonDim }} />
+                  </View>
+                  <View style={{ width: 50, height: 13, borderRadius: 4, backgroundColor: skeletonDim }} />
+                </View>
+              ))
+            ) : quarterScores.length > 0 ? (
+              (() => {
+                const totalUnitsForPayout = blockMode
+                  ? Math.round(Object.keys(squareColors).length / 4)
+                  : Object.keys(squareColors).length;
+                const payoutPerQuarter =
+                  pricePerSquare &&
+                  totalUnitsForPayout > 0 &&
+                  quarterScores.length
+                    ? (pricePerSquare * totalUnitsForPayout) /
+                      quarterScores.length
+                    : 0;
+                const currentUsername = playerUsernames[userId];
 
-                const username = winner?.username ?? "No Winner";
-                const square = winner?.square ?? ["-", "-"];
-                const isWinner = username !== "No Winner";
+                const results = quarterScores
+                  .map((q, i) => ({ q, i, winner: quarterWinners[i] }))
+                  .filter(
+                    ({ q, winner }) =>
+                      q.home != null && q.away != null && winner != null,
+                  )
+                  .sort((a, b) => b.i - a.i);
 
-                return (
-                  <View
-                    key={i}
-                    style={[
-                      styles.resultCard,
-                      {
-                        backgroundColor: theme.colors.elevation.level2,
-                        borderColor: isWinner
-                          ? "rgba(76, 175, 80, 0.3)"
-                          : theme.colors.outlineVariant,
-                      },
-                    ]}
-                  >
-                    <View style={styles.resultHeader}>
-                      <Text
-                        style={[
-                          styles.quarterNumber,
-                          { color: theme.colors.onSurface },
-                        ]}
-                      >
-                        {i < 4 ? `Q${i + 1}` : `OT${i - 3}`}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.scoreText,
-                          { color: theme.colors.onSurface },
-                        ]}
-                      >
-                        {team1Mascot} {isTeam1Home ? q.home : q.away} -{" "}
-                        {team2Mascot} {isTeam1Home ? q.away : q.home}
-                      </Text>
-                    </View>
+                return results.map(({ q, i, winner }) => {
+                  const username = winner?.username ?? "No Winner";
+                  const [squareX, squareY] = winner?.square ?? ["-", "-"];
+                  const quarterLabel = i < 4 ? `Q${i + 1}` : `OT${i - 3}`;
+                  const isCurrentUserRow =
+                    currentUsername &&
+                    username !== "No Winner" &&
+                    username.trim() === currentUsername.trim();
+                  const displayName =
+                    username === "No Winner"
+                      ? "No winner"
+                      : isCurrentUserRow
+                        ? `${username} (You)`
+                        : username;
 
-                    <Text
+                  return (
+                    <View
+                      key={`result-${i}`}
                       style={[
-                        styles.squareText,
-                        { color: theme.colors.onSurfaceVariant },
+                        styles.resultCard,
+                        {
+                          backgroundColor: isCurrentUserRow
+                            ? tinycolor(theme.colors.elevation.level2)
+                                .lighten(9)
+                                .toString()
+                            : theme.colors.elevation.level2,
+                          borderColor: isCurrentUserRow
+                            ? tinycolor(theme.colors.primary)
+                                .setAlpha(0.35)
+                                .toString()
+                            : tinycolor(theme.colors.onSurface)
+                                .setAlpha(0.08)
+                                .toString(),
+                          borderLeftWidth: isCurrentUserRow ? 3 : 0.5,
+                        },
                       ]}
                     >
-                      Square: ({square[1]}, {square[0]})
-                    </Text>
+                      <View style={styles.resultTopRow}>
+                        <Text
+                          style={[
+                            styles.resultPrimary,
+                            {
+                              color: theme.colors.onSurface,
+                              opacity: isCurrentUserRow ? 0.98 : 0.86,
+                            },
+                          ]}
+                        >
+                          {displayName}
+                        </Text>
 
-                    {isWinner ? (
-                      <View style={styles.winnerInfo}>
-                        {(() => {
-                          const winnerId = Object.keys(playerUsernames).find(
-                            (id) =>
-                              playerUsernames[id]?.trim() === username.trim(),
-                          );
-                          const winnerColor =
-                            playerColors?.[winnerId] || "#4CAF50";
-                          const winnerPlayer = players.find(
-                            (p) => p.userId === winnerId,
-                          );
-                          const dType = winnerPlayer?.displayType || "color";
-                          const dValue = winnerPlayer?.displayValue;
-                          return (
-                            <View
-                              style={[
-                                styles.winnerDot,
-                                {
-                                  backgroundColor:
-                                    dType === "color"
-                                      ? winnerColor
-                                      : tinycolor(winnerColor)
-                                          .setAlpha(0.3)
-                                          .toRgbString(),
-                                  justifyContent: "center",
-                                  alignItems: "center",
-                                },
-                              ]}
-                            >
-                              {dType === "icon" && dValue ? (
-                                isBadgeEmoji(dValue) ? (
-                                  <Text style={{ fontSize: 8 }}>
-                                    {getBadgeEmoji(dValue)}
-                                  </Text>
-                                ) : (
-                                  <Icon
-                                    name={dValue}
-                                    size={10}
-                                    color={winnerColor}
-                                  />
-                                )
-                              ) : dType === "initial" && dValue ? (
-                                <Text
-                                  style={{
-                                    fontSize: 9,
-                                    fontWeight: "700",
-                                    color: winnerColor,
-                                  }}
-                                >
-                                  {dValue.toUpperCase()}
-                                </Text>
-                              ) : null}
-                            </View>
-                          );
-                        })()}
-                        <Text style={styles.winnerText}>
-                          {pricePerSquare
-                            ? `${username} wins $${(
-                                (pricePerSquare *
-                                  (blockMode
-                                    ? Math.round(
-                                        Object.keys(squareColors).length / 4,
-                                      )
-                                    : Object.keys(squareColors).length)) /
-                                quarterScores.length
-                              ).toFixed(2)}`
-                            : `${username} wins!`}
+                        <Text
+                          style={[
+                            styles.resultPayout,
+                            {
+                              color: theme.colors.onSurfaceVariant,
+                              opacity: 0.64,
+                            },
+                          ]}
+                        >
+                          {`$${payoutPerQuarter.toFixed(2)}`}
                         </Text>
                       </View>
-                    ) : (
-                      <View style={styles.noWinnerInfo}>
-                        <Text style={styles.noWinnerText}>No winner</Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              })
+
+                      <Text
+                        style={[
+                          styles.resultSecondary,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
+                        {quarterLabel} — {team1Mascot}{" "}
+                        {isTeam1Home ? q.home : q.away} - {team2Mascot}{" "}
+                        {isTeam1Home ? q.away : q.home}
+                      </Text>
+
+                      <Text
+                        style={[
+                          styles.resultTertiary,
+                          {
+                            color: theme.colors.onSurfaceVariant,
+                            opacity: 0.65,
+                          },
+                        ]}
+                      >
+                        Square: ({squareY}, {squareX})
+                      </Text>
+                    </View>
+                  );
+                });
+              })()
             ) : (
               <View style={styles.emptyState}>
-                <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 10,
+                    alignItems: "center",
+                  }}
+                >
                   <Icon
                     name="sports-football"
                     size={48}
@@ -2858,215 +3334,195 @@ const SquareScreen = ({ route }) => {
     theme,
     gameCompleted,
     refreshing,
+    scoresLoaded,
+    isAfterDeadline,
+    isDark,
   ]);
 
   const renderSquaresTab = useCallback(() => {
-          if (!isFocused) return null;
+    if (!isFocused) return null;
 
-          const selectedCount = blockMode
-            ? countSelectedBlocks(selectedSquares)
-            : selectedSquares.size;
-          const numericPrice = parseFloat(pricePerSquare || 0);
-          const totalOwed = numericPrice * selectedCount;
+    const selectedCount = blockMode
+      ? countSelectedBlocks(selectedSquares)
+      : selectedSquares.size;
+    const numericPrice = parseFloat(pricePerSquare || 0);
+    const totalOwed = numericPrice * selectedCount;
 
-          return (
-            <ScrollView
-              contentContainerStyle={{
-                paddingHorizontal: 4,
-                paddingTop: 16,
-                paddingBottom: insets.bottom + 40,
-              }}
-              refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-              }
-            >
-              {/* Team Header */}
-              <View
+    return (
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: 4,
+          paddingTop: 16,
+          paddingBottom: insets.bottom + 40,
+        }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Team Header */}
+        <View
+          style={[styles.teamHeader, { backgroundColor: theme.colors.surface }]}
+        >
+          <View style={styles.teamInfo}>
+            {loading ? (
+              <>
+                <View style={{ width: 100, height: 16, borderRadius: 5, backgroundColor: isDark ? "#2b2b2d" : "#e8e8f0" }} />
+                <View style={{ width: 20, height: 13, borderRadius: 4, backgroundColor: isDark ? "#2b2b2d" : "#e8e8f0" }} />
+                <View style={{ width: 100, height: 16, borderRadius: 5, backgroundColor: isDark ? "#2b2b2d" : "#e8e8f0" }} />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.teamName, { color: theme.colors.primary }]}>{fullTeam1}</Text>
+                <Text style={[styles.vsText, { color: theme.colors.onSurfaceVariant }]}>VS</Text>
+                <Text style={[styles.teamName, { color: theme.colors.primary }]}>{fullTeam2}</Text>
+              </>
+            )}
+          </View>
+
+          {/* Deadline/Status Chip */}
+          {deadlineValue && (
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <Chip
+                icon={
+                  gameCompleted
+                    ? "check-circle"
+                    : isAfterDeadline
+                      ? "football"
+                      : "timer"
+                }
+                mode="flat"
                 style={[
-                  styles.teamHeader,
-                  { backgroundColor: theme.colors.surface },
+                  styles.deadlineChip,
+                  {
+                    backgroundColor: gameCompleted
+                      ? "#e8f5e9"
+                      : isAfterDeadline
+                        ? theme.colors.secondaryContainer
+                        : theme.colors.secondaryContainer,
+                  },
                 ]}
+                textStyle={{
+                  fontFamily: "Rubik_600SemiBold",
+                  fontSize: 13,
+                  color: gameCompleted
+                    ? "#2e7d32"
+                    : isAfterDeadline
+                      ? theme.colors.onSecondaryContainer
+                      : theme.colors.onSecondaryContainer,
+                }}
               >
-                <View style={styles.teamInfo}>
-                  <Text
-                    style={[styles.teamName, { color: theme.colors.primary }]}
-                  >
-                    {fullTeam1}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.vsText,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    VS
-                  </Text>
-                  <Text
-                    style={[styles.teamName, { color: theme.colors.primary }]}
-                  >
-                    {fullTeam2}
-                  </Text>
-                </View>
-
-                {/* Deadline/Status Chip */}
-                {deadlineValue && (
-                  <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                    <Chip
-                      icon={
-                        gameCompleted
-                          ? "check-circle"
-                          : isAfterDeadline
-                            ? "football"
-                            : "timer"
-                      }
-                      mode="flat"
-                      style={[
-                        styles.deadlineChip,
-                        {
-                          backgroundColor: gameCompleted
-                            ? "#e8f5e9"
-                            : isAfterDeadline
-                              ? theme.colors.secondaryContainer
-                              : theme.colors.secondaryContainer,
-                        },
-                      ]}
-                      textStyle={{
-                        fontFamily: "Rubik_600SemiBold",
-                        fontSize: 13,
-                        color: gameCompleted
-                          ? "#2e7d32"
-                          : isAfterDeadline
-                            ? theme.colors.onSecondaryContainer
-                            : theme.colors.onSecondaryContainer,
-                      }}
-                    >
-                      {gameCompleted
-                        ? "Game Completed"
-                        : isAfterDeadline
-                          ? "Game in Progress"
-                          : <CountdownChip deadline={deadlineValue} />}
-                    </Chip>
-                  </Animated.View>
+                {gameCompleted ? (
+                  "Game Completed"
+                ) : isAfterDeadline ? (
+                  "Game in Progress"
+                ) : (
+                  <CountdownChip deadline={deadlineValue} />
                 )}
-              </View>
+              </Chip>
+            </Animated.View>
+          )}
+        </View>
 
-              {/* Grid Card */}
-              <Card
-                style={[
-                  styles.gridCard,
-                  { backgroundColor: theme.colors.surface },
-                ]}
+        {/* Grid Card */}
+        <Card
+          style={[styles.gridCard, { backgroundColor: theme.colors.surface }]}
+        >
+          <Card.Content style={{ paddingHorizontal: 4, paddingVertical: 12 }}>
+            <View style={styles.gridHeader}>
+              {loading ? (
+                <View style={{ width: 80, height: 16, borderRadius: 5, backgroundColor: isDark ? "#2b2b2d" : "#e8e8f0" }} />
+              ) : (
+                <Text style={[styles.axisLabel, { color: theme.colors.onSurface }]}>{team2Mascot}</Text>
+              )}
+              <TouchableOpacity
+                style={styles.legendButton}
+                onPress={() => setShowLegendModal(true)}
+                accessibilityLabel="Grid legend"
+                accessibilityHint="Tap to view grid legend"
               >
-                <Card.Content
-                  style={{ paddingHorizontal: 4, paddingVertical: 12 }}
-                >
-                  <View style={styles.gridHeader}>
-                    <Text
-                      style={[
-                        styles.axisLabel,
-                        { color: theme.colors.onSurface },
-                      ]}
-                    >
-                      {team2Mascot}
-                    </Text>
-                  </View>
+                <Icon
+                  name="help-outline"
+                  size={20}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </TouchableOpacity>
+            </View>
 
-                  {/* Grid - Fixed size, no horizontal scroll to prevent render issues with live updates */}
-                  <View style={styles.gridContainer}>
-                    <View style={styles.yAxisLabel}>
-                      {splitTeamName(team1Mascot).map((letter, i) => (
-                        <Text
-                          key={i}
-                          style={[
-                            dynamicStyles.teamLetter,
-                            { color: theme.colors.onSurface },
-                          ]}
-                        >
-                          {letter}
-                        </Text>
-                      ))}
-                    </View>
-                    <View style={styles.gridWrapper}>
-                      {renderSquareGrid({
-                        editable: !isAfterDeadline,
-                        onSquarePress: isAfterDeadline
-                          ? handleSquarePress
-                          : handlePress,
-                      })}
-                    </View>
-                  </View>
-
-                  {/* Stats Footer */}
-                  {pricePerSquare > 0 && (
-                    <View
-                      style={[
-                        styles.statsFooter,
-                        { borderTopColor: dividerColor },
-                      ]}
-                    >
-                      <View style={styles.statItem}>
-                        <Text
-                          style={[
-                            styles.statLabel,
-                            { color: theme.colors.onSurfaceVariant },
-                          ]}
-                        >
-                          {blockMode ? "Price per block" : "Price per square"}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.statValue,
-                            { color: theme.colors.onSurface },
-                          ]}
-                        >
-                          ${pricePerSquare.toFixed(2)}
-                        </Text>
-                      </View>
-
-                      {selectedCount > 0 && (
-                        <View style={styles.statItem}>
-                          <Text
-                            style={[
-                              styles.statLabel,
-                              { color: theme.colors.onSurfaceVariant },
-                            ]}
-                          >
-                            Your total bet
-                          </Text>
-                          <Text
-                            style={[
-                              styles.statValue,
-                              { color: theme.colors.primary },
-                            ]}
-                          >
-                            ${totalOwed.toFixed(2)}
-                          </Text>
-                        </View>
-                      )}
-
-                      {winningsByUser?.[userId] > 0 && (
-                        <View style={styles.statItem}>
-                          <Text
-                            style={[
-                              styles.statLabel,
-                              { color: theme.colors.onSurfaceVariant },
-                            ]}
-                          >
-                            Your winnings
-                          </Text>
-                          <Text
-                            style={[styles.statValue, { color: "#4CAF50" }]}
-                          >
-                            ${winningsByUser[userId].toFixed(2)}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
+            {/* Grid - Fixed size, no horizontal scroll to prevent render issues with live updates */}
+            <View style={styles.gridColumn}>
+              <View style={styles.gridContainer}>
+                <View style={styles.yAxisLabel}>
+                  {loading ? (
+                    [0,1,2,3].map((i) => (
+                      <View key={i} style={{ width: 10, height: squareSize * 0.8, borderRadius: 3, marginVertical: 1, backgroundColor: isDark ? "#2b2b2d" : "#e8e8f0" }} />
+                    ))
+                  ) : (
+                    splitTeamName(team1Mascot).map((letter: string, i: number) => (
+                      <Text key={i} style={[dynamicStyles.teamLetter, { color: theme.colors.onSurface }]}>{letter}</Text>
+                    ))
                   )}
-                </Card.Content>
-              </Card>
-            </ScrollView>
-          );
+                </View>
+                <View style={styles.gridWrapper} pointerEvents={loading ? "none" : "auto"}>
+                  {loading ? (() => {
+                    const skeletonCellColor = isDark ? "#2b2b2d" : "#e8e8f0";
+                    const axisColor = isDark ? "#1a1a1a" : "#f5f5f5";
+                    const skeletonRows = [];
+                    for (let y = 0; y <= 10; y++) {
+                      const row = [];
+                      for (let x = 0; x <= 10; x++) {
+                        if (x === 0 && y === 0) {
+                          row.push(
+                            <View
+                              key="corner"
+                              style={[dynamicStyles.square, { backgroundColor: axisColor, borderTopLeftRadius: 8 }]}
+                            />
+                          );
+                        } else if (y === 0) {
+                          row.push(
+                            <View
+                              key={`x-${x}`}
+                              style={[dynamicStyles.square, { backgroundColor: axisColor, borderTopRightRadius: x === 10 ? 8 : 0 }]}
+                            >
+                              <View style={{ width: "55%", height: Math.min(10, squareSize * 0.35), borderRadius: 3, backgroundColor: isDark ? "#333" : "#d8d8e8" }} />
+                            </View>
+                          );
+                        } else if (x === 0) {
+                          row.push(
+                            <View
+                              key={`y-${y}`}
+                              style={[dynamicStyles.square, { backgroundColor: axisColor, borderBottomLeftRadius: y === 10 ? 8 : 0 }]}
+                            >
+                              <View style={{ width: "55%", height: Math.min(10, squareSize * 0.35), borderRadius: 3, backgroundColor: isDark ? "#333" : "#d8d8e8" }} />
+                            </View>
+                          );
+                        } else {
+                          row.push(
+                            <View
+                              key={`${x}-${y}`}
+                              style={[dynamicStyles.square, { backgroundColor: skeletonCellColor, borderBottomRightRadius: x === 10 && y === 10 ? 8 : 0 }]}
+                            />
+                          );
+                        }
+                      }
+                      skeletonRows.push(
+                        <View key={y} style={styles.row}>{row}</View>
+                      );
+                    }
+                    return skeletonRows;
+                  })() : renderSquareGrid({
+                    editable: !isAfterDeadline,
+                    onSquarePress: isAfterDeadline
+                      ? handleSquarePress
+                      : handlePress,
+                    highlightedPlayerId,
+                  })}
+                </View>
+              </View>
+            </View>
+          </Card.Content>
+        </Card>
+      </ScrollView>
+    );
   }, [
     title,
     team1,
@@ -3090,6 +3546,7 @@ const SquareScreen = ({ route }) => {
     assignModePlayer,
     isOwner,
     blockMode,
+    highlightedPlayerId,
   ]);
 
   const renderScene = useCallback(
@@ -3115,16 +3572,8 @@ const SquareScreen = ({ route }) => {
       end={{ x: 1, y: 1 }}
       style={{ flex: 1 }}
     >
-      {loading ? (
-        <Animated.View
-          pointerEvents={loading ? "auto" : "none"}
-          style={{ opacity: fadeAnim, flex: 1, padding: 16 }}
-        >
-          <SkeletonLoader variant="squareScreen" />
-        </Animated.View>
-      ) : (
-        <>
-          <TabView
+      <>
+        <TabView
             navigationState={{ index, routes }}
             renderScene={renderScene}
             onIndexChange={setIndex}
@@ -3138,7 +3587,7 @@ const SquareScreen = ({ route }) => {
                   { backgroundColor: theme.colors.surface },
                 ]}
                 activeColor={theme.colors.primary}
-                inactiveColor={theme.colors.onSurfaceVariant}
+                inactiveColor={tinycolor(theme.colors.onSurfaceVariant).setAlpha(0.45).toRgbString()}
                 renderLabel={({ route, focused, color }) => (
                   <Text
                     style={[
@@ -3267,7 +3716,9 @@ const SquareScreen = ({ route }) => {
             onDismiss={() => setShowAddGuestModal(false)}
             onAddPlayer={handleAddGuestPlayer}
             currentUserId={userId || ""}
-            usedColors={players.map((p) => p.color).filter(Boolean)}
+            playerColors={players
+              .filter((p: any) => p.userId && p.color)
+              .map((p: any) => ({ userId: p.userId, color: p.color, username: p.username || undefined }))}
           />
 
           {/* Assign Mode Header Banner */}
@@ -3287,9 +3738,17 @@ const SquareScreen = ({ route }) => {
                 zIndex: 100,
               }}
             >
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
                 <Icon name="person" size={18} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "600", fontFamily: "Sora" }}>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontWeight: "600",
+                    fontFamily: "Sora",
+                  }}
+                >
                   Assigning to: {assignModePlayer.username}
                 </Text>
               </View>
@@ -3306,7 +3765,15 @@ const SquareScreen = ({ route }) => {
                   borderRadius: 6,
                 }}
               >
-                <Text style={{ color: "#fff", fontWeight: "600", fontFamily: "Sora" }}>Done</Text>
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontWeight: "600",
+                    fontFamily: "Sora",
+                  }}
+                >
+                  Done
+                </Text>
               </TouchableOpacity>
             </View>
           )}
@@ -3531,276 +3998,366 @@ const SquareScreen = ({ route }) => {
           </Portal>
 
           {/* Winner Details Modal */}
-          <Portal>
-            <Modal
-              visible={winnerModalVisible}
-              onDismiss={() => setWinnerModalVisible(false)}
-              contentContainerStyle={styles.winnerModalOuter}
+          <RNModal
+            visible={winnerModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setWinnerModalVisible(false)}
+          >
+            <Pressable
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.65)",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+              onPress={() => setWinnerModalVisible(false)}
             >
               {winnerModalData && (
-                <View
-                  style={[
-                    styles.winnerModalContainer,
-                    {
-                      backgroundColor: theme.dark ? "#1a1a2e" : "#fff",
-                    },
-                  ]}
-                >
-                  {/* Close button */}
-                  <TouchableOpacity
-                    onPress={() => setWinnerModalVisible(false)}
-                    style={styles.winnerModalClose}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                <Pressable style={{ width: "78%" }} onPress={() => {}}>
+                  <View
+                    style={{
+                      width: "100%",
+                      borderRadius: 16,
+                      backgroundColor: theme.dark ? "#1a1a2e" : "#ffffff",
+                      elevation: 8,
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 6 },
+                      shadowOpacity: 0.4,
+                      shadowRadius: 16,
+                      overflow: "hidden",
+                    }}
                   >
-                    <Icon
-                      name="close"
-                      size={22}
-                      color={
-                        theme.dark
-                          ? "rgba(255,255,255,0.5)"
-                          : "rgba(0,0,0,0.35)"
-                      }
-                    />
-                  </TouchableOpacity>
-
-                  {winnerModalData.username === "No Winner" ? (
-                    <>
-                      {/* No Winner gradient header */}
-                      <LinearGradient
-                        colors={
-                          theme.dark
-                            ? ["#3d2020", "#1a1a2e"]
-                            : ["#9e9e9e", "#757575"]
-                        }
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.winnerModalHeader}
+                    {/* Header with close button */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        paddingHorizontal: 20,
+                        paddingTop: 20,
+                        paddingBottom: 4,
+                      }}
+                    >
+                      <View style={{ width: 28 }} />
+                      <TouchableOpacity
+                        onPress={() => setWinnerModalVisible(false)}
+                        style={{
+                          padding: 6,
+                        }}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       >
-                        <Text style={styles.winnerModalEmoji}>😔</Text>
-                        <Text style={styles.winnerModalHeaderTitle}>
-                          No Winner
-                        </Text>
-                        <Text style={styles.winnerModalHeaderSub}>
-                          Square ({winnerModalData.squareCoords[0]},{" "}
-                          {winnerModalData.squareCoords[1]}) was unclaimed
-                        </Text>
-                      </LinearGradient>
+                        <Icon
+                          name="close"
+                          size={22}
+                          color={
+                            theme.dark
+                              ? "rgba(255,255,255,0.5)"
+                              : "rgba(0,0,0,0.4)"
+                          }
+                        />
+                      </TouchableOpacity>
+                    </View>
 
-                      <View style={styles.winnerModalBody}>
-                        <View style={styles.winnerModalQuarters}>
-                          {winnerModalData.winningQuarters.map((q, idx) => (
-                            <View
-                              key={idx}
-                              style={[
-                                styles.winnerModalQuarterCard,
-                                {
-                                  backgroundColor: theme.dark
-                                    ? "rgba(255,255,255,0.06)"
-                                    : "rgba(0,0,0,0.03)",
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  styles.winnerModalQuarterLabel,
-                                  {
-                                    color: theme.dark
-                                      ? "rgba(255,255,255,0.5)"
-                                      : "rgba(0,0,0,0.45)",
-                                  },
-                                ]}
-                              >
-                                {q.label}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.winnerModalQuarterScore,
-                                  {
-                                    color: theme.dark ? "#fff" : "#1a1a2e",
-                                  },
-                                ]}
-                              >
-                                {q.score}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
-                    </>
-                  ) : (
-                    <>
-                      {/* Winner gradient header */}
-                      <LinearGradient
-                        colors={
-                          theme.dark
-                            ? ["#2d1b69", "#1a1a2e"]
-                            : ["#FFB800", "#FF8F00"]
-                        }
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.winnerModalHeader}
-                      >
-                        <Text style={styles.winnerModalEmoji}>🏆</Text>
-                        <Text style={styles.winnerModalHeaderTitle}>
-                          Winner!
-                        </Text>
-
-                        {/* Player display */}
-                        <View style={styles.winnerModalPlayerRow}>
-                          {(() => {
-                            const modalWinnerId = Object.keys(
-                              playerUsernames
-                            ).find(
-                              (id) =>
-                                playerUsernames[id]?.trim() ===
-                                winnerModalData.username.trim()
-                            );
-                            const modalPlayer = players.find(
-                              (p) => p.userId === modalWinnerId
-                            );
-                            const mDType =
-                              modalPlayer?.displayType || "color";
-                            const mDValue = modalPlayer?.displayValue;
-                            const mColor = winnerModalData.userColor;
-                            return (
-                              <View
-                                style={[
-                                  styles.winnerModalAvatar,
-                                  {
-                                    backgroundColor:
-                                      mDType === "color"
-                                        ? mColor
-                                        : tinycolor(mColor)
-                                            .setAlpha(0.3)
-                                            .toRgbString(),
-                                    borderColor: "rgba(255,255,255,0.3)",
-                                  },
-                                ]}
-                              >
-                                {mDType === "icon" && mDValue ? (
-                                  isBadgeEmoji(mDValue) ? (
-                                    <Text style={{ fontSize: 16 }}>
-                                      {getBadgeEmoji(mDValue)}
-                                    </Text>
-                                  ) : (
-                                    <Icon
-                                      name={mDValue}
-                                      size={20}
-                                      color={mColor}
-                                    />
-                                  )
-                                ) : mDType === "initial" && mDValue ? (
-                                  <Text
-                                    style={{
-                                      fontSize: 16,
-                                      fontWeight: "700",
-                                      color: mColor,
-                                    }}
-                                  >
-                                    {mDValue.toUpperCase()}
-                                  </Text>
-                                ) : null}
-                              </View>
-                            );
-                          })()}
-                          <View>
-                            <Text style={styles.winnerModalUsername}>
-                              {winnerModalData.username}
-                            </Text>
-                            <Text style={styles.winnerModalSquareLabel}>
-                              Square ({winnerModalData.squareCoords[0]},{" "}
-                              {winnerModalData.squareCoords[1]})
-                            </Text>
-                          </View>
-                        </View>
-                      </LinearGradient>
-
-                      <View style={styles.winnerModalBody}>
-                        <View style={styles.winnerModalQuarters}>
-                          {winnerModalData.winningQuarters.map((q, idx) => (
-                            <View
-                              key={idx}
-                              style={[
-                                styles.winnerModalQuarterCard,
-                                {
-                                  backgroundColor: theme.dark
-                                    ? "rgba(255,255,255,0.06)"
-                                    : "rgba(0,0,0,0.03)",
-                                },
-                              ]}
-                            >
-                              <View
-                                style={styles.winnerModalQuarterRow}
-                              >
-                                <Text
-                                  style={[
-                                    styles.winnerModalQuarterLabel,
-                                    {
-                                      color: theme.dark
-                                        ? "rgba(255,255,255,0.5)"
-                                        : "rgba(0,0,0,0.45)",
-                                    },
-                                  ]}
-                                >
-                                  {q.label}
-                                </Text>
-                                {q.payout > 0 && (
-                                  <Text
-                                    style={styles.winnerModalQuarterPayout}
-                                  >
-                                    +${q.payout.toFixed(2)}
-                                  </Text>
-                                )}
-                              </View>
-                              <Text
-                                style={[
-                                  styles.winnerModalQuarterScore,
-                                  {
-                                    color: theme.dark ? "#fff" : "#1a1a2e",
-                                  },
-                                ]}
-                              >
-                                {q.score}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-
-                        {winnerModalData.totalWinnings > 0 && (
-                          <LinearGradient
-                            colors={
-                              theme.dark
-                                ? ["rgba(76,175,80,0.15)", "rgba(76,175,80,0.05)"]
-                                : ["rgba(76,175,80,0.1)", "rgba(76,175,80,0.03)"]
-                            }
-                            style={styles.winnerModalTotal}
+                    {/* Content */}
+                    <View
+                      style={{
+                        paddingHorizontal: 20,
+                        paddingBottom: 28,
+                        paddingTop: 18,
+                      }}
+                    >
+                      {winnerModalData.currentUserWon ? (
+                        // ✅ WIN STATE
+                        <>
+                          {/* Primary: You Won $X.XX */}
+                          <Text
+                            style={{
+                              fontSize: 28,
+                              fontWeight: "700",
+                              color: theme.dark ? "#E0F2F1" : "#1a1a1a",
+                              marginBottom: 20,
+                            }}
                           >
-                            <Text
-                              style={[
-                                styles.winnerModalTotalLabel,
-                                {
-                                  color: theme.dark
-                                    ? "rgba(255,255,255,0.6)"
-                                    : "rgba(0,0,0,0.5)",
-                                },
-                              ]}
-                            >
-                              Total Winnings
-                            </Text>
-                            <Text style={styles.winnerModalTotalAmount}>
+                            You Won{" "}
+                            <Text style={{ color: "#66BB6A" }}>
                               ${winnerModalData.totalWinnings.toFixed(2)}
                             </Text>
-                          </LinearGradient>
-                        )}
-                      </View>
-                    </>
-                  )}
-                </View>
+                          </Text>
+
+                          {/* Secondary: Quarter and score */}
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "500",
+                              color: theme.dark
+                                ? "rgba(255,255,255,0.8)"
+                                : "rgba(0,0,0,0.75)",
+                              marginBottom: 22,
+                              lineHeight: 21,
+                            }}
+                          >
+                            {winnerModalData.quarterLabel} —{" "}
+                            {winnerModalData.winningQuarters[0]?.score ||
+                              "Score pending"}
+                          </Text>
+
+                          {/* Tertiary: Winning square */}
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "600",
+                              color: theme.dark
+                                ? "rgba(255,255,255,0.75)"
+                                : "rgba(0,0,0,0.75)",
+                              lineHeight: 22,
+                            }}
+                          >
+                            Winning square: ({winnerModalData.squareCoords[0]},{" "}
+                            {winnerModalData.squareCoords[1]})
+                          </Text>
+
+                          {/* Action button */}
+                          <TouchableOpacity
+                            onPress={() => setWinnerModalVisible(false)}
+                            style={{
+                              marginTop: 26,
+                              paddingVertical: 12,
+                              paddingHorizontal: 20,
+                              backgroundColor: "rgba(76,175,80,0.12)",
+                              borderRadius: 10,
+                              borderWidth: 1.5,
+                              borderColor: "rgba(76,175,80,0.3)",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 15,
+                                fontWeight: "600",
+                                color: "#4CAF50",
+                              }}
+                            >
+                              Close
+                            </Text>
+                          </TouchableOpacity>
+                        </>
+                      ) : (
+                        // ❌ LOSS STATE
+                        <>
+                          {/* Primary: No Win */}
+                          <Text
+                            style={{
+                              fontSize: 26,
+                              fontWeight: "700",
+                              color: theme.dark
+                                ? "rgba(255,255,255,0.9)"
+                                : "rgba(0,0,0,0.85)",
+                              marginBottom: 20,
+                            }}
+                          >
+                            Maybe next time
+                          </Text>
+
+                          {/* Secondary: Who won */}
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "500",
+                              color: theme.dark
+                                ? "rgba(255,255,255,0.75)"
+                                : "rgba(0,0,0,0.72)",
+                              marginBottom: 22,
+                              lineHeight: 22,
+                            }}
+                          >
+                            {winnerModalData.username === "No Winner"
+                              ? "Square was unclaimed"
+                              : `${winnerModalData.username} won $${winnerModalData.totalWinnings.toFixed(2)}`}
+                          </Text>
+
+                          {/* Tertiary: Quarter, score, winning square */}
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: theme.dark
+                                ? "rgba(255,255,255,0.5)"
+                                : "rgba(0,0,0,0.5)",
+                              marginBottom: 6,
+                              fontWeight: "600",
+                              letterSpacing: 0.4,
+                            }}
+                          >
+                            {winnerModalData.quarterLabel}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 14,
+                              color: theme.dark
+                                ? "rgba(255,255,255,0.75)"
+                                : "rgba(0,0,0,0.7)",
+                              marginBottom: 14,
+                              lineHeight: 20,
+                            }}
+                          >
+                            {winnerModalData.winningQuarters[0]?.score ||
+                              "Score pending"}
+                          </Text>
+
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              fontWeight: "600",
+                              color: theme.dark
+                                ? "rgba(255,255,255,0.75)"
+                                : "rgba(0,0,0,0.75)",
+                              lineHeight: 22,
+                            }}
+                          >
+                            Winning square: ({winnerModalData.squareCoords[0]},{" "}
+                            {winnerModalData.squareCoords[1]})
+                          </Text>
+
+                          {/* Action button */}
+                          <TouchableOpacity
+                            onPress={() => setWinnerModalVisible(false)}
+                            style={{
+                              marginTop: 26,
+                              paddingVertical: 12,
+                              paddingHorizontal: 20,
+                              backgroundColor: theme.dark
+                                ? "rgba(158,158,158,0.12)"
+                                : "rgba(0,0,0,0.05)",
+                              borderRadius: 10,
+                              borderWidth: 1.5,
+                              borderColor: theme.dark
+                                ? "rgba(158,158,158,0.25)"
+                                : "rgba(0,0,0,0.15)",
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 15,
+                                fontWeight: "600",
+                                color: theme.dark ? "#B0BEC5" : "#616161",
+                              }}
+                            >
+                              Close
+                            </Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </View>
+                  </View>
+                </Pressable>
               )}
-            </Modal>
-          </Portal>
+            </Pressable>
+          </RNModal>
+
+          {/* Re-engagement banner — hidden while any modal is open */}
+          {reengageBannerVisible && nextGame &&
+            !winnerModalVisible &&
+            !showLeaveConfirm &&
+            !showDeleteConfirm &&
+            !sessionOptionsVisible &&
+            !showScoreEntryModal &&
+            !showAddGuestModal &&
+            !showAssignSquareModal &&
+            !showLegendModal && (
+            <Animated.View
+              style={[
+                styles.reengageBanner,
+                {
+                  backgroundColor: theme.dark
+                    ? "rgba(30,30,30,0.82)"
+                    : "rgba(255,255,255,0.82)",
+                  bottom: insets.bottom + 16,
+                  opacity: reengageBannerAnim,
+                  transform: [
+                    {
+                      translateY: reengageBannerAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [40, 0],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              <View style={styles.reengageBannerContent}>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.reengageBannerTitle,
+                      { color: theme.colors.onSurface },
+                    ]}
+                  >
+                    Start another square?
+                  </Text>
+                  <Text
+                    style={[
+                      styles.reengageBannerSub,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {nextGame.awayTeam} @ {nextGame.homeTeam}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={handleReengage}
+                  style={[
+                    styles.reengageButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                >
+                  <Text style={styles.reengageButtonText}>Let's Go</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    Animated.timing(reengageBannerAnim, {
+                      toValue: 0,
+                      duration: 200,
+                      useNativeDriver: true,
+                    }).start(() => setReengageBannerVisible(false));
+                  }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={{ marginLeft: 8 }}
+                >
+                  <Icon
+                    name="close"
+                    size={18}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          )}
+
+          {/* Legend Modal */}
+          <LegendModal
+            visible={showLegendModal}
+            onDismiss={() => setShowLegendModal(false)}
+            players={players}
+            userId={userId}
+            playerUsernames={playerUsernames}
+          />
+
+          {/* Free Square Reward Modal — shown once per milestone via AsyncStorage gate */}
+          <FreeSquareRewardModal
+            visible={quarterWinReward.visible}
+            creditBalance={quarterWinReward.creditBalance}
+            onDismiss={quarterWinReward.dismiss}
+            onUseNow={() => {
+              quarterWinReward.dismiss();
+              console.log("[rewardUI] use_credit_navigation_started");
+              // Navigate to CreateSquareScreen — the primary flow for spending a credit.
+              // The create flow already checks premium status and deducts credits correctly.
+              (navigation as any).navigate("CreateSquareScreen");
+            }}
+          />
         </>
-      )}
     </LinearGradient>
   );
 };
@@ -3850,8 +4407,8 @@ const styles = StyleSheet.create({
   },
   tabIndicator: {
     backgroundColor: "#5e60ce",
-    height: 3,
-    borderRadius: 1.5,
+    height: 4,
+    borderRadius: 2,
   },
   tabLabel: {
     fontSize: 13,
@@ -3863,11 +4420,6 @@ const styles = StyleSheet.create({
   // Cards
   modernCard: {
     borderRadius: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     marginBottom: 16,
     borderLeftWidth: 4,
     borderLeftColor: "#5e60ce",
@@ -3885,11 +4437,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
     borderLeftWidth: 4,
     borderLeftColor: "#5e60ce",
   },
@@ -3916,23 +4463,36 @@ const styles = StyleSheet.create({
   // Grid
   gridCard: {
     borderRadius: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     borderLeftWidth: 4,
     borderLeftColor: "#5e60ce",
   },
   gridHeader: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     marginBottom: 8,
+    position: "relative",
+  },
+  legendButton: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   axisLabel: {
     fontSize: 16,
     fontFamily: "Rubik_600SemiBold",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  gridColumn: {
+    flexDirection: "column",
+    alignItems: "flex-start",
   },
   gridContainer: {
     flexDirection: "row",
@@ -3948,6 +4508,14 @@ const styles = StyleSheet.create({
   gridWrapper: {
     alignItems: "center",
     justifyContent: "center",
+    position: "relative",
+  },
+  gridHintText: {
+    fontSize: 11,
+    fontFamily: "Rubik_500Medium",
+    letterSpacing: 0.2,
+    marginBottom: 6,
+    opacity: 0.7,
   },
   selectedSquare: {
     shadowColor: "#5e60ce",
@@ -4026,11 +4594,42 @@ const styles = StyleSheet.create({
   // Winners Tab
   resultCard: {
     borderRadius: 12,
-    borderWidth: 1,
-    padding: 14,
+    borderWidth: 0.5,
+    padding: 16,
     marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#5e60ce",
+  },
+  resultTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 6,
+  },
+  resultPrimary: {
+    fontSize: 17,
+    fontFamily: "Rubik_600SemiBold",
+    color: "#fff",
+    marginBottom: 0,
+    lineHeight: 22,
+  },
+  resultPayout: {
+    fontSize: 13,
+    fontFamily: "Rubik_500Medium",
+    lineHeight: 18,
+  },
+  resultSecondary: {
+    fontSize: 14,
+    fontFamily: "Rubik_500Medium",
+    color: "rgba(255,255,255,0.78)",
+    marginBottom: 5,
+    lineHeight: 20,
+  },
+  resultTertiary: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+    color: "rgba(255,255,255,0.62)",
+    lineHeight: 16,
+    marginBottom: 0,
   },
   resultHeader: {
     flexDirection: "row",
@@ -4239,6 +4838,47 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: "800",
     color: "#4CAF50",
+  },
+  reengageBanner: {
+    position: "absolute",
+    left: 20,
+    right: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(94, 96, 206, 0.15)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  reengageBannerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  reengageBannerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    fontFamily: "Rubik_600SemiBold",
+    marginBottom: 2,
+  },
+  reengageBannerSub: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+  },
+  reengageButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+  },
+  reengageButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    fontFamily: "Rubik_600SemiBold",
   },
 });
 

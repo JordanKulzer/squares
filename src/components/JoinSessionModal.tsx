@@ -14,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../utils/types";
 import { supabase } from "../lib/supabase";
+import { getInviteCount } from "../lib/gameInvites";
 import { LinearGradient } from "expo-linear-gradient";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 
@@ -23,12 +24,16 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
   const [sessionCode, setSessionCode] = useState("");
   const [loadingSession, setLoadingSession] = useState(false);
   const [error, setError] = useState("");
+  const [inviteCount, setInviteCount] = useState(0);
   const theme = useTheme();
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
+      getInviteCount()
+        .then(setInviteCount)
+        .catch(() => {});
       fadeAnim.setValue(0);
       scaleAnim.setValue(0.9);
       Animated.parallel([
@@ -82,14 +87,17 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
         return;
       }
 
-      const usedColors = data.players?.map((p) => p.color) || [];
+      const playerColors =
+        data.players
+          ?.filter((p: any) => p.userId && p.color)
+          .map((p: any) => ({ userId: p.userId, color: p.color })) || [];
 
       onDismiss();
       navigation.navigate("JoinSquareScreen", {
         gridId: trimmedCode,
         inputTitle: data.title,
         deadline: data.deadline,
-        usedColors,
+        playerColors,
       });
     } catch (err) {
       console.error("Join session error:", err);
@@ -152,6 +160,41 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
 
             {/* Body */}
             <View style={styles.body}>
+              {inviteCount > 0 && (
+                <View
+                  style={[
+                    styles.inviteBanner,
+                    {
+                      backgroundColor: isDark
+                        ? "rgba(108,99,255,0.18)"
+                        : "rgba(108,99,255,0.1)",
+                      borderColor: "rgba(108,99,255,0.35)",
+                    },
+                  ]}
+                >
+                  <MaterialIcons name="mail" size={16} color="#6C63FF" />
+                  <Text
+                    style={[
+                      styles.inviteBannerText,
+                      { color: isDark ? "rgba(255,255,255,0.85)" : "#333" },
+                    ]}
+                  >
+                    You have{" "}
+                    <Text style={{ fontWeight: "700" }}>{inviteCount}</Text>{" "}
+                    pending invite{inviteCount !== 1 ? "s" : ""}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      onDismiss();
+                      navigation.navigate("ProfileScreen" as any);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                  >
+                    <Text style={styles.inviteBannerLink}>View Invites</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <TextInput
                 label="Session Code"
                 mode="outlined"
@@ -206,7 +249,7 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
               </TouchableOpacity>
 
               {/* Invite hint */}
-              <View style={styles.hintRow}>
+              {/* <View style={styles.hintRow}>
                 <MaterialIcons
                   name="mail-outline"
                   size={15}
@@ -233,7 +276,7 @@ const JoinSessionModal = ({ visible, onDismiss }) => {
                 >
                   <Text style={styles.hintLink}>Check your Profile</Text>
                 </TouchableOpacity>
-              </View>
+              </View> */}
             </View>
           </KeyboardAvoidingView>
         </Animated.View>
@@ -294,6 +337,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 24,
+  },
+  inviteBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginBottom: 14,
+  },
+  inviteBannerText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Rubik_400Regular",
+  },
+  inviteBannerLink: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#6C63FF",
+    fontFamily: "Rubik_600SemiBold",
   },
   input: {
     marginBottom: 12,

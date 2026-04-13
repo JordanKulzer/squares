@@ -1,6 +1,22 @@
 export type RootStackParamList = {
   FriendsScreen: undefined;
-  CreateSquareScreen: { isPublic?: boolean } | undefined;
+  CreateSquareScreen: {
+    isPublic?: boolean;
+    isCustomGame?: boolean;
+    team1?: string;
+    team2?: string;
+    team1FullName?: string;
+    team2FullName?: string;
+    team1Abbr?: string;
+    team2Abbr?: string;
+    league?: string;
+    deadline?: string;
+    inputTitle?: string;
+    username?: string;
+    selectedColor?: string | null;
+    maxSelections?: string;
+    eventId?: string;
+  } | undefined;
   InviteFriendsScreen: {
     gridId: string;
     sessionTitle: string;
@@ -10,11 +26,14 @@ export type RootStackParamList = {
         gridId: string;
         inputTitle: string;
         deadline: string;
+        /** @deprecated use playerColors */
         usedColors?: string[];
+        playerColors?: { userId: string; color: string }[];
       }
     | {
         sessionId: string;
         inviteId?: string; // Optional: if coming from invite, mark as accepted after joining
+        fromNotification?: boolean; // true when opened via push notification tap
       };
   SquareScreen: {
     gridId: string;
@@ -26,6 +45,7 @@ export type RootStackParamList = {
     pricePerSquare?: number;
     league?: string;
   };
+  GamePickerScreen: undefined;
   HowToScreen: undefined;
   ProfileScreen: undefined;
   BrowsePublicSquaresScreen: undefined;

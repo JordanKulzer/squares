@@ -53,6 +53,7 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
 }) => {
   const theme = useTheme();
   const translateY = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
 
   const [quarters, setQuarters] = useState<QuarterScore[]>([
     { team1: "", team2: "" },
@@ -68,17 +69,31 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
   useEffect(() => {
     if (visible) {
       setShouldRender(true);
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 250,
-        useNativeDriver: true,
-      }).start(() => {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 600,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
         setShouldRender(false);
       });
     }
@@ -276,7 +291,11 @@ const ScoreEntryModal: React.FC<ScoreEntryModalProps> = ({
         style={[
           styles.container,
           {
-            transform: [{ translateY }],
+            transform: [
+              { translateY },
+              { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+            opacity: openAnim,
             backgroundColor: surfaceColor,
           },
         ]}
@@ -497,7 +516,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   container: {
     position: "absolute",
@@ -516,10 +535,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(94, 96, 206, 0.4)",
     borderLeftColor: "#5E60CE",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 24,
   },
   header: {
     flexDirection: "row",

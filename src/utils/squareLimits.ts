@@ -65,29 +65,70 @@ export async function getAvailableCredits(userId: string): Promise<number> {
   return count ?? 0;
 }
 
+/**
+ * Atomically consume one free square credit via a row-locked RPC.
+ * SKIP LOCKED prevents two concurrent calls from claiming the same credit.
+ *
+ * @returns creditId on success, null if no credit available or on error.
+ */
 export async function consumeCredit(
   userId: string,
-  squareId: string,
-): Promise<boolean> {
-  const { data: creditData } = await supabase
-    .from("square_credits")
-    .select("id")
-    .eq("user_id", userId)
-    .is("used_at", null)
-    .limit(1)
-    .single();
+  squareId: string | null = null,
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc("consume_square_credit", {
+    p_user_id: userId,
+    p_square_id: squareId,
+  });
 
-  if (!creditData) return false;
+  if (error) {
+    console.error("[consumeCredit] RPC error:", error.message);
+    return null;
+  }
 
-  const { error } = await supabase
-    .from("square_credits")
-    .update({
-      used_on_square_id: squareId,
-      used_at: new Date().toISOString(),
-    })
-    .eq("id", creditData.id);
+  const result = data as { status: string; credit_id?: string };
+  if (result.status !== "ok" || !result.credit_id) {
+    console.log(`[consumeCredit] no_credit userId=${userId}`);
+    return null;
+  }
 
-  return !error;
+  console.log(`[freeCredits] free_credit_used userId=${userId} creditId=${result.credit_id}`);
+  return result.credit_id;
+}
+
+/**
+ * Refund a credit whose associated square action failed.
+ * Only succeeds within the 5-minute safety window enforced server-side.
+ */
+export async function refundCredit(
+  creditId: string,
+  userId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("refund_square_credit", {
+    p_credit_id: creditId,
+    p_user_id: userId,
+  });
+  if (error) {
+    console.error("[refundCredit] RPC error:", error.message);
+  } else {
+    console.log(`[freeCredits] free_credit_refunded creditId=${creditId}`);
+  }
+}
+
+/**
+ * Insert one dev-only free square credit for testing.
+ * Only callable in __DEV__ builds.
+ */
+export async function insertDevCredit(userId: string): Promise<boolean> {
+  const { error } = await supabase.from("square_credits").insert({
+    user_id: userId,
+    transaction_id: `dev_${userId}_${Date.now()}`,
+  });
+  if (error) {
+    console.error("[devCredit] Insert error:", error.message);
+    return false;
+  }
+  console.log(`[devCredit] Inserted dev credit for userId=${userId}`);
+  return true;
 }
 
 /**
@@ -204,50 +245,77 @@ export async function awardBadgeIfNew(userId: string, badgeType: string): Promis
   }
 }
 
-const WINS_PER_CREDIT = 4;
-
 /**
- * Record a quarter win for a user. Increments their win count
- * and awards a credit every WINS_PER_CREDIT wins.
- * Only counts if the square has at least 2 players.
+ * Record a quarter win for a user via the idempotent `award_quarter_win` RPC.
+ *
+ * Deduplication is enforced by a UNIQUE (user_id, game_id, quarter) constraint
+ * in the database — duplicate calls for the same quarter are silently ignored.
+ * A free credit is granted automatically every 4 unique wins.
+ *
+ * @param userId      - the winning user's ID
+ * @param gameId      - the square/game ID (gridId from SquareScreen)
+ * @param quarter     - quarter identifier, e.g. "1", "2", "Q1", "OT1"
+ * @param playerCount - min 2 players required for the win to count
+ * @returns { credited, progress, milestoneId, reason }
+ *   credited:    true when a free square credit was granted
+ *   progress:    current 0–3 win progress, or -1 if skipped/ineligible
+ *   milestoneId: unique reward key (use for UI deduplication) — set only when credited
+ *   reason:      set only on ineligible outcomes
  */
 export async function recordQuarterWin(
   userId: string,
+  gameId: string,
+  quarter: string,
   playerCount: number,
-): Promise<void> {
-  if (playerCount < 2) return;
-
-  // Upsert leaderboard_stats: increment quarters_won
-  const { data: existing } = await supabase
-    .from("leaderboard_stats")
-    .select("id, quarters_won")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  let newTotal: number;
-
-  if (existing) {
-    newTotal = (existing.quarters_won || 0) + 1;
-    await supabase
-      .from("leaderboard_stats")
-      .update({ quarters_won: newTotal })
-      .eq("id", existing.id);
-  } else {
-    newTotal = 1;
-    await supabase
-      .from("leaderboard_stats")
-      .insert({ user_id: userId, quarters_won: 1 });
+): Promise<{ credited: boolean; progress: number; milestoneId?: string; reason?: string }> {
+  // Hard client-side floor: saves a round-trip for obvious cases.
+  // The RPC enforces ≥ 3 players server-side; this just avoids the call.
+  if (playerCount < 3) {
+    console.log(`[quarterWin] Skipped client-side: playerCount=${playerCount} < 3`);
+    return { credited: false, progress: -1, reason: "not_enough_players" };
   }
 
-  // Award a credit every WINS_PER_CREDIT wins
-  if (newTotal % WINS_PER_CREDIT === 0) {
-    await supabase
-      .from("square_credits")
-      .insert({ user_id: userId, reason: "quarter_win" });
+  const { data, error } = await supabase.rpc("award_quarter_win", {
+    p_user_id: userId,
+    p_game_id: gameId,
+    p_quarter: quarter,
+  });
+
+  if (error) {
+    console.error("[quarterWin] RPC error:", error.message);
+    throw error;
   }
 
-  // Check and award any new badges
+  const result = data as {
+    status: "recorded" | "rewarded" | "ineligible";
+    credited: boolean;
+    progress?: number;
+    milestone_id?: string;
+    reason?: string;
+    player_count?: number;
+    ownership_pct?: number;
+    fill_pct?: number;
+  };
+
+  if (result.status === "ineligible") {
+    // reason is one of: duplicate_win | not_enough_players |
+    //                   ownership_too_high | low_fill | game_not_found
+    console.log(`[quarterWin] Ineligible user=${userId} game=${gameId} q=${quarter} reason=${result.reason}`);
+    return { credited: false, progress: -1, reason: result.reason };
+  }
+
+  if (result.status === "rewarded") {
+    const milestoneId = result.milestone_id;
+    console.log(`[quarterWin] reward_granted user=${userId} milestone=${milestoneId}`);
+    checkAndAwardBadges(userId).catch(console.error);
+    return { credited: true, progress: 0, milestoneId };
+  }
+
+  // status === "recorded"
+  const progress = result.progress ?? 0;
+  console.log(`[quarterWin] Recorded user=${userId} game=${gameId} q=${quarter} progress=${progress}/4`);
   checkAndAwardBadges(userId).catch(console.error);
+  return { credited: false, progress };
 }
 
 /**

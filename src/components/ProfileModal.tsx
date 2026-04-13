@@ -17,6 +17,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
   const insets = useSafeAreaInsets();
   const slideAnim = useRef(new Animated.Value(800)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
 
   const [username, setUsername] = useState("");
   const [newUsername, setNewUsername] = useState("");
@@ -41,6 +42,11 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
 
   useEffect(() => {
     if (visible) {
+      Animated.timing(openAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 300,
@@ -50,6 +56,11 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
         fetchFirstName();
       });
     } else {
+      Animated.timing(openAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
       Animated.timing(slideAnim, {
         toValue: 600,
         duration: 300,
@@ -211,18 +222,28 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: "rgba(0,0,0,0.4)",
+                backgroundColor: "rgba(0,0,0,0.6)",
               }}
             />
           </TouchableWithoutFeedback>
 
           <Animated.View
             style={{
+              transform: [
+                { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+              ],
+              opacity: openAnim,
+              position: "absolute",
+              bottom: -35,
+              left: 0,
+              right: 0,
+            }}
+          >
+          <Animated.View
+            style={{
               transform: [{ translateY: slideAnim }],
               backgroundColor: surfaceColor,
               width: "100%",
-              position: "absolute",
-              bottom: -35,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               overflow: "visible",
@@ -235,9 +256,9 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
               borderColor: "rgba(94, 96, 206, 0.4)",
               borderLeftColor: theme.colors.primary,
               shadowColor: "#000",
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.2,
-              shadowRadius: 8,
+              shadowOffset: { width: 0, height: -10 },
+              shadowOpacity: 0.4,
+              shadowRadius: 16,
             }}
           >
             <ScrollView showsVerticalScrollIndicator={false}>
@@ -357,6 +378,7 @@ const ProfileModal = ({ visible, onDismiss, userGames, onNameChange }) => {
                 Delete Account
               </Button>
             </ScrollView>
+          </Animated.View>
           </Animated.View>
         </Modal>
       </Portal>

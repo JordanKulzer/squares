@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   View,
   Text,
   StyleSheet,
@@ -19,12 +20,13 @@ import Toast from "react-native-toast-message";
 import { getToastConfig } from "../components/ToastConfig";
 import { LinearGradient } from "expo-linear-gradient";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
-import SkeletonLoader from "../components/SkeletonLoader";
 import PendingInvitesSection from "../components/PendingInvitesSection";
 import { usePremium } from "../contexts/PremiumContext";
 import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
+import { usePremiumGate } from "../hooks/usePremiumGate";
 import UserAvatar from "../components/UserAvatar";
 import ColorPickerModal from "../components/ColorPickerModal";
+import { insertDevCredit } from "../utils/squareLimits";
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -33,16 +35,25 @@ type Props = {
 const ProfileScreen = ({ navigation }: Props) => {
   const theme = useTheme();
   const { isPremium, isDevMode, toggleDevPremium, premiumType } = usePremium();
+  const [devCreditAdding, setDevCreditAdding] = useState(false);
 
   const [username, setUsername] = useState("");
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const premiumGate = usePremiumGate();
   const [email, setEmail] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [totalWinnings, setTotalWinnings] = useState(0);
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const [quartersWon, setQuartersWon] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Group loading flags — true once the group has received its first successful data
+  const [groupALoaded, setGroupALoaded] = useState(false); // avatar + username + top stats
+  const [groupBLoaded, setGroupBLoaded] = useState(false); // quarter-wins progress card
+  const [groupCLoaded, setGroupCLoaded] = useState(false); // activity: invites + friends count
+  // Groups D and E are static nav rows — render immediately, no async needed
+
+  // Prevents re-triggering skeleton on re-focus when data already exists
+  const hasFetchedOnce = useRef(false);
   const [friendsCount, setFriendsCount] = useState(0);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -56,7 +67,10 @@ const ProfileScreen = ({ navigation }: Props) => {
   const [isPrivate, setIsPrivate] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [availableCredits, setAvailableCredits] = useState(0);
-  const [publicQuarterWins, setPublicQuarterWins] = useState(0);
+  const [quarterWinsProgress, setQuarterWinsProgress] = useState(0);
+  // Pulse animation — fired when a recent credit reward is detected on refresh
+  const progressPulseAnim = useRef(new Animated.Value(1)).current;
+  const prevProgressRef = useRef<number | null>(null);
   const [activeBadge, setActiveBadge] = useState<string | null>(null);
   const [profileColor, setProfileColor] = useState<string | null>(null);
   const [profileIcon, setProfileIcon] = useState<string | null>(null);
@@ -90,45 +104,54 @@ const ProfileScreen = ({ navigation }: Props) => {
 
   useFocusEffect(
     useCallback(() => {
-      fetchUserData();
+      if (!hasFetchedOnce.current) {
+        hasFetchedOnce.current = true;
+        fetchUserData(false);
+      } else {
+        console.log("[profile] background refresh");
+        fetchUserData(true);
+      }
     }, []),
   );
 
-  const fetchUserData = async (isRefresh = false) => {
-    if (isRefresh) {
+  const fetchUserData = async (isBackground: boolean) => {
+    if (isBackground) {
       setRefreshing(true);
-    } else {
-      setLoading(true);
     }
+    // Never clear cached data — groups stay rendered during refresh
 
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
-        setLoading(false);
         setRefreshing(false);
         return;
       }
 
       setEmail(user.email || "");
 
-      // Fetch user profile data
-      const { data, error: profileError } = await supabase
-        .from("users")
-        .select(
-          "username, total_winnings, is_private, active_badge, profile_color, profile_icon",
-        )
-        .eq("id", user.id)
-        .maybeSingle();
+      // ── Group A: identity + top stats ──
+      const [profileRes, statsRes] = await Promise.all([
+        supabase
+          .from("users")
+          .select("username, total_winnings, is_private, active_badge, profile_color, profile_icon")
+          .eq("id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("leaderboard_stats")
+          .select("quarters_won, games_played")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
 
-      if (profileError) {
-        throw profileError;
-      }
+      if (profileRes.error) throw profileRes.error;
 
-      const currentUsername = data?.username || "";
+      const data = profileRes.data;
+      const statsData = statsRes.data;
 
       if (data) {
+        const currentUsername = data.username || "";
         setUsername(currentUsername);
         setNewUsername(currentUsername);
         setTotalWinnings(data.total_winnings || 0);
@@ -137,17 +160,61 @@ const ProfileScreen = ({ navigation }: Props) => {
         setProfileColor(data.profile_color || null);
         setProfileIcon(data.profile_icon || null);
       }
-
-      // Fetch persistent stats from leaderboard_stats (survives square deletion)
-      const { data: statsData } = await supabase
-        .from("leaderboard_stats")
-        .select("quarters_won, games_played")
-        .eq("user_id", user.id)
-        .maybeSingle();
       setQuartersWon(statsData?.quarters_won || 0);
       setGamesPlayed(statsData?.games_played || 0);
+      setGroupALoaded(true);
+      console.log("[profile/groupA] ready");
 
-      // Fetch friends count for display (count accepted friendships where user is either party)
+      // ── Group B: progress card (quarter wins + credits) ──
+      const [lbRes, creditRes] = await Promise.all([
+        supabase
+          .from("leaderboard_stats")
+          .select("quarter_wins_progress, last_reward_at")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("square_credits")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .is("used_at", null),
+      ]);
+
+      const newProgress = lbRes.data?.quarter_wins_progress ?? 0;
+      const lastRewardAt = lbRes.data?.last_reward_at ?? null;
+
+      // Pulse the progress card if the server just granted a reward:
+      // progress reset to 0 AND last_reward_at within the past 2 minutes.
+      const isRecentReward =
+        newProgress === 0 &&
+        lastRewardAt != null &&
+        Date.now() - new Date(lastRewardAt).getTime() < 2 * 60 * 1000;
+
+      const wasNonZero = prevProgressRef.current !== null && prevProgressRef.current > 0;
+
+      if (isRecentReward && wasNonZero) {
+        Animated.sequence([
+          Animated.spring(progressPulseAnim, {
+            toValue: 1.04,
+            useNativeDriver: true,
+            speed: 14,
+            bounciness: 10,
+          }),
+          Animated.spring(progressPulseAnim, {
+            toValue: 1,
+            useNativeDriver: true,
+            speed: 14,
+            bounciness: 4,
+          }),
+        ]).start();
+      }
+
+      prevProgressRef.current = newProgress;
+      setQuarterWinsProgress(newProgress);
+      setAvailableCredits(creditRes.count || 0);
+      setGroupBLoaded(true);
+      console.log("[profile/groupB] ready");
+
+      // ── Group C: activity (friends count) ──
       const friendsCountRes = await supabase
         .from("friends")
         .select("id", { count: "exact", head: true })
@@ -156,22 +223,12 @@ const ProfileScreen = ({ navigation }: Props) => {
       if (!friendsCountRes.error) {
         setFriendsCount(friendsCountRes.count || 0);
       }
+      setGroupCLoaded(true);
+      console.log("[profile/groupC] ready");
 
-      // Fetch available credits
-      const { count: creditCount } = await supabase
-        .from("square_credits")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .is("used_at", null);
-      setAvailableCredits(creditCount || 0);
-
-      // Fetch quarter wins from leaderboard_stats
-      const { data: lbData } = await supabase
-        .from("leaderboard_stats")
-        .select("quarters_won")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      setPublicQuarterWins(lbData?.quarters_won || 0);
+      // Groups D + E are static — log immediately
+      console.log("[profile/groupD] ready");
+      console.log("[profile/groupE] ready");
     } catch (err) {
       console.error("Failed to fetch profile data:", err);
       showToast({
@@ -180,7 +237,6 @@ const ProfileScreen = ({ navigation }: Props) => {
         text2: "Pull down to retry",
       });
     } finally {
-      setLoading(false);
       setRefreshing(false);
     }
   };
@@ -389,16 +445,6 @@ const ProfileScreen = ({ navigation }: Props) => {
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as [string, string, ...string[]])
     : (["#fdfcf9", "#e0e7ff"] as [string, string]);
 
-  if (loading) {
-    return (
-      <LinearGradient colors={gradientColors} style={{ flex: 1 }}>
-        <View style={styles.container}>
-          <SkeletonLoader variant="profile" />
-        </View>
-      </LinearGradient>
-    );
-  }
-
   return (
     <LinearGradient colors={gradientColors} style={{ flex: 1 }}>
       <ScrollView
@@ -413,108 +459,98 @@ const ProfileScreen = ({ navigation }: Props) => {
       >
         {/* Avatar Header */}
         <View style={styles.avatarSection}>
-          <View style={{ position: "relative" }}>
-            <UserAvatar
-              username={username}
-              activeBadge={activeBadge}
-              profileIcon={profileIcon}
-              profileColor={profileColor}
-              showRing
-              size={88}
-              backgroundColor={theme.colors.primary}
-            />
-            <TouchableOpacity
-              onPress={() => {
-                setDraftColor(profileColor);
-                setDraftIcon(profileIcon);
-                setShowAvatarEditor(true);
-              }}
-              style={{
-                position: "absolute",
-                bottom: 0,
-                right: 0,
-                width: 26,
-                height: 26,
-                borderRadius: 13,
-                backgroundColor: theme.colors.primary,
-                alignItems: "center",
-                justifyContent: "center",
-                borderWidth: 2,
-                borderColor: theme.dark ? "#1a1a1a" : "#f5f5f5",
-              }}
-            >
-              <MaterialIcons name="edit" size={13} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <TouchableOpacity
-            onPress={() => setEditModalVisible(true)}
-            activeOpacity={0.7}
-            style={styles.usernameRow}
-          >
-            <Text
-              style={[styles.usernameText, { color: theme.colors.onSurface }]}
-            >
-              @{username || "username"}
-            </Text>
-            <MaterialIcons
-              name="edit"
-              size={14}
-              color={theme.colors.onSurfaceVariant}
-            />
-          </TouchableOpacity>
+          {!groupALoaded ? (
+            <>
+              <View style={{
+                width: 88, height: 88, borderRadius: 44,
+                backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0",
+              }} />
+              <View style={{
+                width: 120, height: 16, borderRadius: 6, marginTop: 18,
+                backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0",
+              }} />
+            </>
+          ) : (
+            <>
+              <View style={{ position: "relative" }}>
+                <UserAvatar
+                  username={username}
+                  activeBadge={activeBadge}
+                  profileIcon={profileIcon}
+                  profileColor={profileColor}
+                  showRing
+                  size={88}
+                  backgroundColor={theme.colors.primary}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    setDraftColor(profileColor);
+                    setDraftIcon(profileIcon);
+                    setShowAvatarEditor(true);
+                  }}
+                  style={{
+                    position: "absolute",
+                    bottom: 0,
+                    right: 0,
+                    width: 26,
+                    height: 26,
+                    borderRadius: 13,
+                    backgroundColor: theme.colors.primary,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 2,
+                    borderColor: theme.dark ? "#1a1a1a" : "#f5f5f5",
+                  }}
+                >
+                  <MaterialIcons name="edit" size={13} color="#fff" />
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity
+                onPress={() => setEditModalVisible(true)}
+                activeOpacity={0.7}
+                style={styles.usernameRow}
+              >
+                <Text
+                  style={[styles.usernameText, { color: theme.colors.onSurface }]}
+                >
+                  @{username || "username"}
+                </Text>
+                <MaterialIcons
+                  name="edit"
+                  size={14}
+                  color={theme.colors.onSurfaceVariant}
+                />
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* Stats Cards */}
         <View style={styles.statsRow}>
-          <View
-            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[styles.statValue, { color: theme.colors.primary }]}>
-              {gamesPlayed}
-            </Text>
-            <Text
-              style={[
-                styles.statLabel,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Played
-            </Text>
-          </View>
-          <View
-            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[styles.statValue, { color: theme.colors.primary }]}>
-              {quartersWon}
-            </Text>
-            <Text
-              style={[
-                styles.statLabel,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Won
-            </Text>
-          </View>
-          <View
-            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[styles.statValue, { color: theme.colors.primary }]}>
-              ${totalWinnings.toFixed(2)}
-            </Text>
-            <Text
-              style={[
-                styles.statLabel,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Winnings
-            </Text>
-          </View>
+          {[
+            { value: !groupALoaded ? null : String(gamesPlayed), label: "Played" },
+            { value: !groupALoaded ? null : String(quartersWon), label: "Won" },
+            { value: !groupALoaded ? null : `$${totalWinnings.toFixed(2)}`, label: "Winnings" },
+          ].map(({ value, label }) => (
+            <View key={label} style={[styles.statCard, { backgroundColor: theme.colors.surface }]}>
+              {value === null ? (
+                <View style={{ width: 40, height: 22, borderRadius: 5, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0", marginTop: 4 }} />
+              ) : (
+                <Text style={[styles.statValue, { color: theme.colors.primary }]}>{value}</Text>
+              )}
+              <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}>{label}</Text>
+            </View>
+          ))}
         </View>
 
-        {/* Free Square Credit Progress */}
-        <View
+        {/* Free Square Credit Progress — Group B */}
+        {!groupBLoaded ? (
+          <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: "rgba(94,96,206,0.4)", borderLeftColor: theme.colors.primary, padding: 14 }]}>
+            <View style={{ width: "60%", height: 13, borderRadius: 4, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0", marginBottom: 12 }} />
+            <View style={{ height: 5, borderRadius: 3, backgroundColor: theme.dark ? "#333" : "#e0e0e0" }} />
+          </View>
+        ) : (
+        <Animated.View
           style={[
             styles.card,
             {
@@ -522,6 +558,7 @@ const ProfileScreen = ({ navigation }: Props) => {
               borderColor: "rgba(94, 96, 206, 0.4)",
               borderLeftColor: theme.colors.primary,
               padding: 14,
+              transform: [{ scale: progressPulseAnim }],
             },
           ]}
         >
@@ -546,7 +583,7 @@ const ProfileScreen = ({ navigation }: Props) => {
                 flex: 1,
               }}
             >
-              {publicQuarterWins % 4}/4 quarter wins to free credit
+              {quarterWinsProgress}/4 quarter wins to free credit
             </Text>
             {availableCredits > 0 && (
               <Text
@@ -571,15 +608,72 @@ const ProfileScreen = ({ navigation }: Props) => {
             <View
               style={{
                 height: "100%",
-                width: `${((publicQuarterWins % 4) / 4) * 100}%`,
+                width: `${(quarterWinsProgress / 4) * 100}%`,
                 backgroundColor: theme.colors.primary,
                 borderRadius: 3,
               }}
             />
           </View>
+        </Animated.View>
+        )}
+
+        {/* ─── ACTIVITY ─── Group C */}
+        <Text style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}>
+          Activity
+        </Text>
+        <PendingInvitesSection />
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: "rgba(94, 96, 206, 0.4)",
+              borderLeftColor: theme.colors.primary,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.settingsRow}
+            onPress={() => navigation.navigate("FriendsScreen")}
+          >
+            <View style={styles.settingsLeft}>
+              <MaterialIcons
+                name="people"
+                size={22}
+                color={theme.colors.primary}
+              />
+              <Text
+                style={[styles.settingsText, { color: theme.colors.onSurface }]}
+              >
+                Friends
+              </Text>
+            </View>
+            <View style={styles.settingsRight}>
+              {!groupCLoaded ? (
+                <View style={{ width: 22, height: 14, borderRadius: 4, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0" }} />
+              ) : (
+                <Text
+                  style={[
+                    styles.settingsBadge,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  {friendsCount}
+                </Text>
+              )}
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={theme.colors.onSurfaceVariant}
+              />
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Public Games Quick Links */}
+        {/* ─── ACHIEVEMENTS ─── */}
+        <Text style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}>
+          Achievements
+        </Text>
         <View
           style={[
             styles.card,
@@ -644,10 +738,10 @@ const ProfileScreen = ({ navigation }: Props) => {
           </TouchableOpacity>
         </View>
 
-        {/* Pending Game Invites */}
-        <PendingInvitesSection />
-
-        {/* Settings Card */}
+        {/* ─── ACCOUNT ─── */}
+        <Text style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}>
+          Account
+        </Text>
         <View
           style={[
             styles.card,
@@ -660,47 +754,7 @@ const ProfileScreen = ({ navigation }: Props) => {
         >
           <TouchableOpacity
             style={styles.settingsRow}
-            onPress={() => navigation.navigate("FriendsScreen")}
-          >
-            <View style={styles.settingsLeft}>
-              <MaterialIcons
-                name="people"
-                size={22}
-                color={theme.colors.primary}
-              />
-              <Text
-                style={[styles.settingsText, { color: theme.colors.onSurface }]}
-              >
-                Friends
-              </Text>
-            </View>
-            <View style={styles.settingsRight}>
-              <Text
-                style={[
-                  styles.settingsBadge,
-                  { color: theme.colors.onSurfaceVariant },
-                ]}
-              >
-                {friendsCount}
-              </Text>
-              <MaterialIcons
-                name="chevron-right"
-                size={24}
-                color={theme.colors.onSurfaceVariant}
-              />
-            </View>
-          </TouchableOpacity>
-
-          <View
-            style={[
-              styles.settingsDivider,
-              { backgroundColor: theme.dark ? "#333" : "#eee" },
-            ]}
-          />
-
-          <TouchableOpacity
-            style={styles.settingsRow}
-            onPress={() => !isPremium && setShowPremiumModal(true)}
+            onPress={() => !isPremium && premiumGate.open("premium_row")}
           >
             <View style={styles.settingsLeft}>
               <MaterialIcons
@@ -743,68 +797,6 @@ const ProfileScreen = ({ navigation }: Props) => {
             )}
           </TouchableOpacity>
 
-          {/* Dev Mode Toggle - only visible in development */}
-          {__DEV__ && (
-            <>
-              <View
-                style={[
-                  styles.settingsDivider,
-                  { backgroundColor: theme.dark ? "#333" : "#eee" },
-                ]}
-              />
-              <View style={styles.settingsRow}>
-                <View style={styles.settingsLeft}>
-                  <MaterialIcons name="bug-report" size={22} color="#FF9800" />
-                  <View style={{ marginLeft: 12 }}>
-                    <Text
-                      style={[
-                        styles.settingsText,
-                        { color: theme.colors.onSurface, marginLeft: 0 },
-                      ]}
-                    >
-                      Dev: Premium Mode
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontFamily: "Sora",
-                        color: theme.colors.onSurfaceVariant,
-                        marginTop: 2,
-                      }}
-                    >
-                      Simulate premium for testing
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={toggleDevPremium}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 6,
-                    borderRadius: 16,
-                    minWidth: 50,
-                    alignItems: "center",
-                    backgroundColor: isDevMode
-                      ? "#FF9800"
-                      : theme.dark
-                        ? "#444"
-                        : "#ddd",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      fontWeight: "700",
-                      color: isDevMode ? "#fff" : theme.colors.onSurface,
-                    }}
-                  >
-                    {isDevMode ? "ON" : "OFF"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-
           <View
             style={[
               styles.settingsDivider,
@@ -842,7 +834,6 @@ const ProfileScreen = ({ navigation }: Props) => {
             ]}
           />
 
-          {/* Private Account */}
           <View style={styles.settingsRow}>
             <View style={styles.settingsLeft}>
               <MaterialIcons
@@ -925,37 +916,174 @@ const ProfileScreen = ({ navigation }: Props) => {
           </View>
         </View>
 
-        <Button
-          icon="logout"
-          mode="contained"
-          onPress={handleLogout}
-          style={styles.logoutButton}
-          labelStyle={styles.buttonLabel}
-        >
-          Log Out
-        </Button>
+        {/* ─── SYSTEM (dev only) ─── */}
+        {__DEV__ && (
+          <>
+            <Text style={[styles.sectionLabel, { color: theme.colors.onSurfaceVariant }]}>
+              System
+            </Text>
+            <View
+              style={[
+                styles.card,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: "rgba(255, 152, 0, 0.3)",
+                  borderLeftColor: "#FF9800",
+                },
+              ]}
+            >
+              <View style={styles.settingsRow}>
+                <View style={styles.settingsLeft}>
+                  <MaterialIcons name="bug-report" size={22} color="#FF9800" />
+                  <View style={{ marginLeft: 12 }}>
+                    <Text
+                      style={[
+                        styles.settingsText,
+                        { color: theme.colors.onSurface, marginLeft: 0 },
+                      ]}
+                    >
+                      Dev: Premium Mode
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: "Sora",
+                        color: theme.colors.onSurfaceVariant,
+                        marginTop: 2,
+                      }}
+                    >
+                      Simulate premium for testing
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={toggleDevPremium}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    minWidth: 50,
+                    alignItems: "center",
+                    backgroundColor: isDevMode
+                      ? "#FF9800"
+                      : theme.dark
+                        ? "#444"
+                        : "#ddd",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: isDevMode ? "#fff" : theme.colors.onSurface,
+                    }}
+                  >
+                    {isDevMode ? "ON" : "OFF"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-        <Button
-          icon="delete"
-          mode="outlined"
-          onPress={() => setDeleteModalVisible(true)}
-          textColor={theme.colors.error}
-          style={[
-            styles.deleteButton,
-            {
-              backgroundColor: theme.dark ? theme.colors.error : "#ffe5e5",
-              borderColor: theme.colors.error,
-            },
-          ]}
-          labelStyle={[
-            styles.buttonLabel,
-            {
-              color: theme.dark ? theme.colors.onPrimary : theme.colors.error,
-            },
-          ]}
-        >
-          Delete Account
-        </Button>
+              {/* Dev: Add Free Credit */}
+              <View
+                style={[
+                  styles.settingsRow,
+                  { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: "rgba(255,152,0,0.15)" },
+                ]}
+              >
+                <View style={styles.settingsLeft}>
+                  <MaterialIcons name="card-giftcard" size={22} color="#FF9800" />
+                  <View style={{ marginLeft: 12 }}>
+                    <Text
+                      style={[
+                        styles.settingsText,
+                        { color: theme.colors.onSurface, marginLeft: 0 },
+                      ]}
+                    >
+                      Dev: Add Free Credit
+                    </Text>
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: "Sora",
+                        color: theme.colors.onSurfaceVariant,
+                        marginTop: 2,
+                      }}
+                    >
+                      Current balance: {availableCredits}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  disabled={devCreditAdding}
+                  onPress={async () => {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) return;
+                    setDevCreditAdding(true);
+                    const ok = await insertDevCredit(user.id);
+                    if (ok) {
+                      fetchUserData(true);
+                    }
+                    setDevCreditAdding(false);
+                  }}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 6,
+                    borderRadius: 16,
+                    minWidth: 50,
+                    alignItems: "center",
+                    backgroundColor: devCreditAdding ? "#888" : "#FF9800",
+                    opacity: devCreditAdding ? 0.6 : 1,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      color: "#fff",
+                    }}
+                  >
+                    {devCreditAdding ? "..." : "+1"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* ─── CRITICAL ACTIONS ─── */}
+        <View style={{ marginTop: 8 }}>
+          <Button
+            icon="logout"
+            mode="contained"
+            onPress={handleLogout}
+            style={styles.logoutButton}
+            labelStyle={styles.buttonLabel}
+          >
+            Log Out
+          </Button>
+
+          <Button
+            icon="delete"
+            mode="outlined"
+            onPress={() => setDeleteModalVisible(true)}
+            textColor={theme.colors.error}
+            style={[
+              styles.deleteButton,
+              {
+                backgroundColor: theme.dark ? theme.colors.error : "#ffe5e5",
+                borderColor: theme.colors.error,
+              },
+            ]}
+            labelStyle={[
+              styles.buttonLabel,
+              {
+                color: theme.dark ? theme.colors.onPrimary : theme.colors.error,
+              },
+            ]}
+          >
+            Delete Account
+          </Button>
+        </View>
         <Portal>
           <Modal
             visible={editModalVisible}
@@ -1425,7 +1553,7 @@ const ProfileScreen = ({ navigation }: Props) => {
                   onPress={() => {
                     if (!isPremium) {
                       setShowAvatarEditor(false);
-                      setShowPremiumModal(true);
+                      premiumGate.open("icon");
                       return;
                     }
                     setDraftIcon(draftIcon === item.name ? null : item.name);
@@ -1505,8 +1633,9 @@ const ProfileScreen = ({ navigation }: Props) => {
       </ScrollView>
 
       <PremiumUpgradeModal
-        visible={showPremiumModal}
-        onDismiss={() => setShowPremiumModal(false)}
+        visible={premiumGate.visible}
+        onDismiss={premiumGate.close}
+        source={premiumGate.source ?? undefined}
       />
     </LinearGradient>
   );
@@ -1589,6 +1718,16 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: "SoraBold",
     marginTop: 4,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontFamily: "Rubik_600SemiBold",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 8,
+    marginTop: 4,
+    marginLeft: 4,
+    opacity: 0.5,
   },
   // Settings Card
   card: {

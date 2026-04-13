@@ -31,20 +31,35 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
   const [searching, setSearching] = useState(false);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
   const translateY = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 600,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [visible]);
 
@@ -234,7 +249,11 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
       <Animated.View
         pointerEvents={visible ? "auto" : "none"}
         style={{
-          transform: [{ translateY }],
+          transform: [
+            { translateY },
+            { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+          ],
+          opacity: openAnim,
           backgroundColor: surfaceColor,
           position: "absolute",
           bottom: -35,
@@ -250,10 +269,10 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({ visible, onDismiss }) =
           borderColor: "rgba(94, 96, 206, 0.4)",
           borderLeftColor: theme.colors.primary,
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 8,
-          elevation: 10,
+          shadowOffset: { width: 0, height: -10 },
+          shadowOpacity: 0.4,
+          shadowRadius: 16,
+          elevation: 24,
         }}
       >
         <LinearGradient

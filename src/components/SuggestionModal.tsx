@@ -34,6 +34,7 @@ const SuggestionModal: React.FC<SuggestionModalProps> = ({
 }) => {
   const theme = useTheme();
   const slideAnim = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
   const { height: screenH } = Dimensions.get("window");
 
@@ -47,11 +48,18 @@ const SuggestionModal: React.FC<SuggestionModalProps> = ({
   const scrollBottomPad = FOOTER_H + insets.bottom + 14;
 
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: visible ? 0 : 600,
-      duration: 280,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: visible ? 0 : 600,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.timing(openAnim, {
+        toValue: visible ? 1 : 0,
+        duration: visible ? 250 : 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [visible, slideAnim]);
 
   useEffect(() => {
@@ -149,7 +157,11 @@ const SuggestionModal: React.FC<SuggestionModalProps> = ({
         style={[
           styles.sheet,
           {
-            transform: [{ translateY: slideAnim }],
+            transform: [
+              { translateY: slideAnim },
+              { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+            opacity: openAnim,
             backgroundColor: theme.colors.surface,
             borderTopColor: theme.dark ? "#333" : "#ddd",
             shadowColor: "#000",

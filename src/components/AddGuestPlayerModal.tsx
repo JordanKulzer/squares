@@ -19,9 +19,19 @@ import colors from "../../assets/constants/colorOptions";
 import { iconOptions } from "../../assets/constants/iconOptions";
 import tinycolor from "tinycolor2";
 import { usePremium } from "../contexts/PremiumContext";
+import { usePremiumGate } from "../hooks/usePremiumGate";
+import AnimatedColorDot from "./AnimatedColorDot";
+import AnimatedIconButton from "./AnimatedIconButton";
 import PremiumBadge from "./PremiumBadge";
 import PremiumUpgradeModal from "./PremiumUpgradeModal";
 import ColorPickerModal from "./ColorPickerModal";
+import Toast from "react-native-toast-message";
+import {
+  ColorOwnership,
+  PlayerColorInfo,
+  getColorOwnership,
+  isColorSelectable,
+} from "../utils/colorOwnership";
 
 // Simple unique ID generator (no external dependency)
 const generateGuestId = () =>
@@ -40,7 +50,8 @@ interface AddGuestPlayerModalProps {
     addedBy: string;
   }) => void;
   currentUserId: string;
-  usedColors?: string[];
+  /** Replaces the old string[] usedColors — carries userId so ownership can be classified */
+  playerColors?: PlayerColorInfo[];
 }
 
 const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
@@ -48,11 +59,12 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
   onDismiss,
   onAddPlayer,
   currentUserId,
-  usedColors = [],
+  playerColors = [],
 }) => {
   const theme = useTheme();
   const { isPremium } = usePremium();
   const translateY = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
 
   const [name, setName] = useState("");
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
@@ -60,7 +72,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
     "color",
   );
   const [displayValue, setDisplayValue] = useState("");
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const premiumGate = usePremiumGate();
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
 
@@ -68,17 +80,31 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
   useEffect(() => {
     if (visible) {
       setShouldRender(true);
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 250,
-        useNativeDriver: true,
-      }).start(() => {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 600,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
         setShouldRender(false);
       });
     }
@@ -119,7 +145,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
   const surfaceColor = theme.colors.surface;
   const dividerColor = theme.dark ? "#333" : "#eee";
 
-  if (!shouldRender && !showPremiumModal && !showColorPickerModal) return null;
+  if (!shouldRender && !premiumGate.visible && !showColorPickerModal) return null;
 
   return (
     <>
@@ -141,7 +167,11 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
             style={[
               styles.container,
               {
-                transform: [{ translateY }],
+                transform: [
+                  { translateY },
+                  { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+                ],
+                opacity: openAnim,
                 backgroundColor: surfaceColor,
               },
             ]}
@@ -196,39 +226,50 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                 Color *
               </Text>
               <View style={styles.colorGrid}>
-                {colors.colorOptions.filter((color) => !usedColors.includes(color)).map((color) => (
-                  <TouchableOpacity
-                    key={color}
-                    onPress={() => setSelectedColor(color)}
-                    style={[
-                      styles.colorButton,
-                      {
-                        backgroundColor: color,
-                        borderWidth: selectedColor === color ? 3 : 0,
-                        borderColor: theme.colors.primary,
-                        transform: [
-                          { scale: selectedColor === color ? 1.1 : 1 },
-                        ],
-                      },
-                    ]}
-                  >
-                    {selectedColor === color && (
-                      <MaterialIcons
-                        name="check"
-                        size={18}
-                        color="#fff"
-                        style={styles.checkIcon}
-                      />
-                    )}
-                  </TouchableOpacity>
-                ))}
+                {colors.colorOptions.map((color) => {
+                  // Guests have no userId, so OWNED_BY_USER never fires here.
+                  // Any color claimed by any player is TAKEN_BY_OTHER for a guest.
+                  const ownership = getColorOwnership(
+                    color,
+                    null,
+                    playerColors,
+                    colors.colorOptions,
+                  );
+                  const taken = ownership === ColorOwnership.TAKEN_BY_OTHER;
+                  const owner = taken
+                    ? playerColors.find((p) => p.color === color)
+                    : null;
+                  return (
+                    <AnimatedColorDot
+                      key={color}
+                      color={color}
+                      isSelected={selectedColor === color}
+                      onPress={() => {
+                        if (isColorSelectable(ownership)) setSelectedColor(color);
+                      }}
+                      onPressDisabled={() => {
+                        Toast.show({
+                          type: "info",
+                          text1: `Taken by ${owner?.username || "another player"}`,
+                          position: "bottom",
+                          bottomOffset: 60,
+                          visibilityTime: 2000,
+                        });
+                      }}
+                      size={40}
+                      ringColor={theme.colors.primary}
+                      checkIconSize={18}
+                      disabled={taken}
+                    />
+                  );
+                })}
                 {/* Custom Color Button (Premium) */}
                 <TouchableOpacity
                   onPress={() => {
                     if (isPremium) {
                       setShowColorPickerModal(true);
                     } else {
-                      setShowPremiumModal(true);
+                      premiumGate.open("custom_color");
                     }
                   }}
                   style={[
@@ -266,7 +307,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                       key={type}
                       onPress={() => {
                         if (isLocked) {
-                          setShowPremiumModal(true);
+                          premiumGate.open(type);
                           return;
                         }
                         setDisplayType(type);
@@ -283,7 +324,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                               : theme.dark
                                 ? "#333"
                                 : "#e8e8e8",
-                          opacity: isLocked ? 0.6 : 1,
+                          opacity: isLocked ? 0.4 : 1,
                         },
                       ]}
                     >
@@ -295,6 +336,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                               displayType === type
                                 ? "#fff"
                                 : theme.colors.onBackground,
+                            fontWeight: displayType === type ? "700" : "600",
                           },
                         ]}
                       >
@@ -304,7 +346,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                             ? "Icon"
                             : "Initial"}
                       </Text>
-                      {isLocked && <PremiumBadge size={10} />}
+                      {isLocked && <PremiumBadge size={13} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -315,33 +357,24 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                   {iconOptions.map((icon) => {
                     const isLocked = icon.isPremium && !isPremium;
                     return (
-                      <TouchableOpacity
+                      <AnimatedIconButton
                         key={icon.name}
+                        isSelected={displayValue === icon.name}
                         onPress={() => {
                           if (isLocked) {
-                            setShowPremiumModal(true);
+                            premiumGate.open("icon");
                           } else {
                             setDisplayValue(icon.name);
                           }
                         }}
-                        style={[
-                          styles.iconButton,
-                          {
-                            backgroundColor: selectedColor
-                              ? tinycolor(selectedColor)
-                                  .setAlpha(0.2)
-                                  .toRgbString()
-                              : theme.dark
-                                ? "#333"
-                                : "#e8e8e8",
-                            borderWidth: displayValue === icon.name ? 3 : 0,
-                            borderColor: theme.colors.primary,
-                            transform: [
-                              { scale: displayValue === icon.name ? 1.1 : 1 },
-                            ],
-                            opacity: isLocked ? 0.5 : 1,
-                          },
-                        ]}
+                        size={40}
+                        ringColor={theme.colors.primary}
+                        backgroundColor={
+                          selectedColor
+                            ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                            : theme.dark ? "#333" : "#e8e8e8"
+                        }
+                        containerStyle={isLocked ? { opacity: 0.5 } : undefined}
                       >
                         <MaterialIcons
                           name={icon.name as any}
@@ -349,7 +382,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                           color={selectedColor || theme.colors.onBackground}
                         />
                         {isLocked && <PremiumBadge size={10} />}
-                      </TouchableOpacity>
+                      </AnimatedIconButton>
                     );
                   })}
                 </View>
@@ -361,7 +394,7 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                     mode="outlined"
                     label="Initial (1 letter)"
                     value={displayValue}
-                    onChangeText={(text) => setDisplayValue(text.slice(0, 1))}
+                    onChangeText={(text) => setDisplayValue(text.slice(0, 1).toUpperCase())}
                     maxLength={1}
                     style={[
                       styles.initialInput,
@@ -386,24 +419,19 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
                         borderRadius: 8,
                         justifyContent: "center",
                         alignItems: "center",
-                        backgroundColor: selectedColor
-                          ? tinycolor(selectedColor).setAlpha(0.3).toRgbString()
-                          : theme.dark
-                            ? "#333"
-                            : "#e8e8e8",
-                        borderWidth: 1,
-                        borderColor: theme.dark ? "#555" : "#ccc",
+                        backgroundColor: selectedColor || (theme.dark ? "#444" : "#ccc"),
                       }}
                     >
-                      {selectedColor && displayValue ? (
+                      {displayValue ? (
                         <Text
                           style={{
                             fontSize: 20,
                             fontWeight: "700",
-                            color: selectedColor,
+                            color: "#fff",
+                            textAlign: "center",
                           }}
                         >
-                          {displayValue.toUpperCase()}
+                          {displayValue}
                         </Text>
                       ) : null}
                     </View>
@@ -428,9 +456,10 @@ const AddGuestPlayerModal: React.FC<AddGuestPlayerModalProps> = ({
       )}
 
       <PremiumUpgradeModal
-        visible={showPremiumModal}
-        onDismiss={() => setShowPremiumModal(false)}
+        visible={premiumGate.visible}
+        onDismiss={premiumGate.close}
         feature="premium icons and display styles"
+        source={premiumGate.source ?? undefined}
       />
 
       <ColorPickerModal
@@ -453,7 +482,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   container: {
     position: "absolute",
@@ -472,10 +501,10 @@ const styles = StyleSheet.create({
     borderColor: "rgba(94, 96, 206, 0.4)",
     borderLeftColor: "#5E60CE",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 24,
   },
   header: {
     flexDirection: "row",

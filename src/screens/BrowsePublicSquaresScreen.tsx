@@ -1,11 +1,10 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Text,
   StyleSheet,
   TouchableOpacity,
   View,
   ScrollView,
-  Animated,
   RefreshControl,
 } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
@@ -94,7 +93,7 @@ const BrowsePublicSquaresScreen = () => {
   const theme = useTheme();
 
   const [publicGames, setPublicGames] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [userId, setUserId] = useState<string | null>(null);
@@ -102,8 +101,6 @@ const BrowsePublicSquaresScreen = () => {
   const [sortMenuVisible, setSortMenuVisible] = useState(false);
   const [menuKey, setMenuKey] = useState(0);
 
-  const translateYAnims = useRef<Animated.Value[]>([]).current;
-  const opacityAnims = useRef<Animated.Value[]>([]).current;
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
@@ -129,12 +126,13 @@ const BrowsePublicSquaresScreen = () => {
     const { data, error } = await query;
 
     if (error) {
-      console.error("Error fetching public squares:", error);
+      console.error("[browse] fetch error:", error);
       setPublicGames([]);
       return;
     }
 
-    const squares = data || [];
+    const squares = data ?? [];
+    console.log(`[browse] fetched ${squares.length} public squares`);
 
     // Fetch creator usernames and win counts
     const creatorIds = [...new Set(squares.map((s: any) => s.created_by).filter(Boolean))];
@@ -164,38 +162,16 @@ const BrowsePublicSquaresScreen = () => {
     }));
 
     setPublicGames(games);
-
-    translateYAnims.length = 0;
-    opacityAnims.length = 0;
-
-    games.forEach((_, index) => {
-      translateYAnims[index] = new Animated.Value(30);
-      opacityAnims[index] = new Animated.Value(0);
-    });
-
-    Animated.stagger(
-      80,
-      games.map((_, index) =>
-        Animated.parallel([
-          Animated.timing(translateYAnims[index], {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(opacityAnims[index], {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-        ]),
-      ),
-    ).start();
+    console.log(`[browse] loaded ${games.length} games`);
   };
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchPublicSquares().finally(() => setLoading(false));
+      setDataLoaded(false);
+      fetchPublicSquares().finally(() => {
+        setDataLoaded(true);
+        console.log("[browse] loading finished");
+      });
     }, [selectedFilter]),
   );
 
@@ -404,18 +380,85 @@ const BrowsePublicSquaresScreen = () => {
     </TouchableOpacity>
   );
 
-  const renderGameCard = (item: any, index: number) => (
-    <Animated.View
-      key={item.id}
-      style={{
-        opacity: opacityAnims[index] || new Animated.Value(1),
-        transform: [
-          {
-            translateY: translateYAnims[index] || new Animated.Value(0),
-          },
-        ],
-      }}
-    >
+  const renderContent = () => {
+    if (!dataLoaded) {
+      return <SkeletonLoader variant="browseScreen" />;
+    }
+
+    const hasContent =
+      (display.showFeatured && !!featuredGame) ||
+      display.leagueSections.length > 0 ||
+      display.remaining.length > 0;
+
+    if (!hasContent) {
+      return (
+        <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 32 }}>
+          <MaterialIcons name="grid-off" size={56} color="#888" />
+          <Text style={{ fontSize: 18, fontFamily: "Rubik_600SemiBold", color: "#ccc", marginTop: 16, textAlign: "center" }}>
+            {selectedFilter === "all" ? "No public squares yet" : `No ${selectedFilter} squares available`}
+          </Text>
+          <Text style={{ fontSize: 14, fontFamily: "Rubik_400Regular", color: "#888", marginTop: 8, textAlign: "center" }}>
+            {selectedFilter === "all"
+              ? "Be the first to create a public session!"
+              : "Try a different filter or check back later."}
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <ScrollView
+        style={{ paddingHorizontal: 12 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {display.showFeatured && featuredGame && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: "#ccc" }]}>
+                Square of the Week
+              </Text>
+              <MaterialIcons name="emoji-events" size={20} color="#FFC107" />
+            </View>
+            {renderFeaturedCard(featuredGame)}
+          </View>
+        )}
+
+        {display.leagueSections.map((section) => (
+          <View key={section.league} style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: "#ccc" }]}>
+                {section.league}
+              </Text>
+              <Text
+                style={[styles.seeAll, { color: "#6C63FF" }]}
+                onPress={() => setSelectedFilter(section.league)}
+              >
+                See all
+              </Text>
+            </View>
+            {section.games.map((item) => renderGameCard(item))}
+          </View>
+        ))}
+
+        {display.remaining.length > 0 && (
+          <View style={styles.section}>
+            {selectedFilter !== "all" && (
+              <Text style={[styles.sectionTitle, { color: "#ccc", marginBottom: 10 }]}>
+                {selectedFilter} Games
+              </Text>
+            )}
+            {display.remaining.map((item) => renderGameCard(item))}
+          </View>
+        )}
+      </ScrollView>
+    );
+  };
+
+  const renderGameCard = (item: any) => (
+    <View key={item.id}>
       <TouchableOpacity
         style={[
           styles.gameCard,
@@ -455,7 +498,7 @@ const BrowsePublicSquaresScreen = () => {
           </View>
         )}
       </TouchableOpacity>
-    </Animated.View>
+    </View>
   );
 
   return (
@@ -552,98 +595,9 @@ const BrowsePublicSquaresScreen = () => {
         </View>
 
         {/* Content */}
-        {loading ? (
-          <SkeletonLoader variant="browseScreen" />
-        ) : (
-          <ScrollView
-            style={{ paddingHorizontal: 12 }}
-            contentContainerStyle={{ paddingBottom: 100 }}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
-          >
-            {/* Square of the Week */}
-            {featuredGame && display.showFeatured && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text
-                    style={[
-                      styles.sectionTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Square of the Week
-                  </Text>
-                  <MaterialIcons
-                    name="emoji-events"
-                    size={20}
-                    color="#FFC107"
-                  />
-                </View>
-                {renderFeaturedCard(featuredGame)}
-              </View>
-            )}
-
-            {/* Per-league sections (All Squares view) */}
-            {display.leagueSections.map((section) => (
-              <View key={section.league} style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text
-                    style={[
-                      styles.sectionTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    {section.league}
-                  </Text>
-                  <Text
-                    style={[styles.seeAll, { color: theme.colors.primary }]}
-                    onPress={() => setSelectedFilter(section.league)}
-                  >
-                    See all
-                  </Text>
-                </View>
-                {section.games.map((item) => {
-                  const globalIdx = publicGames.indexOf(item);
-                  return renderGameCard(item, globalIdx);
-                })}
-              </View>
-            ))}
-
-            {/* Remaining games (league filter views) */}
-            {display.remaining.length > 0 && (
-              <View style={styles.section}>
-                {selectedFilter !== "all" && (
-                  <Text
-                    style={[
-                      styles.sectionTitle,
-                      { color: theme.colors.onBackground, marginBottom: 10 },
-                    ]}
-                  >
-                    {selectedFilter} Games
-                  </Text>
-                )}
-                {display.remaining.map((item) => {
-                  const globalIdx = publicGames.indexOf(item);
-                  return renderGameCard(item, globalIdx);
-                })}
-              </View>
-            )}
-
-            {/* Empty state */}
-            {publicGames.length === 0 && (
-              <View style={{ alignItems: "center", paddingTop: 60, paddingHorizontal: 32 }}>
-                <MaterialIcons name="grid-off" size={56} color={theme.colors.onSurfaceVariant} />
-                <Text style={{ fontSize: 18, fontFamily: "Rubik_600SemiBold", color: theme.colors.onBackground, marginTop: 16, textAlign: "center" }}>
-                  No public squares yet
-                </Text>
-                <Text style={{ fontSize: 14, fontFamily: "Rubik_400Regular", color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: "center" }}>
-                  Be the first to create a public session!
-                </Text>
-              </View>
-            )}
-          </ScrollView>
-        )}
+        <View style={{ flex: 1 }}>
+          {renderContent()}
+        </View>
 
         {/* FAB */}
         <TouchableOpacity

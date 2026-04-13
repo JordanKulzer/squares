@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   ActivityIndicator,
@@ -144,6 +144,10 @@ const App: React.FC = () => {
   const [isDarkTheme, setIsDarkTheme] = useState(false);
   const [recoveryMode, setRecoveryMode] = useState(false);
 
+  // Pending invite deep link — set when a game_invite notification is tapped
+  // before auth resolves; fired once the user is confirmed.
+  const pendingInviteGridId = useRef<string | null>(null);
+
   const paperTheme = isDarkTheme ? DarkTheme : LightTheme;
   const navigationTheme = isDarkTheme ? NavigationDarkTheme : DefaultTheme;
   const toastConfig = getToastConfig(isDarkTheme);
@@ -203,6 +207,46 @@ const App: React.FC = () => {
 
     return () => sub.remove();
   }, []);
+
+  // Handle push notification taps (game invites → JoinSquareScreen)
+  useEffect(() => {
+    const extractInviteGridId = (response: Notifications.NotificationResponse): string | null => {
+      const data = response.notification.request.content.data as any;
+      return data?.type === "game_invite" && data?.gridId ? data.gridId : null;
+    };
+
+    // App was running (foreground or background) when notification was tapped
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const gridId = extractInviteGridId(response);
+      if (!gridId) return;
+      pendingInviteGridId.current = gridId;
+    });
+
+    // Cold start — app launched from a tapped notification
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const gridId = extractInviteGridId(response);
+      if (gridId) pendingInviteGridId.current = gridId;
+    }).catch(() => {});
+
+    return () => responseSub.remove();
+  }, []);
+
+  // Once auth resolves and a pending invite exists, navigate to JoinSquareScreen
+  useEffect(() => {
+    if (!user || !pendingInviteGridId.current) return;
+    const gridId = pendingInviteGridId.current;
+    pendingInviteGridId.current = null;
+    // Short delay ensures NavigationContainer is fully mounted
+    setTimeout(() => {
+      if (navigationRef.isReady()) {
+        (navigationRef as any).navigate("JoinSquareScreen", {
+          sessionId: gridId,
+          fromNotification: true,
+        });
+      }
+    }, 300);
+  }, [user]);
 
   useEffect(() => {
     let isCancelled = false;

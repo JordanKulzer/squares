@@ -194,6 +194,19 @@ const PendingInvitesSection: React.FC = () => {
                       From {invite.sender_username || "Someone"} •{" "}
                       {formatTimeAgo(invite.created_at)}
                     </Text>
+                    <Text
+                      style={[
+                        styles.gameMetadata,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {invite.team1 && invite.team2
+                        ? `${invite.team1} vs ${invite.team2}`
+                        : invite.league
+                          ? invite.league.toUpperCase()
+                          : "Custom Game"}
+                    </Text>
                   </View>
 
                   <View style={styles.actionButtons}>
@@ -318,6 +331,12 @@ const styles = StyleSheet.create({
   inviteFrom: {
     fontSize: 13,
     fontFamily: "Rubik_400Regular",
+  },
+  gameMetadata: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+    marginTop: 2,
+    opacity: 0.75,
   },
   actionButtons: {
     flexDirection: "row",

@@ -29,7 +29,13 @@ interface Recipient {
 }
 
 interface PushNotificationRequest {
-  type: "player_joined" | "player_left" | "square_deleted" | "friend_request" | "friend_accepted" | "game_invite";
+  type:
+    | "player_joined"
+    | "player_left"
+    | "square_deleted"
+    | "friend_request"
+    | "friend_accepted"
+    | "game_invite";
   gridId?: string;
   sessionTitle?: string;
   triggerUserId: string;
@@ -101,9 +107,21 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const payload: PushNotificationRequest = await req.json();
-    const { type, gridId, sessionTitle, triggerUserId, triggerUsername, players: providedPlayers } = payload;
+    const {
+      type,
+      gridId,
+      sessionTitle,
+      triggerUserId,
+      triggerUsername,
+      players: providedPlayers,
+    } = payload;
 
-    console.log("Received notification request:", { type, gridId, sessionTitle, triggerUserId });
+    console.log("Received notification request:", {
+      type,
+      gridId,
+      sessionTitle,
+      triggerUserId,
+    });
 
     const messages: ExpoPushMessage[] = [];
 
@@ -117,10 +135,10 @@ Deno.serve(async (req) => {
 
       if (error || !square) {
         console.error("Failed to fetch square:", error);
-        return new Response(
-          JSON.stringify({ error: "Square not found" }),
-          { status: 404, headers: { "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ error: "Square not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       const players: Player[] = square.players || [];
@@ -132,7 +150,7 @@ Deno.serve(async (req) => {
       if (!owner) {
         return new Response(
           JSON.stringify({ error: "Owner not found in players" }),
-          { status: 404, headers: { "Content-Type": "application/json" } }
+          { status: 404, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -182,7 +200,7 @@ Deno.serve(async (req) => {
 
       // Get push tokens for all players who have squareDeleted enabled
       const playersToNotify = players.filter(
-        (p) => p.notifySettings?.squareDeleted && p.userId !== triggerUserId
+        (p) => p.notifySettings?.squareDeleted && p.userId !== triggerUserId,
       );
 
       if (playersToNotify.length > 0) {
@@ -193,9 +211,7 @@ Deno.serve(async (req) => {
           .select("id, push_token")
           .in("id", userIds);
 
-        const tokenMap = new Map(
-          users?.map((u) => [u.id, u.push_token]) || []
-        );
+        const tokenMap = new Map(users?.map((u) => [u.id, u.push_token]) || []);
 
         for (const player of playersToNotify) {
           const pushToken = tokenMap.get(player.userId);
@@ -242,8 +258,8 @@ Deno.serve(async (req) => {
           if (recipient.push_token) {
             messages.push({
               to: recipient.push_token,
-              title: "Game Invite",
-              body: `${triggerUsername} invited you to join "${sessionTitle}"`,
+              title: "Squares Invite",
+              body: `${triggerUsername} invited you to "${sessionTitle}". Join Now.`,
               sound: "default",
               data: { type: "game_invite", gridId, fromUserId: triggerUserId },
             });
@@ -264,15 +280,12 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     console.error("Error processing notification:", error);
-    return new Response(
-      JSON.stringify({ error: String(error) }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      }
-    );
+    return new Response(JSON.stringify({ error: String(error) }), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   }
 });

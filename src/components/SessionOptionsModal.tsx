@@ -60,22 +60,37 @@ const SessionOptionsModal = ({
   const [notifySettings, setNotifySettings] = useState(null);
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const translateY = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
   const [showKickModal, setShowKickModal] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (visible) {
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 600,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [visible]);
 
@@ -133,7 +148,7 @@ const SessionOptionsModal = ({
                 left: 0,
                 right: 0,
                 bottom: 0,
-                backgroundColor: "rgba(0,0,0,0.4)",
+                backgroundColor: "rgba(0,0,0,0.6)",
               }}
             />
           </TouchableWithoutFeedback>
@@ -142,7 +157,11 @@ const SessionOptionsModal = ({
         <Animated.View
           pointerEvents={visible ? "auto" : "none"}
           style={{
-            transform: [{ translateY }],
+            transform: [
+              { translateY },
+              { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+            opacity: openAnim,
             backgroundColor: surfaceColor,
             position: "absolute",
             bottom: -35,
@@ -160,10 +179,10 @@ const SessionOptionsModal = ({
             borderColor: "rgba(94, 96, 206, 0.4)",
             borderLeftColor: theme.colors.primary,
             shadowColor: "#000",
-            shadowOffset: { width: 0, height: -4 },
-            shadowOpacity: 0.2,
-            shadowRadius: 8,
-            elevation: 10,
+            shadowOffset: { width: 0, height: -10 },
+            shadowOpacity: 0.4,
+            shadowRadius: 16,
+            elevation: 24,
           }}
         >
           <ScrollView showsVerticalScrollIndicator={false}>

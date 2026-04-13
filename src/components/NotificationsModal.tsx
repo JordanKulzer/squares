@@ -34,6 +34,7 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const originalSettings = useRef<NotificationSettings | null>(null);
   const slideAnim = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (settings) {
@@ -49,11 +50,18 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
   }, [settings]);
 
   useEffect(() => {
-    Animated.timing(slideAnim, {
-      toValue: visible ? 0 : 600,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(slideAnim, {
+        toValue: visible ? 0 : 600,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(openAnim, {
+        toValue: visible ? 1 : 0,
+        duration: visible ? 250 : 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, [visible]);
 
   useEffect(() => {
@@ -105,7 +113,11 @@ const NotificationSettingsModal: React.FC<NotificationSettingsModalProps> = ({
         style={[
           styles.sheet,
           {
-            transform: [{ translateY: slideAnim }],
+            transform: [
+              { translateY: slideAnim },
+              { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+            opacity: openAnim,
             backgroundColor: surfaceColor,
             shadowColor: theme.colors.backdrop,
             borderLeftColor: theme.colors.primary,
@@ -220,7 +232,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   sheet: {
     position: "absolute",
@@ -233,7 +245,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 75,
-    elevation: 10,
+    elevation: 24,
     borderTopWidth: 1.5,
     borderLeftWidth: 5,
     borderRightWidth: 1.5,
@@ -241,9 +253,9 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(94, 96, 206, 0.4)",
     borderRightColor: "rgba(94, 96, 206, 0.4)",
     shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowOffset: { width: 0, height: -4 },
-    shadowRadius: 6,
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: -10 },
+    shadowRadius: 16,
   },
 
   title: {

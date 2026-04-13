@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
@@ -53,6 +53,66 @@ const gameStartLabel: Record<string, string> = {
   NBA: "Tip-off",
   NCAAB: "Tip-off",
 };
+// ---------- game grouping helpers ----------
+
+const IN_PROGRESS_STATUSES = new Set([
+  "inprogress", "in progress", "live", "ip",
+  "1st quarter", "2nd quarter", "3rd quarter", "4th quarter",
+  "1st half", "2nd half", "halftime", "overtime", "ot",
+  "1st period", "2nd period", "3rd period",
+]);
+
+const isGameInProgress = (status: string): boolean => {
+  if (!status) return false;
+  const s = status.toLowerCase().trim();
+  if (IN_PROGRESS_STATUSES.has(s)) return true;
+  return s.includes("progress") || s.includes("live") || s.includes("quarter") ||
+    s.includes("period") || s.includes("halftime");
+};
+
+const isGameUpcoming = (status: string): boolean => {
+  if (!status) return true;
+  const s = status.toLowerCase().trim();
+  return s === "scheduled" || s === "pre" || s === "preview" ||
+    s === "not started" || s === "ns" || s.includes("sched") || s.includes("upcoming");
+};
+
+type GameSection = { title: string; sectionKey: string; data: any[] };
+
+const groupGames = (games: any[]): GameSection[] => {
+  const inProgress: any[] = [];
+  const upcoming: any[] = [];
+
+  for (const game of games) {
+    if (isGameInProgress(game.status)) {
+      inProgress.push(game);
+    } else if (isGameUpcoming(game.status)) {
+      upcoming.push(game);
+    }
+    // Completed/final games are intentionally omitted
+  }
+
+  // Sort upcoming chronologically
+  upcoming.sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+
+  const startingSoon = upcoming.slice(0, 3);
+  const rest = upcoming.slice(3);
+
+  const sections: GameSection[] = [];
+  if (inProgress.length > 0)
+    sections.push({ title: "🏁 In Progress", sectionKey: "inProgress", data: inProgress });
+  if (startingSoon.length > 0)
+    sections.push({ title: "🔥 Starting Soon", sectionKey: "startingSoon", data: startingSoon });
+  if (rest.length > 0)
+    sections.push({ title: "📅 Upcoming", sectionKey: "upcoming", data: rest });
+
+  return sections;
+};
+
+// -------------------------------------------
+
 const AnimatedChipBase = Animated.createAnimatedComponent(Chip);
 
 type RootStackParamList = {
@@ -602,76 +662,104 @@ const GamePickerScreen = () => {
               </Text>
             ) : (
               <View style={{ flex: 1 }}>
-                <FlatList
-                  data={games}
+                <SectionList
+                  sections={groupGames(games)}
                   keyExtractor={(item, index) =>
                     item?.id?.toString() || `${index}`
                   }
                   contentContainerStyle={{ paddingBottom: 20 }}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
+                  stickySectionHeadersEnabled={false}
+                  renderSectionHeader={({ section }) => (
+                    <Text
                       style={[
-                        dialogCardStyle,
-                        { backgroundColor: theme.colors.surface },
+                        styles.sectionHeader,
+                        { color: theme.colors.onSurfaceVariant },
                       ]}
-                      onPress={() => handleSelectGame(item)}
                     >
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
+                      {section.title}
+                    </Text>
+                  )}
+                  renderItem={({ item, section }) => {
+                    const disabled = section.sectionKey === "inProgress";
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          dialogCardStyle,
+                          { backgroundColor: theme.colors.surface },
+                          disabled && styles.cardDisabled,
+                        ]}
+                        onPress={() => !disabled && handleSelectGame(item)}
+                        activeOpacity={disabled ? 1 : 0.7}
                       >
-                        <View style={{ flex: 1, paddingRight: 8 }}>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              marginBottom: 6,
-                            }}
-                          >
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                alignItems: "center",
+                                marginBottom: 6,
+                                gap: 8,
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.gameText,
+                                  {
+                                    color: disabled
+                                      ? theme.colors.onSurfaceVariant
+                                      : theme.colors.onSurface,
+                                    flexShrink: 1,
+                                  },
+                                ]}
+                                numberOfLines={1}
+                                ellipsizeMode="tail"
+                              >
+                                {`${item.awayTeam} @ ${item.homeTeam}`}
+                              </Text>
+                              {disabled && (
+                                <View style={styles.liveBadge}>
+                                  <Text style={styles.liveBadgeText}>LIVE</Text>
+                                </View>
+                              )}
+                            </View>
+
                             <Text
                               style={[
-                                styles.gameText,
-                                {
-                                  color: theme.colors.onSurface,
-                                  flexShrink: 1,
-                                },
+                                styles.dateText,
+                                { color: theme.colors.onSurfaceVariant },
                               ]}
-                              numberOfLines={1}
-                              ellipsizeMode="tail"
                             >
-                              {`${item.awayTeam} @ ${item.homeTeam}`}
+                              {gameStartLabel[gameType] ?? "Kickoff"}: {formatKickoff(item.date)}
                             </Text>
+                            {!disabled && (
+                              <Text
+                                style={[
+                                  styles.statusText,
+                                  { color: theme.colors.onSurfaceVariant },
+                                ]}
+                              >
+                                {item.status}
+                              </Text>
+                            )}
                           </View>
 
-                          <Text
-                            style={[
-                              styles.dateText,
-                              { color: theme.colors.onSurfaceVariant },
-                            ]}
-                          >
-                            {gameStartLabel[gameType] ?? "Kickoff"}: {formatKickoff(item.date)}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.statusText,
-                              { color: theme.colors.onSurfaceVariant },
-                            ]}
-                          >
-                            Status: {item.status}
-                          </Text>
+                          {!disabled && (
+                            <MaterialIcons
+                              name="chevron-right"
+                              size={24}
+                              color={theme.colors.onSurfaceVariant}
+                            />
+                          )}
                         </View>
-
-                        <MaterialIcons
-                          name="chevron-right"
-                          size={24}
-                          color={theme.colors.onSurfaceVariant}
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  )}
+                      </TouchableOpacity>
+                    );
+                  }}
                 />
               </View>
             )
@@ -843,6 +931,33 @@ const styles = StyleSheet.create({
   weekText: {
     marginVertical: 20,
     fontFamily: "Sora",
+  },
+  sectionHeader: {
+    fontSize: 13,
+    fontWeight: "700",
+    fontFamily: "Sora",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 6,
+    opacity: 0.65,
+  },
+  cardDisabled: {
+    opacity: 0.55,
+  },
+  liveBadge: {
+    backgroundColor: "#e53935",
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  liveBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+    fontFamily: "Sora",
+    letterSpacing: 0.5,
   },
 });
 

@@ -41,6 +41,7 @@ const AssignSquareModal: React.FC<AssignSquareModalProps> = ({
 }) => {
   const theme = useTheme();
   const translateY = useRef(new Animated.Value(600)).current;
+  const openAnim = useRef(new Animated.Value(0)).current;
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [shouldRender, setShouldRender] = useState(false);
 
@@ -48,17 +49,31 @@ const AssignSquareModal: React.FC<AssignSquareModalProps> = ({
   useEffect(() => {
     if (visible) {
       setShouldRender(true);
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(translateY, {
-        toValue: 600,
-        duration: 250,
-        useNativeDriver: true,
-      }).start(() => {
+      Animated.parallel([
+        Animated.timing(translateY, {
+          toValue: 600,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(openAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
         setShouldRender(false);
       });
     }
@@ -96,7 +111,11 @@ const AssignSquareModal: React.FC<AssignSquareModalProps> = ({
         style={[
           styles.container,
           {
-            transform: [{ translateY }],
+            transform: [
+              { translateY },
+              { scale: openAnim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+            ],
+            opacity: openAnim,
             backgroundColor: surfaceColor,
           },
         ]}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import colors from "../../assets/constants/colorOptions";
@@ -16,7 +17,7 @@ import {
 import tinycolor from "tinycolor2";
 import Icon from "react-native-vector-icons/Ionicons";
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
-import { RouteProp, useRoute } from "@react-navigation/native";
+import { RouteProp, useFocusEffect, useRoute } from "@react-navigation/native";
 import { TextInput as PaperInput, useTheme, Button } from "react-native-paper";
 import { LinearGradient } from "expo-linear-gradient";
 import DeadlinePickerModal from "../components/DeadlinePickerModal";
@@ -33,16 +34,26 @@ import {
 import { usePremium } from "../contexts/PremiumContext";
 import { adService } from "../services/adService";
 import PremiumUpgradeModal from "../components/PremiumUpgradeModal";
+import { usePremiumGate } from "../hooks/usePremiumGate";
+import AnimatedColorDot from "../components/AnimatedColorDot";
+import AnimatedIconButton from "../components/AnimatedIconButton";
 import PremiumBadge from "../components/PremiumBadge";
 import ColorPickerModal from "../components/ColorPickerModal";
 import {
   getActiveSquareCount,
   getAvailableCredits,
   consumeCredit,
+  refundCredit,
   recordGameJoin,
   awardBadgeIfNew,
   FREE_MAX_ACTIVE,
 } from "../utils/squareLimits";
+import {
+  ColorOwnership,
+  getColorOwnership,
+  isColorSelectable,
+} from "../utils/colorOwnership";
+import { useFreeCredits } from "../hooks/useFreeCredits";
 
 type CreateSquareRouteParams = {
   CreateSquareScreen: {
@@ -93,6 +104,7 @@ const CreateSquareScreen = ({ navigation }) => {
   const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [perSquareModalVisible, setPerSquareModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [displayType, setDisplayType] = useState<"color" | "icon" | "initial">(
     "color",
   );
@@ -105,12 +117,40 @@ const CreateSquareScreen = ({ navigation }) => {
     squareDeleted: false,
   });
 
+  // Advanced section collapsed state — collapsed by default to reduce noise
+  const [advancedExpanded, setAdvancedExpanded] = useState(false);
+
   // Premium and ad state
   const { isPremium } = usePremium();
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const premiumGate = usePremiumGate();
   const [showColorPickerModal, setShowColorPickerModal] = useState(false);
   const [adLoading, setAdLoading] = useState(false);
   const [hasWatchedAd, setHasWatchedAd] = useState(false);
+
+  // Free square credits
+  const freeCredits = useFreeCredits();
+  const userIdRef = useRef<string | null>(null);
+
+  // Field-level validation errors (shown inline, cleared on change)
+  const [titleError, setTitleError] = useState(false);
+  const [gameError, setGameError] = useState(false);
+  const [colorError, setColorError] = useState(false);
+
+  // Shake animation values for each required section
+  const titleShakeAnim = useRef(new Animated.Value(0)).current;
+  const gameShakeAnim = useRef(new Animated.Value(0)).current;
+  const colorShakeAnim = useRef(new Animated.Value(0)).current;
+
+  const runShake = (anim: Animated.Value) => {
+    anim.setValue(0);
+    Animated.sequence([
+      Animated.timing(anim, { toValue: 7, duration: 55, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: -7, duration: 55, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 5, duration: 50, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: -5, duration: 50, useNativeDriver: true }),
+      Animated.timing(anim, { toValue: 0, duration: 45, useNativeDriver: true }),
+    ]).start();
+  };
 
   const [fontsLoaded] = useFonts({
     Anton_400Regular,
@@ -125,7 +165,7 @@ const CreateSquareScreen = ({ navigation }) => {
 
   useEffect(() => {
     const params = route.params || {};
-    if (params.team1) setTeam1(params.team1);
+    if (params.team1) { setTeam1(params.team1); setGameError(false); }
     if (params.team2) setTeam2(params.team2);
     if (params.team1FullName) setTeam1FullName(params.team1FullName);
     if (params.team2FullName) setTeam2FullName(params.team2FullName);
@@ -136,26 +176,25 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.isPublic) setIsPublic(params.isPublic);
     if (params.deadline) setDeadline(new Date(params.deadline));
     if (params.inputTitle) setInputTitle(params.inputTitle);
-    // Fetch username, active badge, and earned badges from users table
     const fetchUserData = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
+        userIdRef.current = user.id;
+        freeCredits.fetch(user.id);
         const { data: profile } = await supabase
           .from("users")
           .select("username, active_badge")
           .eq("id", user.id)
           .single();
         if (profile?.username) setUsername(profile.username);
-        // Auto-default to active badge emoji if set
         if (profile?.active_badge && BADGE_EMOJI_MAP[profile.active_badge]) {
           setDisplayType("icon");
           setDisplayValue(
             `emoji:${BADGE_EMOJI_MAP[profile.active_badge].emoji}`,
           );
         }
-        // Fetch earned badges for icon picker
         const { data: badgeData } = await supabase
           .from("badges")
           .select("badge_type")
@@ -165,8 +204,12 @@ const CreateSquareScreen = ({ navigation }) => {
         }
       }
     };
-    if (!params.username) fetchUserData();
-    else setUsername(params.username);
+    if (!params.username) {
+      fetchUserData().finally(() => setDataLoading(false));
+    } else {
+      setUsername(params.username);
+      setDataLoading(false);
+    }
     setMaxSelections(
       params.maxSelections !== undefined ? String(params.maxSelections) : "100",
     );
@@ -175,13 +218,21 @@ const CreateSquareScreen = ({ navigation }) => {
     if (params.pricePerSquare) setPricePerSquare(params.pricePerSquare);
   }, [route.params]);
 
-  // Preload rewarded ad when screen mounts (if not premium)
   useEffect(() => {
     if (!isPremium) {
       adService.loadRewardedAd().catch(console.error);
       adService.loadInterstitialAd().catch(console.error);
     }
   }, [isPremium]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userIdRef.current) {
+        freeCredits.fetch(userIdRef.current);
+        console.log("[freeCredits] free_credit_balance_refreshed screen=CreateSquareScreen");
+      }
+    }, []),
+  );
 
   const generateShuffledArray = () => {
     const arr = [...Array(10).keys()];
@@ -193,26 +244,23 @@ const CreateSquareScreen = ({ navigation }) => {
   };
 
   const createSquareSession = async () => {
-    if (!inputTitle.trim()) {
-      Alert.alert("Missing Info", "Please enter a game title");
+    // Validate all required fields, collect errors, shake all invalid sections at once
+    const missingTitle = !inputTitle.trim();
+    const missingGame = isCustomGame ? (!team1 || !team2) : !team1;
+    const missingColor = !selectedColor;
+
+    if (missingTitle || missingGame || missingColor) {
+      if (missingTitle) { setTitleError(true); runShake(titleShakeAnim); }
+      if (missingGame) { setGameError(true); runShake(gameShakeAnim); }
+      if (missingColor) { setColorError(true); runShake(colorShakeAnim); }
       return;
     }
+
     if (!username.trim()) {
       Alert.alert(
         "Missing Info",
         "Could not load your username. Please try again.",
       );
-      return;
-    }
-    if (!team1 || !team2) {
-      Alert.alert(
-        "Missing Info",
-        isCustomGame ? "Please enter both team names" : "Please select a game",
-      );
-      return;
-    }
-    if (!selectedColor) {
-      Alert.alert("Missing Info", "Please choose your color");
       return;
     }
     if (displayType === "initial" && !displayValue.trim()) {
@@ -224,7 +272,6 @@ const CreateSquareScreen = ({ navigation }) => {
       return;
     }
 
-    // Gate with rewarded ad if not premium and hasn't watched ad
     if (!isPremium && !hasWatchedAd) {
       setAdLoading(true);
       try {
@@ -236,11 +283,10 @@ const CreateSquareScreen = ({ navigation }) => {
           setHasWatchedAd(true);
         } else {
           setAdLoading(false);
-          return; // User closed ad without watching
+          return;
         }
       } catch (err) {
         console.error("Ad error:", err);
-        // Allow creation if ad fails (graceful degradation)
         setHasWatchedAd(true);
       }
       setAdLoading(false);
@@ -256,17 +302,40 @@ const CreateSquareScreen = ({ navigation }) => {
       return;
     }
 
-    // Check active square limit for free users
-    let needsCredit = false;
+    let consumedCreditId: string | null = null;
     if (!isPremium) {
       const activeCount = await getActiveSquareCount(user.id);
       if (activeCount >= FREE_MAX_ACTIVE) {
         const credits = await getAvailableCredits(user.id);
         if (credits > 0) {
-          needsCredit = true;
+          console.log(`[freeCredits] free_credit_prompt_shown screen=CreateSquareScreen balance=${credits}`);
+          const confirmed = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              "Use Free Square Credit?",
+              `You have ${credits} free credit${credits !== 1 ? "s" : ""}. 1 will be used to create this game.`,
+              [
+                { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+                { text: "Use Credit", onPress: () => resolve(true) },
+              ],
+            );
+          });
+          if (!confirmed) {
+            setLoading(false);
+            return;
+          }
+          consumedCreditId = await consumeCredit(user.id);
+          if (!consumedCreditId) {
+            setLoading(false);
+            freeCredits.fetch(user.id);
+            Alert.alert(
+              "Credit Unavailable",
+              "Your free credit could not be applied. It may have already been used. Please try again or upgrade to Premium.",
+            );
+            return;
+          }
         } else {
           setLoading(false);
-          setShowPremiumModal(true);
+          premiumGate.open("square_limit");
           return;
         }
       }
@@ -323,16 +392,20 @@ const CreateSquareScreen = ({ navigation }) => {
         .select("id")
         .single();
 
-      if (error) {
+      if (error || !data) {
+        if (consumedCreditId) {
+          await refundCredit(consumedCreditId, user.id);
+          freeCredits.fetch(user.id);
+        }
         console.error("Error inserting into Supabase:", error);
         Alert.alert("Error", "Failed to create game. Please try again.");
         setLoading(false);
         return;
       }
 
-      // Consume credit if needed, and record the game join
-      if (needsCredit) {
-        await consumeCredit(user.id, data.id);
+      if (consumedCreditId) {
+        console.log(`[freeCredits] free_credit_used screen=CreateSquareScreen squareId=${data.id}`);
+        freeCredits.fetch(user.id);
       }
       recordGameJoin(user.id).catch(console.error);
       awardBadgeIfNew(user.id, "first_public_create").catch(console.error);
@@ -341,13 +414,11 @@ const CreateSquareScreen = ({ navigation }) => {
         await scheduleNotifications(deadline, data.id, notifySettings);
       }
 
-      // Show interstitial (non-blocking fallback) for non-premium users
       if (!isPremium) {
         try {
           if (!adService.isInterstitialReady()) {
             await adService.loadInterstitialAd();
           }
-          // showInterstitialAd returns true if shown (or resolves true in Expo Go)
           await adService.showInterstitialAd();
         } catch (e) {
           console.warn("Interstitial ad error", e);
@@ -375,7 +446,16 @@ const CreateSquareScreen = ({ navigation }) => {
     }
   };
 
-  const isFormValid = inputTitle.trim() && team1 && team2 && selectedColor;
+  // Build advanced settings summary for collapsed state
+  const advancedParts: string[] = [];
+  if (hideAxisUntilDeadline) advancedParts.push("Numbers hidden");
+  if (randomizeAxis) advancedParts.push("Randomized");
+  if (blockMode) advancedParts.push("Block mode");
+  const activeNotifCount = Object.values(notifySettings).filter(Boolean).length;
+  if (activeNotifCount > 0) advancedParts.push(`${activeNotifCount} alert${activeNotifCount !== 1 ? "s" : ""}`);
+  const advancedSummary = advancedParts.length > 0
+    ? advancedParts.join(" · ")
+    : "All defaults";
 
   return (
     <LinearGradient
@@ -395,7 +475,7 @@ const CreateSquareScreen = ({ navigation }) => {
           <View style={styles.header}>
             <MaterialIcons
               name="add-box"
-              size={48}
+              size={44}
               color={theme.colors.primary}
             />
             <Text
@@ -403,49 +483,49 @@ const CreateSquareScreen = ({ navigation }) => {
             >
               Create Your Square
             </Text>
-            <Text
-              style={[
-                styles.headerSubtitle,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              Customize your square's settings
-            </Text>
           </View>
 
-          {/* Game Title */}
-          <View style={styles.section}>
+          {/* ── 1. Game Title ─────────────────────────────────────── */}
+          <Animated.View
+            style={[styles.section, { transform: [{ translateX: titleShakeAnim }] }]}
+          >
             <Text style={[styles.label, { color: theme.colors.onBackground }]}>
               Game Title *
             </Text>
             <PaperInput
               mode="outlined"
               value={inputTitle}
-              onChangeText={setInputTitle}
-              placeholder="e.g., Super Bowl 2026, Office Pool, etc."
+              onChangeText={(text) => {
+                setInputTitle(text);
+                if (titleError) setTitleError(false);
+              }}
+              placeholder="e.g., Super Bowl 2026, Office Pool…"
               style={[styles.input, { backgroundColor: theme.colors.surface }]}
               maxLength={50}
+              error={titleError}
             />
-            <Text
-              style={[
-                styles.helperText,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              {inputTitle.length}/50 characters
-            </Text>
-          </View>
+            {titleError ? (
+              <Text style={styles.fieldError}>Please enter a game title</Text>
+            ) : (
+              <Text style={[styles.helperText, { color: theme.colors.onSurfaceVariant }]}>
+                {inputTitle.length}/50
+              </Text>
+            )}
+          </Animated.View>
 
-          {/* Game Type Selection */}
-          <View style={styles.section}>
+          {/* ── 2. Game Selection ─────────────────────────────────── */}
+          <Animated.View
+            style={[styles.section, { transform: [{ translateX: gameShakeAnim }] }]}
+          >
             <Text style={[styles.label, { color: theme.colors.onBackground }]}>
-              Game Type *
+              Game *
             </Text>
+
+            {/* Game type toggle */}
             <View style={styles.gameTypeRow}>
               <TouchableOpacity
                 onPress={() => {
                   setIsCustomGame(false);
-                  // Clear custom team names when switching to API
                   if (isCustomGame) {
                     setTeam1("");
                     setTeam2("");
@@ -458,32 +538,28 @@ const CreateSquareScreen = ({ navigation }) => {
                   {
                     backgroundColor: !isCustomGame
                       ? theme.colors.primary
-                      : theme.dark
-                        ? "#333"
-                        : "#e8e8e8",
+                      : theme.dark ? "#333" : "#e8e8e8",
                   },
                 ]}
               >
                 <MaterialIcons
                   name="event"
-                  size={18}
+                  size={16}
                   color={!isCustomGame ? "#fff" : theme.colors.onBackground}
                 />
                 <Text
                   style={[
                     styles.gameTypeText,
-                    {
-                      color: !isCustomGame ? "#fff" : theme.colors.onBackground,
-                    },
+                    { color: !isCustomGame ? "#fff" : theme.colors.onBackground },
                   ]}
                 >
-                  Scheduled Game
+                  Scheduled
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
                   setIsCustomGame(true);
-                  setEventId(""); // Clear API event ID
+                  setEventId("");
                   setLeague("");
                 }}
                 style={[
@@ -491,35 +567,31 @@ const CreateSquareScreen = ({ navigation }) => {
                   {
                     backgroundColor: isCustomGame
                       ? theme.colors.primary
-                      : theme.dark
-                        ? "#333"
-                        : "#e8e8e8",
+                      : theme.dark ? "#333" : "#e8e8e8",
                   },
                 ]}
               >
                 <MaterialIcons
                   name="edit"
-                  size={18}
+                  size={16}
                   color={isCustomGame ? "#fff" : theme.colors.onBackground}
                 />
                 <Text
                   style={[
                     styles.gameTypeText,
-                    {
-                      color: isCustomGame ? "#fff" : theme.colors.onBackground,
-                    },
+                    { color: isCustomGame ? "#fff" : theme.colors.onBackground },
                   ]}
                 >
-                  Custom Game
+                  Custom
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* Scheduled Game Picker */}
+            {/* Scheduled game picker / selected matchup card */}
             {!isCustomGame && (
               <TouchableOpacity
                 onPress={() =>
-                  navigation.navigate("GamePickerScreen", {
+                  !dataLoading && navigation.navigate("GamePickerScreen", {
                     team1,
                     team2,
                     deadline: deadline.toISOString(),
@@ -529,99 +601,72 @@ const CreateSquareScreen = ({ navigation }) => {
                     selectedColor,
                   })
                 }
+                activeOpacity={0.75}
                 style={[
-                  styles.selectButton,
+                  team1 && team2 ? styles.matchupCard : styles.selectButton,
                   {
-                    backgroundColor: theme.colors.surface,
-                    borderColor:
-                      team1 && team2
-                        ? theme.colors.primary
-                        : theme.dark
-                          ? "#444"
-                          : "#ddd",
+                    backgroundColor: team1 && team2
+                      ? theme.colors.primary + "18"
+                      : theme.colors.surface,
+                    borderColor: team1 && team2
+                      ? theme.colors.primary
+                      : theme.dark ? "#444" : "#ddd",
                     borderWidth: team1 && team2 ? 2 : 1,
-                    marginTop: 12,
+                    marginTop: 10,
                   },
                 ]}
               >
-                {team1 && team2 ? (
-                  <View style={styles.selectedGameInfo}>
-                    <View style={styles.selectedTeams}>
-                      <Text
-                        style={[
-                          styles.selectedTeamName,
-                          { color: theme.colors.onBackground },
-                        ]}
-                      >
-                        {team1FullName || team1}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.vsText,
-                          { color: theme.colors.onSurfaceVariant },
-                        ]}
-                      >
-                        vs
-                      </Text>
-                      <Text
-                        style={[
-                          styles.selectedTeamName,
-                          { color: theme.colors.onBackground },
-                        ]}
-                      >
-                        {team2FullName || team2}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.changeText,
-                        { color: theme.colors.primary },
-                      ]}
-                    >
-                      Change Game
+                {dataLoading ? (
+                  <View style={{ gap: 8, paddingVertical: 4 }}>
+                    <View style={{ width: "55%", height: 16, borderRadius: 5, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0" }} />
+                    <View style={{ width: "40%", height: 12, borderRadius: 4, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0" }} />
+                  </View>
+                ) : team1 && team2 ? (
+                  // Confirmed matchup card
+                  <View style={styles.matchupCardInner}>
+                    {league ? (
+                      <View style={[styles.leagueTag, { backgroundColor: theme.colors.primary + "1A" }]}>
+                        <Text style={[styles.leagueTagText, { color: theme.colors.primary }]}>
+                          {league.toUpperCase()}
+                        </Text>
+                      </View>
+                    ) : null}
+                    <Text style={[styles.matchupTeams, { color: theme.colors.onBackground }]} numberOfLines={1}>
+                      {team1FullName || team1}
+                      <Text style={{ color: theme.colors.onSurfaceVariant, fontFamily: "Rubik_400Regular" }}> vs </Text>
+                      {team2FullName || team2}
+                    </Text>
+                    <Text style={[styles.matchupMeta, { color: theme.colors.onSurfaceVariant }]}>
+                      {deadline.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}
+                      {" · "}
+                      {deadline.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                    <Text style={[styles.matchupChange, { color: theme.colors.primary }]}>
+                      Change game
                     </Text>
                   </View>
                 ) : (
+                  // Empty state prompt
                   <View style={styles.selectButtonContent}>
                     <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
-                      <MaterialIcons
-                        name="sports-football"
-                        size={28}
-                        color={theme.colors.primary}
-                      />
-                      <MaterialIcons
-                        name="sports-basketball"
-                        size={28}
-                        color={theme.colors.primary}
-                      />
+                      <MaterialIcons name="sports-football" size={26} color={theme.colors.primary} />
+                      <MaterialIcons name="sports-basketball" size={26} color={theme.colors.primary} />
                     </View>
-                    <Text
-                      style={[
-                        styles.selectButtonText,
-                        { color: theme.colors.onBackground },
-                      ]}
-                    >
+                    <Text style={[styles.selectButtonText, { color: theme.colors.onBackground }]}>
                       Choose a Game
                     </Text>
-                    <Text
-                      style={[
-                        styles.selectButtonSubtext,
-                        { color: theme.colors.onSurfaceVariant },
-                      ]}
-                    >
-                      Browse upcoming games
+                    <Text style={[styles.selectButtonSubtext, { color: theme.colors.onSurfaceVariant }]}>
+                      Browse upcoming matchups
                     </Text>
                   </View>
                 )}
-                <MaterialIcons
-                  name="chevron-right"
-                  size={24}
-                  color={theme.colors.onSurfaceVariant}
-                />
+                {!(team1 && team2) && (
+                  <MaterialIcons name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />
+                )}
               </TouchableOpacity>
             )}
 
-            {/* Custom Game Team Inputs */}
+            {/* Custom game inputs */}
             {isCustomGame && (
               <View style={styles.customGameInputs}>
                 <PaperInput
@@ -630,13 +675,11 @@ const CreateSquareScreen = ({ navigation }) => {
                   value={team1FullName}
                   onChangeText={(text) => {
                     setTeam1FullName(text);
-                    setTeam1(text); // Also set short name
+                    setTeam1(text);
+                    if (gameError) setGameError(false);
                   }}
                   placeholder="e.g., Kansas City Chiefs"
-                  style={[
-                    styles.input,
-                    { backgroundColor: theme.colors.surface },
-                  ]}
+                  style={[styles.input, { backgroundColor: theme.colors.surface }]}
                   maxLength={50}
                 />
                 <PaperInput
@@ -645,162 +688,163 @@ const CreateSquareScreen = ({ navigation }) => {
                   value={team2FullName}
                   onChangeText={(text) => {
                     setTeam2FullName(text);
-                    setTeam2(text); // Also set short name
+                    setTeam2(text);
                   }}
                   placeholder="e.g., Philadelphia Eagles"
-                  style={[
-                    styles.input,
-                    { backgroundColor: theme.colors.surface, marginTop: 8 },
-                  ]}
+                  style={[styles.input, { backgroundColor: theme.colors.surface, marginTop: 8 }]}
                   maxLength={50}
                 />
-                <Text
-                  style={[
-                    styles.helperText,
-                    {
-                      color: theme.colors.onSurfaceVariant,
-                      marginTop: 8,
-                      textAlign: "left",
-                    },
-                  ]}
-                >
-                  Enter your own team names. You'll be able to enter scores
-                  manually.
+                <Text style={[styles.helperText, { color: theme.colors.onSurfaceVariant, marginTop: 8, textAlign: "left" }]}>
+                  You'll enter scores manually.
                 </Text>
               </View>
             )}
-          </View>
+            {gameError && (
+              <Text style={styles.fieldError}>
+                {isCustomGame ? "Please enter both team names" : "Please select a game"}
+              </Text>
+            )}
+          </Animated.View>
 
-          {/* Color Selection */}
-          <View style={styles.section}>
+          {/* ── 3. Appearance (Color + Display Style merged) ──────── */}
+          <Animated.View
+            style={[styles.section, { transform: [{ translateX: colorShakeAnim }] }]}
+          >
             <Text style={[styles.label, { color: theme.colors.onBackground }]}>
-              Your Color *
+              Your Appearance *
             </Text>
+
+            {/* Color picker */}
             <View style={styles.colorGrid}>
-              {colors.colorOptions.map((color) => (
-                <TouchableOpacity
-                  key={color}
-                  onPress={() => setSelectedColor(color)}
-                  style={[
-                    styles.colorButton,
-                    {
-                      backgroundColor: color,
-                      borderWidth: selectedColor === color ? 3 : 0,
-                      borderColor: theme.colors.primary,
-                      transform: [{ scale: selectedColor === color ? 1.1 : 1 }],
-                    },
-                  ]}
-                >
-                  {selectedColor === color && (
-                    <MaterialIcons
-                      name="check"
-                      size={20}
-                      color="#fff"
-                      style={styles.checkIcon}
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-              {/* Custom Color Button (Premium) */}
-              <TouchableOpacity
-                onPress={() => {
-                  if (isPremium) {
-                    setShowColorPickerModal(true);
-                  } else {
-                    setShowPremiumModal(true);
-                  }
-                }}
-                style={[
-                  styles.colorButton,
-                  {
-                    backgroundColor: theme.dark ? "#333" : "#e8e8e8",
-                    borderWidth: 2,
-                    borderColor: theme.colors.primary,
-                    borderStyle: "dashed",
-                  },
-                ]}
-              >
-                <MaterialIcons
-                  name="colorize"
-                  size={20}
-                  color={theme.colors.primary}
-                />
-                {!isPremium && <PremiumBadge size={10} />}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Display Style */}
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.colors.onBackground }]}>
-              Display Style
-            </Text>
-            <View style={styles.displayTypeRow}>
-              {(["color", "icon", "initial"] as const).map((type) => {
-                const isLocked = type !== "color" && !isPremium;
-                return (
+              {dataLoading ? (
+                [...colors.colorOptions, "__custom__"].map((_, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0",
+                    }}
+                  />
+                ))
+              ) : (
+                <>
+                  {colors.colorOptions.map((color) => {
+                    const ownership = getColorOwnership(color, null, [], colors.colorOptions);
+                    return (
+                      <AnimatedColorDot
+                        key={color}
+                        color={color}
+                        isSelected={selectedColor === color}
+                        onPress={() => {
+                          if (isColorSelectable(ownership)) {
+                            setSelectedColor(color);
+                            if (colorError) setColorError(false);
+                          }
+                        }}
+                        size={42}
+                        ringColor={theme.colors.primary}
+                        checkIconSize={17}
+                      />
+                    );
+                  })}
                   <TouchableOpacity
-                    key={type}
                     onPress={() => {
-                      if (isLocked) {
-                        setShowPremiumModal(true);
-                        return;
+                      if (isPremium) {
+                        setShowColorPickerModal(true);
+                      } else {
+                        premiumGate.open("custom_color");
                       }
-                      setDisplayType(type);
-                      if (type === "icon") setDisplayValue("sports-football");
-                      else if (type === "initial") setDisplayValue("");
-                      else setDisplayValue("");
                     }}
                     style={[
-                      styles.displayTypeButton,
+                      styles.colorButton,
                       {
-                        backgroundColor:
-                          displayType === type
-                            ? theme.colors.primary
-                            : theme.dark
-                              ? "#333"
-                              : "#e8e8e8",
-                        opacity: isLocked ? 0.6 : 1,
+                        backgroundColor: theme.dark ? "#333" : "#e8e8e8",
+                        borderWidth: 2,
+                        borderColor: theme.colors.primary,
+                        borderStyle: "dashed",
                       },
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.displayTypeText,
-                        {
-                          color:
-                            displayType === type
-                              ? "#fff"
-                              : theme.colors.onBackground,
-                        },
-                      ]}
-                    >
-                      {type === "color"
-                        ? "Color Only"
-                        : type === "icon"
-                          ? "Icon"
-                          : "Initial"}
-                    </Text>
-                    {isLocked && <PremiumBadge size={10} />}
+                    <MaterialIcons name="colorize" size={18} color={theme.colors.primary} />
+                    {!isPremium && <PremiumBadge size={10} />}
                   </TouchableOpacity>
-                );
-              })}
+                </>
+              )}
             </View>
 
+            {/* Display style — visually secondary, below color */}
+            <View style={[styles.displayStyleRow, { marginTop: 22 }]}>
+              <Text style={[styles.displayStyleLabel, { color: theme.colors.onSurfaceVariant }]}>
+                Display style
+              </Text>
+              <View style={styles.displayTypeRow}>
+                {dataLoading ? (
+                  ["Color", "Icon", "Initial"].map((label) => (
+                    <View
+                      key={label}
+                      style={{
+                        flex: 1,
+                        height: 40,
+                        borderRadius: 8,
+                        backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0",
+                      }}
+                    />
+                  ))
+                ) : (
+                  (["color", "icon", "initial"] as const).map((type) => {
+                    const isLocked = type !== "color" && !isPremium;
+                    const isActive = displayType === type;
+                    return (
+                      <TouchableOpacity
+                        key={type}
+                        onPress={() => {
+                          if (isLocked) {
+                            premiumGate.open(type);
+                            return;
+                          }
+                          setDisplayType(type);
+                          if (type === "icon") setDisplayValue("sports-football");
+                          else setDisplayValue("");
+                        }}
+                        style={[
+                          styles.displayTypeButton,
+                          {
+                            backgroundColor: isActive
+                              ? theme.colors.primary
+                              : theme.dark ? "#2a2a2a" : "#efefef",
+                            borderWidth: isLocked && !isActive ? 1 : 0,
+                            borderColor: theme.colors.primary + "40",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.displayTypeText,
+                            { color: isActive ? "#fff" : theme.colors.onSurfaceVariant },
+                          ]}
+                        >
+                          {type === "color" ? "Color" : type === "icon" ? "Icon" : "Initial"}
+                        </Text>
+                        {isLocked && !isActive && (
+                          <Text style={[styles.displayTypePro, { color: theme.colors.primary }]}>
+                            PRO
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })
+                )}
+              </View>
+            </View>
+
+            {/* Icon picker */}
             {displayType === "icon" && (
-              <View>
-                {/* Earned Badge Emojis */}
+              <View style={{ marginTop: 10 }}>
                 {earnedBadges.length > 0 && (
                   <>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontFamily: "Rubik_500Medium",
-                        color: theme.colors.onSurfaceVariant,
-                        marginBottom: 6,
-                        marginTop: 4,
-                      }}
-                    >
+                    <Text style={[styles.iconSectionLabel, { color: theme.colors.onSurfaceVariant }]}>
                       Earned Badges
                     </Text>
                     <View style={styles.iconGrid}>
@@ -809,620 +853,395 @@ const CreateSquareScreen = ({ navigation }) => {
                         if (!badge) return null;
                         const val = `emoji:${badge.emoji}`;
                         return (
-                          <TouchableOpacity
+                          <AnimatedIconButton
                             key={badgeType}
+                            isSelected={displayValue === val}
                             onPress={() => setDisplayValue(val)}
-                            style={[
-                              styles.iconButton,
-                              {
-                                backgroundColor: selectedColor
-                                  ? tinycolor(selectedColor)
-                                      .setAlpha(0.2)
-                                      .toRgbString()
-                                  : theme.dark
-                                    ? "#333"
-                                    : "#e8e8e8",
-                                borderWidth: displayValue === val ? 3 : 0,
-                                borderColor: theme.colors.primary,
-                                transform: [
-                                  { scale: displayValue === val ? 1.1 : 1 },
-                                ],
-                              },
-                            ]}
+                            size={40}
+                            ringColor={theme.colors.primary}
+                            backgroundColor={
+                              selectedColor
+                                ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                                : theme.dark ? "#333" : "#e8e8e8"
+                            }
                           >
-                            <Text style={{ fontSize: 20 }}>{badge.emoji}</Text>
-                          </TouchableOpacity>
+                            <Text style={{ fontSize: 18 }}>{badge.emoji}</Text>
+                          </AnimatedIconButton>
                         );
                       })}
                     </View>
                   </>
                 )}
-                {/* Premium Icons */}
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontFamily: "Rubik_500Medium",
-                    color: theme.colors.onSurfaceVariant,
-                    marginBottom: 6,
-                    marginTop: earnedBadges.length > 0 ? 12 : 4,
-                  }}
-                >
+                <Text style={[styles.iconSectionLabel, { color: theme.colors.onSurfaceVariant, marginTop: earnedBadges.length > 0 ? 10 : 4 }]}>
                   {isPremium ? "Icons" : "Premium Icons"}
                 </Text>
                 <View style={styles.iconGrid}>
                   {iconOptions.map((icon) => {
                     const isLocked = icon.isPremium && !isPremium;
                     return (
-                      <TouchableOpacity
+                      <AnimatedIconButton
                         key={icon.name}
+                        isSelected={displayValue === icon.name}
                         onPress={() => {
                           if (isLocked) {
-                            setShowPremiumModal(true);
+                            premiumGate.open("icon");
                           } else {
                             setDisplayValue(icon.name);
                           }
                         }}
-                        style={[
-                          styles.iconButton,
-                          {
-                            backgroundColor: selectedColor
-                              ? tinycolor(selectedColor)
-                                  .setAlpha(0.2)
-                                  .toRgbString()
-                              : theme.dark
-                                ? "#333"
-                                : "#e8e8e8",
-                            borderWidth: displayValue === icon.name ? 3 : 0,
-                            borderColor: theme.colors.primary,
-                            transform: [
-                              { scale: displayValue === icon.name ? 1.1 : 1 },
-                            ],
-                            opacity: isLocked ? 0.5 : 1,
-                          },
-                        ]}
+                        size={40}
+                        ringColor={theme.colors.primary}
+                        backgroundColor={
+                          selectedColor
+                            ? tinycolor(selectedColor).setAlpha(0.2).toRgbString()
+                            : theme.dark ? "#333" : "#e8e8e8"
+                        }
+                        containerStyle={isLocked ? { opacity: 0.5 } : undefined}
                       >
                         <MaterialIcons
                           name={icon.name}
-                          size={22}
+                          size={20}
                           color={selectedColor || theme.colors.onBackground}
                         />
                         {isLocked && <PremiumBadge size={10} />}
-                      </TouchableOpacity>
+                      </AnimatedIconButton>
                     );
                   })}
                 </View>
               </View>
             )}
 
+            {/* Initial input */}
             {displayType === "initial" && (
-              <View style={styles.initialRow}>
+              <View style={[styles.initialRow, { marginTop: 10 }]}>
                 <PaperInput
                   label="Your Initial (1 letter)"
                   value={displayValue}
-                  onChangeText={(text) => setDisplayValue(text.slice(0, 1))}
+                  onChangeText={(text) => setDisplayValue(text.slice(0, 1).toUpperCase())}
                   maxLength={1}
-                  style={[
-                    styles.initialInput,
-                    { backgroundColor: theme.dark ? "#1e1e1e" : "#fff" },
-                  ]}
+                  style={[styles.initialInput, { backgroundColor: theme.dark ? "#1e1e1e" : "#fff" }]}
                   autoCapitalize="characters"
                 />
                 <View style={{ alignItems: "center" }}>
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      color: theme.colors.onSurfaceVariant,
-                      marginBottom: 4,
-                    }}
-                  >
+                  <Text style={{ fontSize: 11, color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
                     Preview
                   </Text>
                   <View
                     style={{
-                      width: 48,
-                      height: 48,
+                      width: 44,
+                      height: 44,
                       borderRadius: 8,
                       justifyContent: "center",
                       alignItems: "center",
-                      backgroundColor: selectedColor
-                        ? tinycolor(selectedColor).setAlpha(0.3).toRgbString()
-                        : theme.dark
-                          ? "#333"
-                          : "#e8e8e8",
-                      borderWidth: 1,
-                      borderColor: theme.dark ? "#555" : "#ccc",
+                      backgroundColor: selectedColor || (theme.dark ? "#444" : "#ccc"),
                     }}
                   >
-                    {selectedColor && displayValue ? (
-                      <Text
-                        style={{
-                          fontSize: 22,
-                          fontWeight: "700",
-                          color: selectedColor,
-                        }}
-                      >
-                        {displayValue.toUpperCase()}
+                    {displayValue ? (
+                      <Text style={{ fontSize: 20, fontWeight: "700", color: "#fff", textAlign: "center" }}>
+                        {displayValue}
                       </Text>
                     ) : null}
                   </View>
                 </View>
               </View>
             )}
-          </View>
+            {colorError && (
+              <Text style={[styles.fieldError, { marginTop: 6 }]}>Please choose your color</Text>
+            )}
+          </Animated.View>
 
-          {/* Settings Card */}
+          {/* ── 4. Settings (core decisions) ──────────────────────── */}
           <View style={styles.section}>
             <Text style={[styles.label, { color: theme.colors.onBackground }]}>
-              Game Settings
+              Settings
             </Text>
-            {/* Public Square */}
+
+            {dataLoading ? (
+              ["Visibility", "Square Limits & Pricing", "Deadline"].map((title) => (
+                <View
+                  key={title}
+                  style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                    <View style={{ width: 22, height: 22, borderRadius: 5, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0" }} />
+                    <View style={{ flex: 1, gap: 6 }}>
+                      <View style={{ width: "50%", height: 13, borderRadius: 4, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0" }} />
+                      <View style={{ width: "70%", height: 11, borderRadius: 4, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0" }} />
+                    </View>
+                    <View style={{ width: 34, height: 26, borderRadius: 8, backgroundColor: theme.dark ? "#2b2b2d" : "#e8e8f0" }} />
+                  </View>
+                </View>
+              ))
+            ) : (
+              <>
+                {/* Visibility */}
+                <View style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+                    <MaterialIcons name="public" size={22} color={theme.colors.primary} style={{ marginRight: 10 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onBackground }]}>Visibility</Text>
+                      <Text style={[styles.settingValue, { color: theme.colors.onSurfaceVariant }]}>
+                        {isPublic ? "Listed — anyone can join" : "Private — invite only"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => setIsPublic(false)}
+                      style={[styles.visibilityButton, { backgroundColor: isPublic === false ? theme.colors.primary : theme.dark ? "#333" : "#eee" }]}
+                    >
+                      <MaterialIcons name="lock" size={16} color={isPublic === false ? "#fff" : theme.colors.onSurfaceVariant} />
+                      <Text style={[styles.visibilityButtonText, { color: isPublic === false ? "#fff" : theme.colors.onSurfaceVariant }]}>
+                        Private
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setIsPublic(true)}
+                      style={[styles.visibilityButton, { backgroundColor: isPublic === true ? theme.colors.primary : theme.dark ? "#333" : "#eee" }]}
+                    >
+                      <MaterialIcons name="public" size={16} color={isPublic === true ? "#fff" : theme.colors.onSurfaceVariant} />
+                      <Text style={[styles.visibilityButtonText, { color: isPublic === true ? "#fff" : theme.colors.onSurfaceVariant }]}>
+                        Public
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Square Limits & Pricing */}
+                <TouchableOpacity
+                  onPress={() => setPerSquareModalVisible(true)}
+                  style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}
+                >
+                  <View style={styles.settingCardContent}>
+                    <MaterialIcons name="settings" size={22} color={theme.colors.primary} />
+                    <View style={styles.settingInfo}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onBackground }]}>
+                        {blockMode ? "Block Limits & Pricing" : "Square Limits & Pricing"}
+                      </Text>
+                      <Text style={[styles.settingValue, { color: theme.colors.onSurfaceVariant }]}>
+                        Max {maxSelections} {blockMode ? "blocks" : "squares"}
+                        {pricePerSquare > 0 ? ` · $${pricePerSquare.toFixed(2)} each` : ""}
+                      </Text>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={22} color={theme.colors.onSurfaceVariant} />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Deadline */}
+                <TouchableOpacity
+                  onPress={() => setShowPicker(true)}
+                  style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}
+                >
+                  <View style={styles.settingCardContent}>
+                    <MaterialIcons name="schedule" size={22} color={theme.colors.primary} />
+                    <View style={styles.settingInfo}>
+                      <Text style={[styles.settingTitle, { color: theme.colors.onBackground }]}>Deadline</Text>
+                      <Text style={[styles.settingValue, { color: theme.colors.onSurfaceVariant }]}>
+                        {deadline.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
+                        {" at "}
+                        {deadline.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </Text>
+                    </View>
+                    <MaterialIcons name="chevron-right" size={22} color={theme.colors.onSurfaceVariant} />
+                  </View>
+                </TouchableOpacity>
+
+                {/* ── Advanced (collapsible) ────────────────────── */}
+                <TouchableOpacity
+                  onPress={() => setAdvancedExpanded((v) => !v)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.advancedToggle,
+                    {
+                      backgroundColor: theme.dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                      borderColor: theme.dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+                    },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.advancedToggleTitle, { color: theme.colors.onBackground }]}>
+                      Advanced
+                    </Text>
+                    {!advancedExpanded && (
+                      <Text style={[styles.advancedToggleSummary, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
+                        {advancedSummary}
+                      </Text>
+                    )}
+                  </View>
+                  <MaterialIcons
+                    name={advancedExpanded ? "expand-less" : "expand-more"}
+                    size={22}
+                    color={theme.colors.onSurfaceVariant}
+                  />
+                </TouchableOpacity>
+
+                {advancedExpanded && (
+                  <View style={styles.advancedContent}>
+                    {/* 2x2 Block Mode */}
+                    <View style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}>
+                      <View style={styles.settingCardContent}>
+                        <MaterialIcons name="view-module" size={22} color={theme.colors.primary} />
+                        <View style={styles.settingInfo}>
+                          <Text style={[styles.settingTitle, { color: theme.colors.onBackground }]}>
+                            2×2 Block Mode
+                          </Text>
+                          <Text style={[styles.settingValue, { color: theme.colors.onSurfaceVariant }]}>
+                            {blockMode ? "Select 2×2 blocks" : "Select individual squares"}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => {
+                            const next = !blockMode;
+                            setBlockMode(next);
+                            setMaxSelections(next ? "25" : "100");
+                          }}
+                          style={[styles.toggleButton, { backgroundColor: blockMode ? theme.colors.primary : theme.dark ? "#444" : "#ddd" }]}
+                        >
+                          <Text style={[styles.toggleText, { color: blockMode ? "#fff" : theme.colors.onSurface }]}>
+                            {blockMode ? "ON" : "OFF"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Randomize Numbers */}
+                    <View style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}>
+                      <View style={styles.settingCardContent}>
+                        <MaterialIcons name="grid-on" size={22} color={theme.colors.primary} />
+                        <View style={styles.settingInfo}>
+                          <Text style={[styles.settingTitle, { color: theme.colors.onBackground }]}>
+                            Randomize Numbers
+                          </Text>
+                          <Text style={[styles.settingValue, { color: theme.colors.onSurfaceVariant }]}>
+                            {randomizeAxis ? "Random order" : "Sequential (0–9)"}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => setRandomizeAxis(!randomizeAxis)}
+                          style={[styles.toggleButton, { backgroundColor: randomizeAxis ? theme.colors.primary : theme.dark ? "#444" : "#ddd" }]}
+                        >
+                          <Text style={[styles.toggleText, { color: randomizeAxis ? "#fff" : theme.colors.onSurface }]}>
+                            {randomizeAxis ? "ON" : "OFF"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Hide Numbers */}
+                    <View style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}>
+                      <View style={styles.settingCardContent}>
+                        <MaterialIcons name="visibility-off" size={22} color={theme.colors.primary} />
+                        <View style={styles.settingInfo}>
+                          <Text style={[styles.settingTitle, { color: theme.colors.onBackground }]}>
+                            Hide Numbers Until Deadline
+                          </Text>
+                          <Text style={[styles.settingValue, { color: theme.colors.onSurfaceVariant }]}>
+                            {hideAxisUntilDeadline ? "Hidden" : "Visible"}
+                          </Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => setHideAxisUntilDeadline(!hideAxisUntilDeadline)}
+                          style={[styles.toggleButton, { backgroundColor: hideAxisUntilDeadline ? theme.colors.primary : theme.dark ? "#444" : "#ddd" }]}
+                        >
+                          <Text style={[styles.toggleText, { color: hideAxisUntilDeadline ? "#fff" : theme.colors.onSurface }]}>
+                            {hideAxisUntilDeadline ? "ON" : "OFF"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Notifications */}
+                    <TouchableOpacity
+                      onPress={() => setNotifModalVisible(true)}
+                      style={[styles.settingCard, { backgroundColor: theme.colors.surface }]}
+                    >
+                      <View style={styles.settingCardContent}>
+                        <MaterialIcons name="notifications" size={22} color={theme.colors.primary} />
+                        <View style={styles.settingInfo}>
+                          <Text style={[styles.settingTitle, { color: theme.colors.onBackground }]}>
+                            Notifications
+                          </Text>
+                          <Text style={[styles.settingValue, { color: theme.colors.onSurfaceVariant }]}>
+                            {activeNotifCount > 0 ? `${activeNotifCount} active` : "None"}
+                          </Text>
+                        </View>
+                        <MaterialIcons name="chevron-right" size={22} color={theme.colors.onSurfaceVariant} />
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* ── 5. Summary + CTA ──────────────────────────────────── */}
+          {!dataLoading && (
             <View
               style={[
-                styles.settingCard,
+                styles.summaryStrip,
                 {
-                  backgroundColor: theme.colors.surface,
-                  borderWidth: 0,
+                  backgroundColor: theme.dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+                  borderColor: theme.dark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)",
                 },
               ]}
             >
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 8,
-                }}
-              >
-                <MaterialIcons
-                  name="public"
-                  size={24}
-                  color={theme.colors.primary}
-                  style={{ marginRight: 12 }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Visibility
+              {/* Metadata row — slightly dimmed since it's confirmatory, not actionable */}
+              <View style={[styles.summaryRow, { opacity: 0.7 }]}>
+                <View style={styles.summaryItem}>
+                  <MaterialIcons name={isPublic ? "public" : "lock"} size={11} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.summaryText, { color: theme.colors.onSurfaceVariant }]}>
+                    {isPublic ? "Public" : "Private"}
                   </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {isPublic
-                      ? "Listed in Browse — anyone can join"
-                      : "Private — invite only"}
+                </View>
+                <Text style={[styles.summaryDot, { color: theme.colors.onSurfaceVariant }]}>·</Text>
+                <View style={styles.summaryItem}>
+                  <MaterialIcons name="grid-on" size={11} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.summaryText, { color: theme.colors.onSurfaceVariant }]}>
+                    Max {maxSelections}
+                  </Text>
+                </View>
+                <Text style={[styles.summaryDot, { color: theme.colors.onSurfaceVariant }]}>·</Text>
+                <View style={styles.summaryItem}>
+                  <MaterialIcons name="schedule" size={11} color={theme.colors.onSurfaceVariant} />
+                  <Text style={[styles.summaryText, { color: theme.colors.onSurfaceVariant }]}>
+                    {deadline.toLocaleDateString([], { month: "short", day: "numeric" })}
                   </Text>
                 </View>
               </View>
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
-                <TouchableOpacity
-                  onPress={() => setIsPublic(false)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 10,
-                    alignItems: "center",
-                    backgroundColor:
-                      isPublic === false
-                        ? theme.colors.primary
-                        : theme.dark
-                          ? "#333"
-                          : "#eee",
-                  }}
-                >
-                  <MaterialIcons
-                    name="lock"
-                    size={18}
-                    color={
-                      isPublic === false
-                        ? "#fff"
-                        : theme.colors.onSurfaceVariant
-                    }
-                  />
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontFamily: "Rubik_500Medium",
-                      color:
-                        isPublic === false
-                          ? "#fff"
-                          : theme.colors.onSurfaceVariant,
-                      marginTop: 4,
-                    }}
-                  >
-                    Private
+              {!isPremium && freeCredits.credits > 0 && (
+                <View style={styles.summaryCredits}>
+                  <Text style={{ fontSize: 12 }}>🎁</Text>
+                  <Text style={[styles.summaryCreditsText, { color: theme.colors.primary }]}>
+                    Free square available
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setIsPublic(true)}
-                  style={{
-                    flex: 1,
-                    paddingVertical: 10,
-                    borderRadius: 10,
-                    alignItems: "center",
-                    backgroundColor:
-                      isPublic === true
-                        ? theme.colors.primary
-                        : theme.dark
-                          ? "#333"
-                          : "#eee",
-                  }}
-                >
-                  <MaterialIcons
-                    name="public"
-                    size={18}
-                    color={
-                      isPublic === true ? "#fff" : theme.colors.onSurfaceVariant
-                    }
-                  />
-                  <Text
-                    style={{
-                      fontSize: 13,
-                      fontFamily: "Rubik_500Medium",
-                      color:
-                        isPublic === true
-                          ? "#fff"
-                          : theme.colors.onSurfaceVariant,
-                      marginTop: 4,
-                    }}
-                  >
-                    Public
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                </View>
+              )}
             </View>
+          )}
 
-            {/* 2x2 Block Mode */}
-            <View
-              style={[
-                styles.settingCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <View style={styles.settingCardContent}>
-                <MaterialIcons
-                  name="view-module"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.settingInfo}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    2x2 Block Mode
-                  </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {blockMode
-                      ? "Select 2x2 blocks"
-                      : "Select individual squares"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => {
-                    const newBlockMode = !blockMode;
-                    setBlockMode(newBlockMode);
-                    setMaxSelections(newBlockMode ? "25" : "100");
-                  }}
-                  style={[
-                    styles.toggleButton,
-                    {
-                      backgroundColor: blockMode
-                        ? theme.colors.primary
-                        : theme.dark
-                          ? "#444"
-                          : "#ddd",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.toggleText,
-                      {
-                        color: blockMode ? "#fff" : theme.colors.onSurface,
-                      },
-                    ]}
-                  >
-                    {blockMode ? "ON" : "OFF"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Per Square Settings */}
-            <TouchableOpacity
-              onPress={() => setPerSquareModalVisible(true)}
-              style={[
-                styles.settingCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <View style={styles.settingCardContent}>
-                <MaterialIcons
-                  name="settings"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.settingInfo}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    {blockMode
-                      ? "Block Limits & Pricing"
-                      : "Square Limits & Pricing"}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    Max: {maxSelections} {blockMode ? "blocks" : "squares"} • $
-                    {pricePerSquare.toFixed(2)} each
-                  </Text>
-                </View>
-                <MaterialIcons
-                  name="chevron-right"
-                  size={24}
-                  color={theme.colors.onSurfaceVariant}
-                />
-              </View>
-            </TouchableOpacity>
-
-            {/* Deadline */}
-            <TouchableOpacity
-              onPress={() => setShowPicker(true)}
-              style={[
-                styles.settingCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <View style={styles.settingCardContent}>
-                <MaterialIcons
-                  name="schedule"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.settingInfo}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Deadline
-                  </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {deadline.toLocaleDateString()} at{" "}
-                    {deadline.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </Text>
-                </View>
-                <MaterialIcons
-                  name="chevron-right"
-                  size={24}
-                  color={theme.colors.onSurfaceVariant}
-                />
-              </View>
-            </TouchableOpacity>
-
-            {/* Axis Settings */}
-            <View
-              style={[
-                styles.settingCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <View style={styles.settingCardContent}>
-                <MaterialIcons
-                  name="grid-on"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.settingInfo}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Randomize Numbers
-                  </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {randomizeAxis ? "Random order" : "Sequential (0-9)"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setRandomizeAxis(!randomizeAxis)}
-                  style={[
-                    styles.toggleButton,
-                    {
-                      backgroundColor: randomizeAxis
-                        ? theme.colors.primary
-                        : theme.dark
-                          ? "#444"
-                          : "#ddd",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.toggleText,
-                      {
-                        color: randomizeAxis ? "#fff" : theme.colors.onSurface,
-                      },
-                    ]}
-                  >
-                    {randomizeAxis ? "ON" : "OFF"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View
-              style={[
-                styles.settingCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <View style={styles.settingCardContent}>
-                <MaterialIcons
-                  name="visibility-off"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.settingInfo}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Hide Numbers Until Deadline
-                  </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {hideAxisUntilDeadline ? "Hidden" : "Visible"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() =>
-                    setHideAxisUntilDeadline(!hideAxisUntilDeadline)
-                  }
-                  style={[
-                    styles.toggleButton,
-                    {
-                      backgroundColor: hideAxisUntilDeadline
-                        ? theme.colors.primary
-                        : theme.dark
-                          ? "#444"
-                          : "#ddd",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.toggleText,
-                      {
-                        color: hideAxisUntilDeadline
-                          ? "#fff"
-                          : theme.colors.onSurface,
-                      },
-                    ]}
-                  >
-                    {hideAxisUntilDeadline ? "ON" : "OFF"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Notifications */}
-            <TouchableOpacity
-              onPress={() => setNotifModalVisible(true)}
-              style={[
-                styles.settingCard,
-                { backgroundColor: theme.colors.surface },
-              ]}
-            >
-              <View style={styles.settingCardContent}>
-                <MaterialIcons
-                  name="notifications"
-                  size={24}
-                  color={theme.colors.primary}
-                />
-                <View style={styles.settingInfo}>
-                  <Text
-                    style={[
-                      styles.settingTitle,
-                      { color: theme.colors.onBackground },
-                    ]}
-                  >
-                    Notifications
-                  </Text>
-                  <Text
-                    style={[
-                      styles.settingValue,
-                      { color: theme.colors.onSurfaceVariant },
-                    ]}
-                  >
-                    {Object.values(notifySettings).filter(Boolean).length}{" "}
-                    active
-                  </Text>
-                </View>
-                <MaterialIcons
-                  name="chevron-right"
-                  size={24}
-                  color={theme.colors.onSurfaceVariant}
-                />
-              </View>
-            </TouchableOpacity>
-          </View>
-
-          {/* Create Button */}
           <Button
             mode="contained"
             onPress={createSquareSession}
             loading={loading || adLoading}
-            disabled={loading || adLoading || !isFormValid}
+            disabled={loading || adLoading}
             style={styles.createButton}
             contentStyle={styles.createButtonContent}
             labelStyle={styles.createButtonLabel}
           >
-            {adLoading
-              ? "Loading Ad..."
-              : loading
-                ? "Creating..."
-                : "Create Game"}
+            {adLoading ? "Loading Ad…" : loading ? "Creating…" : "Create Game"}
           </Button>
 
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.cancelButton}
           >
-            <Text
-              style={[
-                styles.cancelButtonText,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
+            <Text style={[styles.cancelButtonText, { color: theme.colors.onSurfaceVariant }]}>
               Cancel
             </Text>
           </TouchableOpacity>
         </ScrollView>
       </SafeAreaView>
 
-      {/* Modals */}
       <DeadlinePickerModal
         visible={showPicker}
         onDismiss={() => setShowPicker(false)}
@@ -1448,16 +1267,17 @@ const CreateSquareScreen = ({ navigation }) => {
       />
 
       <PremiumUpgradeModal
-        visible={showPremiumModal}
-        onDismiss={() => setShowPremiumModal(false)}
+        visible={premiumGate.visible}
+        onDismiss={premiumGate.close}
         feature="premium icons"
         context="square_limit"
+        source={premiumGate.source ?? undefined}
       />
 
       <ColorPickerModal
         visible={showColorPickerModal}
         onDismiss={() => setShowColorPickerModal(false)}
-        onColorSelect={(color) => setSelectedColor(color)}
+        onColorSelect={(color) => { setSelectedColor(color); setColorError(false); }}
         initialColor={selectedColor || "#5e60ce"}
       />
     </LinearGradient>
@@ -1477,176 +1297,172 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginBottom: 24,
-    paddingTop: 8,
+    marginBottom: 20,
+    paddingTop: 4,
+    gap: 8,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    textAlign: "center",
+    fontSize: 22,
+    fontFamily: "Rubik_600SemiBold",
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   label: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontFamily: "Rubik_600SemiBold",
     marginBottom: 8,
   },
   input: {
-    marginBottom: 4,
+    marginBottom: 2,
   },
   helperText: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: "Rubik_400Regular",
     textAlign: "right",
   },
+
+  // Game type toggle
+  gameTypeRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 0,
+  },
+  gameTypeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  gameTypeText: {
+    fontSize: 13,
+    fontFamily: "Rubik_600SemiBold",
+  },
+  customGameInputs: {
+    marginTop: 10,
+  },
+
+  // Select button (no game chosen)
   selectButton: {
     borderRadius: 12,
     padding: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderWidth: 2,
+    borderWidth: 1,
   },
   selectButtonContent: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 6,
+    gap: 6,
   },
   selectButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: 12,
+    fontSize: 16,
+    fontFamily: "Rubik_600SemiBold",
   },
   selectButtonSubtext: {
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 13,
+    fontFamily: "Rubik_400Regular",
   },
-  selectedGameInfo: {
-    flex: 1,
+
+  // Confirmed matchup card
+  matchupCard: {
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 2,
   },
-  selectedTeams: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 8,
-    flexWrap: "wrap",
+  matchupCardInner: {
+    gap: 4,
   },
-  selectedTeamName: {
+  leagueTag: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  leagueTagText: {
+    fontSize: 10,
+    fontFamily: "Rubik_600SemiBold",
+    letterSpacing: 0.5,
+  },
+  matchupTeams: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "Rubik_600SemiBold",
+    lineHeight: 22,
   },
-  vsText: {
-    fontSize: 14,
-    fontWeight: "500",
+  matchupMeta: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
   },
-  changeText: {
-    fontSize: 14,
-    fontWeight: "700",
+  matchupChange: {
+    fontSize: 12,
+    fontFamily: "Rubik_500Medium",
+    marginTop: 6,
   },
+
+  // Color
   colorGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    paddingVertical: 8,
+    gap: 9,
+    paddingVertical: 4,
   },
   colorButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     justifyContent: "center",
     alignItems: "center",
   },
-  checkIcon: {
-    textShadowColor: "rgba(0, 0, 0, 0.5)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+
+  // Display style
+  displayStyleRow: {
+    gap: 6,
   },
-  settingCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.1)",
-  },
-  settingCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  settingInfo: {
-    flex: 1,
-  },
-  settingTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  settingValue: {
-    fontSize: 13,
-  },
-  toggleButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
-    minWidth: 50,
-    alignItems: "center",
-  },
-  toggleText: {
+  displayStyleLabel: {
     fontSize: 12,
-    fontWeight: "700",
-  },
-  createButton: {
-    marginTop: 8,
-  },
-  createButtonContent: {
-    paddingVertical: 8,
-  },
-  createButtonLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  cancelButton: {
-    alignSelf: "center",
-    marginTop: 16,
-    padding: 12,
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "Rubik_500Medium",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   displayTypeRow: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
+    gap: 8,
   },
   displayTypeButton: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
+    height: 40,
+    borderRadius: 8,
     alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
   },
   displayTypeText: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: "Rubik_600SemiBold",
+  },
+  displayTypePro: {
+    fontSize: 9,
+    fontFamily: "Rubik_500Medium",
+    letterSpacing: 0.3,
+  },
+  iconSectionLabel: {
+    fontSize: 11,
+    fontFamily: "Rubik_500Medium",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
   iconGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    paddingVertical: 8,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
+    gap: 10,
+    paddingVertical: 4,
   },
   initialRow: {
     flexDirection: "row",
@@ -1656,25 +1472,147 @@ const styles = StyleSheet.create({
   initialInput: {
     flex: 3,
   },
-  gameTypeRow: {
+
+  // Settings cards
+  settingCard: {
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.08)",
+  },
+  settingCardContent: {
     flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
-  gameTypeButton: {
+  settingInfo: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 14,
+    fontFamily: "Rubik_600SemiBold",
+    marginBottom: 2,
+  },
+  settingValue: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+  },
+  visibilityButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 6,
+    paddingVertical: 9,
+    borderRadius: 9,
+  },
+  visibilityButtonText: {
+    fontSize: 13,
+    fontFamily: "Rubik_500Medium",
+  },
+  toggleButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    minWidth: 46,
+    alignItems: "center",
+  },
+  toggleText: {
+    fontSize: 11,
+    fontFamily: "Rubik_600SemiBold",
+  },
+
+  // Advanced collapsible
+  advancedToggle: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 0,
+    gap: 8,
   },
-  gameTypeText: {
+  advancedToggleTitle: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Rubik_600SemiBold",
+    marginBottom: 1,
   },
-  customGameInputs: {
-    marginTop: 12,
+  advancedToggleSummary: {
+    fontSize: 11,
+    fontFamily: "Rubik_400Regular",
+  },
+  advancedContent: {
+    marginTop: 4,
+  },
+
+  // Summary strip
+  summaryStrip: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    gap: 5,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 5,
+  },
+  summaryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  summaryText: {
+    fontSize: 11,
+    fontFamily: "Rubik_400Regular",
+  },
+  summaryDot: {
+    fontSize: 11,
+    opacity: 0.35,
+  },
+  summaryCredits: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  summaryCreditsText: {
+    fontSize: 12,
+    fontFamily: "Rubik_600SemiBold",
+  },
+
+  // Inline field errors
+  fieldError: {
+    fontSize: 12,
+    fontFamily: "Rubik_400Regular",
+    color: "#ef5350",
+    marginTop: 4,
+  },
+
+  // CTA
+  createButton: {
+    marginTop: 4,
+    borderRadius: 12,
+  },
+  createButtonContent: {
+    paddingVertical: 6,
+  },
+  createButtonLabel: {
+    fontSize: 16,
+    fontFamily: "Rubik_600SemiBold",
+  },
+  cancelButton: {
+    alignSelf: "center",
+    marginTop: 14,
+    padding: 10,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontFamily: "Rubik_500Medium",
   },
 });
 

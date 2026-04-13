@@ -12,6 +12,8 @@ import {
   View,
   ScrollView,
   Animated,
+  FlatList,
+  Dimensions,
 } from "react-native";
 import ReanimatedSwipeable, {
   SwipeableMethods,
@@ -27,7 +29,7 @@ import {
 import MaterialIcons from "react-native-vector-icons/MaterialIcons";
 import { LinearGradient } from "expo-linear-gradient";
 import JoinSessionModal from "../components/JoinSessionModal";
-import SkeletonLoader from "../components/SkeletonLoader";
+import ScalePressable from "../components/ScalePressable";
 import { getPendingRequests } from "../lib/friends";
 import { getInviteCount } from "../lib/gameInvites";
 import colors from "../../assets/constants/colorOptions";
@@ -43,6 +45,7 @@ import {
 } from "../utils/notifications";
 import { API_BASE_URL } from "../utils/apiConfig";
 import { leagueMap } from "../utils/types";
+import { deriveGameStatus, syncStaleGames } from "../utils/gameStatus";
 // import AdBanner from "../components/AdBanner";
 // import PendingInvitesSection from "../components/PendingInvitesSection";
 
@@ -50,8 +53,6 @@ const HomeScreen = () => {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const theme = useTheme();
-  const animations = useRef<Animated.Value[]>([]).current;
-
   const translateYAnims = useRef<Animated.Value[]>([]).current;
   const opacityAnims = useRef<Animated.Value[]>([]).current;
   const insets = useSafeAreaInsets();
@@ -60,8 +61,7 @@ const HomeScreen = () => {
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
     : (["#fdfcf9", "#e0e7ff"] as const);
 
-  const [userGames, setUserGames] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [userGames, setUserGames] = useState<any[]>([]);
   const [visible, setVisible] = useState(false);
   const [username, setUsername] = useState("");
   const [hasNotifications, setHasNotifications] = useState(false);
@@ -71,15 +71,42 @@ const HomeScreen = () => {
   const [now, setNow] = useState(new Date());
   const [editMode, setEditMode] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  // Prevents concurrent stale-game syncs and rapid re-fires on quick focus
+  // events. staleSyncInProgress blocks overlapping runs; lastSyncCompletedAt
+  // adds a 20-second cooldown so a fast sync (all games recently checked,
+  // returns immediately) can't fire again on the very next focus.
+  const staleSyncInProgress = useRef(false);
+  const lastSyncCompletedAtRef = useRef<number>(0);
+  const SYNC_COOLDOWN_MS = 20 * 1000;
   const [confirmModal, setConfirmModal] = useState<{
     visible: boolean;
     item: any;
     isOwner: boolean;
   }>({ visible: false, item: null, isOwner: false });
-  const [featuredGame, setFeaturedGame] = useState<{
-    loading: boolean;
-    game: any;
-  }>({ loading: true, game: null });
+  const [featuredGames, setFeaturedGames] = useState<any[]>([]);
+  const carouselRef = useRef<FlatList>(null);
+  const PAGE_WIDTH = Dimensions.get("window").width;
+  // Animated scroll offset — drives dots and card scale without setState lag
+  const scrollX = useRef(new Animated.Value(0)).current;
+
+  // Single loading gate: true until ALL critical fetches complete on first visit.
+  // Never resets to true on re-focus — background refreshes update data silently.
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+
+  // Tracks how many of the 3 parallel first-load fetches have finished.
+  // When all 3 are done, flip isInitialLoading to false exactly once.
+  const pendingFirstLoads = useRef(3);
+  const markOneFetchDone = () => {
+    pendingFirstLoads.current -= 1;
+    if (pendingFirstLoads.current <= 0) {
+      setIsInitialLoading(false);
+    }
+  };
+
+  // Prevent re-triggering skeleton on subsequent focus events
+  const hasFetchedOnce = useRef(false);
+  const featuredFetchIdRef = useRef(0);
+
   const swipeableRefs = useRef<Record<string, SwipeableMethods | null>>({});
 
   useEffect(() => {
@@ -89,7 +116,8 @@ const HomeScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      const fetchUserSquares = async () => {
+      const fetchUserSquares = async (isBackground: boolean) => {
+        console.log(`[home/groupC] fetch start background=${isBackground}`);
         const {
           data: { user },
         } = await supabase.auth.getUser();
@@ -99,7 +127,7 @@ const HomeScreen = () => {
         const { data, error } = await supabase
           .from("squares")
           .select(
-            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids, game_completed, created_by, team1, team2, team1_full_name, team2_full_name, max_selection, is_public",
+            "id, title, deadline, price_per_square, event_id, league, players, selections, player_ids, game_completed, created_by, team1, team2, team1_full_name, team2_full_name, max_selection, is_public, last_score_check_at",
           )
           .contains("player_ids", [user.id]);
 
@@ -125,52 +153,72 @@ const HomeScreen = () => {
           });
 
         setUserGames(squaresList);
+
+        // Background stale-game sync: for API-backed games whose deadline has
+        // passed but game_completed is still false, check the score API and
+        // mark them completed in DB + update local state if confirmed.
+        //
+        // Double guard:
+        //  - staleSyncInProgress: prevents concurrent overlapping runs
+        //  - lastSyncCompletedAtRef: 20s cooldown prevents re-fire on rapid
+        //    focus events even when a sync completes quickly (e.g. all games
+        //    were recently checked and the run returns immediately)
+        const syncCooldownElapsed =
+          Date.now() - lastSyncCompletedAtRef.current > SYNC_COOLDOWN_MS;
+        if (!staleSyncInProgress.current && syncCooldownElapsed) {
+          staleSyncInProgress.current = true;
+          // Limit to the 5 most recently started eligible games so we don't
+          // fan out to every stale game at once. Sort by deadline descending
+          // (most recent start first — these are most likely to just have finished).
+          const gamesForSync = [...squaresList]
+            .filter((g) => !g.game_completed && g.event_id && g.deadline)
+            .sort((a, b) => new Date(b.deadline).getTime() - new Date(a.deadline).getTime())
+            .slice(0, 5);
+          syncStaleGames(gamesForSync)
+            .then((completedIds) => {
+              if (completedIds.length > 0) {
+                setUserGames((prev) =>
+                  prev.map((g) =>
+                    completedIds.includes(g.id)
+                      ? { ...g, game_completed: true }
+                      : g,
+                  ),
+                );
+              }
+            })
+            .catch((err) => {
+              console.warn("[home] stale sync error:", err);
+            })
+            .finally(() => {
+              staleSyncInProgress.current = false;
+              lastSyncCompletedAtRef.current = Date.now();
+            });
+        } else {
+          const reason = staleSyncInProgress.current
+            ? "sync_in_progress"
+            : `cooldown (${Math.round((Date.now() - lastSyncCompletedAtRef.current) / 1000)}s ago)`;
+          console.log(`[home] stale sync skipped — ${reason}`);
+        }
+
         const counts: Record<string, number> = {};
         squaresList.forEach((square) => {
-          const squareId = square.id;
           const squareSelections = square.selections || [];
-
-          const userCount = squareSelections.filter(
+          counts[square.id] = squareSelections.filter(
             (sel) => sel.userId === user.id,
           ).length;
-
-          counts[squareId] = userCount;
         });
-
         setSelectionCounts(counts);
-
-        animations.length = 0;
-        translateYAnims.length = 0;
-        opacityAnims.length = 0;
-
-        squaresList.forEach((_, index) => {
-          animations[index] = new Animated.Value(0);
-          translateYAnims[index] = new Animated.Value(30);
-          opacityAnims[index] = new Animated.Value(0);
-        });
-
-        Animated.stagger(
-          80,
-          squaresList.map((_, index) =>
-            Animated.parallel([
-              Animated.timing(translateYAnims[index], {
-                toValue: 0,
-                duration: 400,
-                useNativeDriver: true,
-              }),
-              Animated.timing(opacityAnims[index], {
-                toValue: 1,
-                duration: 400,
-                useNativeDriver: true,
-              }),
-            ]),
-          ),
-        ).start();
-
-        setLoading(false);
+        if (!isBackground) markOneFetchDone();
+        console.log("[home/groupC] ready");
       };
 
-      fetchUserSquares();
+      if (!hasFetchedOnce.current) {
+        hasFetchedOnce.current = true;
+        fetchUserSquares(false);
+      } else {
+        console.log("[home] re-focused — background refresh");
+        fetchUserSquares(true);
+      }
 
       const checkNotifications = async () => {
         try {
@@ -188,6 +236,7 @@ const HomeScreen = () => {
   );
 
   const fetchUsername = async () => {
+    console.log("[home/groupA] fetch start");
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -208,6 +257,9 @@ const HomeScreen = () => {
       setUsername(data?.username || "");
     } catch (err) {
       console.error("Unexpected error:", err);
+    } finally {
+      markOneFetchDone();
+      console.log("[home/groupA] ready");
     }
   };
 
@@ -230,9 +282,10 @@ const HomeScreen = () => {
   ];
 
   const fetchFeaturedGame = async () => {
-    try {
-      setFeaturedGame({ loading: true, game: null });
+    const myFetchId = ++featuredFetchIdRef.current;
+    console.log("[home/groupB] fetch start");
 
+    try {
       const today = new Date();
       const tomorrow = new Date(today);
       tomorrow.setDate(today.getDate() + 1);
@@ -269,8 +322,19 @@ const HomeScreen = () => {
         }
       }
 
+      if (myFetchId !== featuredFetchIdRef.current) return;
+
+      // Deduplicate — same game can appear in both today and tomorrow queries
+      const seen = new Set<string>();
+      const uniqueGames = allGames.filter((game) => {
+        const key = `${game.league}-${game.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
       // Score and select the best game
-      const scoredGames = allGames
+      const scoredGames = uniqueGames
         .filter((game) => game.startTime > new Date()) // Only future games
         .map((game) => {
           const now = new Date();
@@ -301,12 +365,13 @@ const HomeScreen = () => {
         })
         .sort((a, b) => b.score - a.score);
 
-      const bestGame = scoredGames[0] || null;
-
-      setFeaturedGame({ loading: false, game: bestGame });
+      setFeaturedGames(scoredGames.slice(0, 3));
+      markOneFetchDone();
+      console.log("[home/groupB] ready");
     } catch (err) {
       console.error("Error fetching featured game:", err);
-      setFeaturedGame({ loading: false, game: null });
+      // Mark done even on error so the skeleton doesn't block forever
+      markOneFetchDone();
     }
   };
 
@@ -342,10 +407,8 @@ const HomeScreen = () => {
     }
   };
 
-  const handleFeaturedGameTap = async () => {
-    if (!featuredGame.game) return;
-
-    const game = featuredGame.game;
+  const handleFeaturedGameTap = async (game: any) => {
+    if (!game) return;
 
     try {
       // Fetch detailed game info like in GamePickerScreen
@@ -441,6 +504,8 @@ const HomeScreen = () => {
   const formatCountdown = (
     deadlineLike?: string | Date,
     gameCompleted?: boolean,
+    league?: string | null,
+    eventId?: string | null,
   ) => {
     if (!deadlineLike) return "Ended";
     const d = new Date(deadlineLike);
@@ -448,10 +513,14 @@ const HomeScreen = () => {
 
     if (isNaN(d.getTime())) return "Ended";
     if (diff <= 0) {
-      // Deadline has passed
-      if (gameCompleted) {
-        return "Game Completed";
-      }
+      const status = deriveGameStatus({
+        deadline: typeof deadlineLike === "string" ? deadlineLike : d.toISOString(),
+        game_completed: gameCompleted,
+        event_id: eventId,
+        league,
+      });
+      if (status === "completed") return "Game Completed";
+      if (status === "finalizing") return "Awaiting Final Score";
       return "Game in Progress";
     }
 
@@ -470,82 +539,327 @@ const HomeScreen = () => {
     return `Deadline in ${parts.join(" ")}`;
   };
 
-  const renderFeaturedCard = () => {
-    if (featuredGame.loading || !featuredGame.game) return null;
+  const renderCarousel = () => {
+    const skBg = theme.dark ? "#2b2b2d" : "#e8e8f0";
 
-    const game = featuredGame.game;
-    const matchup = `${game.awayTeam || "Away"} vs ${game.homeTeam || "Home"}`;
-    const countdownInfo = formatGameCountdown(game.startTime);
-    const ctaText = `Start ${matchup}`;
+    if (isInitialLoading || featuredGames.length === 0) {
+      if (!isInitialLoading) {
+        // Loading finished, no API games available (off-season or API failure).
+        // Return early — dots and "See more matchups" are intentionally omitted.
+        return (
+          <View style={{ marginBottom: 10 }}>
+            <View style={{ paddingHorizontal: 16 }}>
+              <View
+                style={[
+                  styles.featuredCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.dark
+                      ? "rgba(108,99,255,0.10)"
+                      : "rgba(108,99,255,0.07)",
+                    borderLeftColor: theme.dark
+                      ? "rgba(108,99,255,0.20)"
+                      : "rgba(108,99,255,0.15)",
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: "Rubik_600SemiBold",
+                    color: theme.colors.onBackground,
+                    marginBottom: 5,
+                  }}
+                >
+                  No games right now
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    fontFamily: "Rubik_400Regular",
+                    color: theme.colors.onSurfaceVariant,
+                    marginBottom: 16,
+                    lineHeight: 17,
+                    opacity: 0.7,
+                  }}
+                >
+                  Pick squares. Match the score. Win each quarter.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate("CreateSquareScreen")}
+                  style={[
+                    styles.featuredButton,
+                    { backgroundColor: theme.colors.primary, marginBottom: 12 },
+                  ]}
+                >
+                  <Text style={[styles.featuredButtonText, { color: "#fff" }]}>
+                    Create a Game
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setVisible(true)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "Rubik_500Medium",
+                      color: theme.colors.primary,
+                      opacity: 0.8,
+                    }}
+                  >
+                    Have a code? Join a game
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        );
+      }
+
+      return (
+        <View style={{ marginBottom: 2 }}>
+          {/* Section label — matches "✦ Featured Games": fontSize 11, marginH 16, marginB 4 */}
+          <View
+            style={{
+              width: 110,
+              height: 11,
+              borderRadius: 4,
+              marginHorizontal: 16,
+              marginBottom: 4,
+              backgroundColor: skBg,
+            }}
+          />
+          {/* Card wrapper — mirrors FlatList item: paddingHorizontal 16 + featuredCard marginHorizontal 10 */}
+          <View style={{ paddingHorizontal: 16 }}>
+            <View
+              style={[
+                styles.featuredCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.dark
+                    ? "rgba(108,99,255,0.20)"
+                    : "rgba(108,99,255,0.14)",
+                  borderLeftColor: theme.colors.primary,
+                },
+              ]}
+            >
+              {/* eyebrow — "STARTING SOON": featuredHeader marginBottom 8 */}
+              <View style={styles.featuredHeader}>
+                <View style={{ width: 100, height: 13, borderRadius: 4, backgroundColor: skBg }} />
+              </View>
+              {/* countdown: featuredCountdown marginBottom 6 */}
+              <View style={{ width: 80, height: 12, borderRadius: 4, marginBottom: 6, backgroundColor: skBg }} />
+              {/* matchup: featuredMatchup fontSize 20, marginBottom 6 */}
+              <View style={{ width: "78%", height: 20, borderRadius: 5, marginBottom: 6, backgroundColor: skBg }} />
+              {/* CTA: featuredButton paddingV 10, paddingH 18, borderRadius 10 → ~33px tall */}
+              <View style={{ width: 186, height: 33, borderRadius: 10, backgroundColor: skBg }} />
+            </View>
+          </View>
+          {/* Dots row — matches live: gap 7, marginTop 6 */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+              marginTop: 6,
+              gap: 7,
+            }}
+          >
+            {[0, 1, 2].map((i) => (
+              <View key={i} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: skBg }} />
+            ))}
+          </View>
+          {/* "See more matchups" pill — matches seeMoreChip: paddingV 6, borderRadius 20 → 28px tall */}
+          <View style={{ alignItems: "center", marginTop: 6, marginBottom: 0 }}>
+            <View style={{ width: 148, height: 28, borderRadius: 20, backgroundColor: skBg }} />
+          </View>
+        </View>
+      );
+    }
 
     return (
-      <TouchableOpacity
-        style={[
-          styles.featuredCard,
-          {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.dark
-              ? "rgba(108,99,255,0.25)"
-              : "rgba(108,99,255,0.18)",
-            borderLeftColor: theme.colors.primary,
-          },
-        ]}
-        onPress={handleFeaturedGameTap}
-      >
-        <View style={styles.featuredHeader}>
-          <Text
-            style={[styles.featuredEyebrow, { color: theme.colors.primary }]}
-          >
-            Starting Soon
-          </Text>
-        </View>
+      <View style={{ marginBottom: 2 }}>
+        {/* Section label */}
         <Text
-          style={[
-            styles.featuredCountdown,
-            {
-              color: countdownInfo.isUrgent
-                ? theme.colors.error
-                : theme.colors.onSurfaceVariant,
-            },
-          ]}
+          style={{
+            fontSize: 11,
+            fontFamily: "Rubik_600SemiBold",
+            color: theme.colors.primary,
+            textTransform: "uppercase",
+            letterSpacing: 1.2,
+            marginHorizontal: 16,
+            marginBottom: 4,
+            opacity: 0.85,
+          }}
         >
-          {countdownInfo.text}
+          ✦ Featured Games
         </Text>
-        <Text
-          style={[styles.featuredMatchup, { color: theme.colors.onBackground }]}
-        >
-          {matchup}
-        </Text>
-        <View
-          style={[
-            styles.featuredButton,
-            {
-              borderColor: theme.colors.primary,
-              backgroundColor: theme.dark
-                ? "rgba(108,99,255,0.12)"
-                : "rgba(108,99,255,0.08)",
-            },
-          ]}
-        >
-          <Text
-            style={[styles.featuredButtonText, { color: theme.colors.primary }]}
-            numberOfLines={1}
+
+        <Animated.FlatList
+          ref={carouselRef}
+          data={featuredGames}
+          keyExtractor={(item) => `${item.league}-${item.id}`}
+          horizontal
+          pagingEnabled
+          decelerationRate="fast"
+          showsHorizontalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+            { useNativeDriver: true },
+          )}
+          renderItem={({ item: game, index }) => {
+            const matchup = `${game.awayTeam || "Away"} vs ${game.homeTeam || "Home"}`;
+            const countdownInfo = formatGameCountdown(game.startTime);
+
+            // Scale: active card = 1.0, adjacent = 0.96
+            const inputRange = [
+              (index - 1) * PAGE_WIDTH,
+              index * PAGE_WIDTH,
+              (index + 1) * PAGE_WIDTH,
+            ];
+            const scale = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.96, 1.0, 0.96],
+              extrapolate: "clamp",
+            });
+            const opacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.72, 1.0, 0.72],
+              extrapolate: "clamp",
+            });
+
+            return (
+              <View style={{ width: PAGE_WIDTH, paddingHorizontal: 16 }}>
+                <Animated.View style={{ transform: [{ scale }], opacity }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.featuredCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: theme.dark
+                          ? "rgba(108,99,255,0.20)"
+                          : "rgba(108,99,255,0.14)",
+                        borderLeftColor: theme.colors.primary,
+                      },
+                    ]}
+                    onPress={() => handleFeaturedGameTap(game)}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.featuredHeader}>
+                      <Text style={[styles.featuredEyebrow, { color: theme.colors.primary }]}>
+                        Starting Soon
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.featuredCountdown,
+                        {
+                          color: countdownInfo.isUrgent
+                            ? theme.colors.error
+                            : theme.colors.onSurfaceVariant,
+                        },
+                      ]}
+                    >
+                      {countdownInfo.text}
+                    </Text>
+                    <Text style={[styles.featuredMatchup, { color: theme.colors.onBackground }]}>
+                      {matchup}
+                    </Text>
+                    <View
+                      style={[
+                        styles.featuredButton,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.featuredButtonText, { color: "#fff" }]}
+                        numberOfLines={1}
+                      >
+                        Lock In This Square
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
+            );
+          }}
+        />
+
+        {/* Pagination dots — driven by scrollX interpolation, no setState lag */}
+        {featuredGames.length > 1 && (
+          <View
+            style={{
+              width: PAGE_WIDTH,
+              flexDirection: "row",
+              justifyContent: "center",
+              alignItems: "center",
+              marginTop: 6,
+              gap: 7,
+            }}
           >
-            Lock In This Square!
-          </Text>
+            {featuredGames.map((_, i) => {
+              const dotScale = scrollX.interpolate({
+                inputRange: [
+                  (i - 1) * PAGE_WIDTH,
+                  i * PAGE_WIDTH,
+                  (i + 1) * PAGE_WIDTH,
+                ],
+                outputRange: [1, 1.5, 1],
+                extrapolate: "clamp",
+              });
+              const dotOpacity = scrollX.interpolate({
+                inputRange: [
+                  (i - 1) * PAGE_WIDTH,
+                  i * PAGE_WIDTH,
+                  (i + 1) * PAGE_WIDTH,
+                ],
+                outputRange: [0.35, 1, 0.35],
+                extrapolate: "clamp",
+              });
+              return (
+                <Animated.View
+                  key={i}
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: theme.colors.primary,
+                    opacity: dotOpacity,
+                    transform: [{ scale: dotScale }],
+                  }}
+                />
+              );
+            })}
+          </View>
+        )}
+
+        {/* See more matchups — styled pill chip */}
+        <View style={{ alignItems: "center", marginTop: 6, marginBottom: 0 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate("GamePickerScreen")}
+            style={[
+              styles.seeMoreChip,
+              {
+                backgroundColor: theme.dark
+                  ? "rgba(108,99,255,0.10)"
+                  : "rgba(108,99,255,0.07)",
+                borderColor: theme.dark
+                  ? "rgba(108,99,255,0.30)"
+                  : "rgba(108,99,255,0.22)",
+              },
+            ]}
+          >
+            <Text style={[styles.seeMoreText, { color: theme.colors.primary }]}>
+              See more matchups
+            </Text>
+            <MaterialIcons name="arrow-forward" size={14} color={theme.colors.primary} />
+          </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
-
-  const isNewUser = !loading && userGames.length === 0;
-  const welcomeTitle = isNewUser
-    ? `Welcome${username ? `, ${username}` : ""}!`
-    : `Welcome Back${username ? `, ${username}` : ""}!`;
-
-  const welcomeSubtitle = isNewUser
-    ? "Let's get started by joining or creating a square."
-    : "Ready to play your next square?";
 
   const closeAllReanimatedSwipeables = () => {
     Object.values(swipeableRefs.current).forEach((ref) => ref?.close());
@@ -687,399 +1001,488 @@ const HomeScreen = () => {
       style={{ flex: 1 }}
     >
       <View style={{ flex: 1 }}>
-        {/* Welcome Header */}
-        <View style={styles.welcomeHeader}>
-          {/* <View style={[styles.welcomeIconWrap, { backgroundColor: theme.dark ? "rgba(108,99,255,0.15)" : "rgba(108,99,255,0.1)" }]}>
-            <MaterialIcons name="grid-on" size={28} color={theme.colors.primary} />
-          </View> */}
-          <Text
-            style={{
-              fontSize: 22,
-              letterSpacing: 1,
-              fontFamily: "Anton_400Regular",
-              color: theme.colors.primary,
-              textTransform: "uppercase",
-              textAlign: "center",
-            }}
-          >
-            {welcomeTitle}
-          </Text>
-          <Text
-            style={{
-              fontSize: 14,
-              color: theme.colors.onSurfaceVariant,
-              marginTop: 2,
-              fontFamily: "Rubik_400Regular",
-              textAlign: "center",
-            }}
-          >
-            {welcomeSubtitle}
-          </Text>
-        </View>
-
-        {/* Featured Game Card */}
-        {renderFeaturedCard()}
-
-        {/* Action Buttons */}
-        <View style={styles.actionRow}>
-          <TouchableOpacity
-            style={[
-              styles.actionCard,
-              { backgroundColor: theme.colors.surface },
-            ]}
-            onPress={() => navigation.navigate("CreateSquareScreen")}
-          >
-            <View
-              style={[
-                styles.actionIconWrap,
-                {
-                  backgroundColor: theme.dark
-                    ? "rgba(108,99,255,0.2)"
-                    : "rgba(108,99,255,0.1)",
-                },
-              ]}
-            >
-              <MaterialIcons
-                name="add"
-                size={24}
-                color={theme.colors.primary}
-              />
-            </View>
-            <Text
-              style={[
-                styles.actionCardTitle,
-                { color: theme.colors.onBackground },
-              ]}
-            >
-              Create
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.actionCard,
-              { backgroundColor: theme.colors.surface },
-            ]}
-            onPress={() => setVisible(true)}
-          >
-            <View
-              style={[
-                styles.actionIconWrap,
-                {
-                  backgroundColor: theme.dark
-                    ? "rgba(108,99,255,0.2)"
-                    : "rgba(108,99,255,0.1)",
-                },
-              ]}
-            >
-              <MaterialIcons
-                name="vpn-key"
-                size={22}
-                color={theme.colors.primary}
-              />
-            </View>
-            <Text
-              style={[
-                styles.actionCardTitle,
-                { color: theme.colors.onBackground },
-              ]}
-            >
-              Join
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.actionCard,
-              { backgroundColor: theme.colors.surface },
-            ]}
-            onPress={() => navigation.navigate("BrowsePublicSquaresScreen")}
-          >
-            <View
-              style={[
-                styles.actionIconWrap,
-                {
-                  backgroundColor: theme.dark
-                    ? "rgba(108,99,255,0.2)"
-                    : "rgba(108,99,255,0.1)",
-                },
-              ]}
-            >
-              <MaterialIcons
-                name="public"
-                size={22}
-                color={theme.colors.primary}
-              />
-            </View>
-            <Text
-              style={[
-                styles.actionCardTitle,
-                { color: theme.colors.onBackground },
-              ]}
-            >
-              Browse
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginTop: 15,
-            marginBottom: 10,
-            marginHorizontal: 10,
-          }}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingTop: 8, paddingBottom: 160 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Text
+          {/* Featured Game Card */}
+          {renderCarousel()}
+
+
+          {/* Your Squares header */}
+          <View
             style={{
-              fontSize: 16,
-              fontWeight: "600",
-              fontFamily: "Rubik_600SemiBold",
-              color: theme.colors.onBackground,
+              flexDirection: "row",
+              alignItems: "center",
+              marginTop: 6,
+              marginBottom: 6,
+              marginHorizontal: 10,
             }}
           >
-            Your Squares
-          </Text>
-          {userGames.length > 0 && (
-            <TouchableOpacity onPress={() => setEditMode(!editMode)}>
+            <Text
+              style={{
+                flex: 1,
+                fontSize: 16,
+                fontWeight: "600",
+                fontFamily: "Rubik_600SemiBold",
+                color: theme.colors.onBackground,
+              }}
+            >
+              Your Squares
+            </Text>
+
+            {isInitialLoading ? (
               <Text
                 style={{
-                  color: theme.colors.primary,
-                  fontSize: 14,
+                  color: theme.colors.onSurfaceVariant,
+                  fontSize: 13,
                   fontFamily: "Rubik_500Medium",
+                  opacity: 0.25,
                 }}
               >
-                {editMode ? "Done" : "Edit"}
+                Edit
               </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {loading ? (
-          <SkeletonLoader variant="homeScreen" />
-        ) : userGames.length === 0 ? (
-          <Text
-            style={{
-              textAlign: "center",
-              fontSize: 14,
-              color: theme.colors.onSurfaceVariant,
-              marginTop: 10,
-              fontStyle: "italic",
-            }}
-          >
-            You haven’t joined or created any games yet.
-          </Text>
-        ) : (
-          <ScrollView
-            style={{ paddingHorizontal: 5 }}
-            contentContainerStyle={{ paddingBottom: 160 }}
-          >
-            {userGames.map((item, index) => {
-              const deadline = item.deadline
-                ? new Date(item.deadline).getTime()
-                : null;
-              const nowMs = Date.now();
-              const isGameCompleted = item.game_completed;
-              const isPast = deadline && deadline < nowMs;
-              const isOwner = item.created_by === userId;
-
-              let borderColor = theme.colors.primary; // default: future
-              if (deadline) {
-                if (isGameCompleted) {
-                  borderColor = "#4CAF50"; // green for completed
-                } else if (isPast) {
-                  borderColor = "#FF9800"; // orange for in progress
-                } else if (deadline - nowMs < 24 * 60 * 60 * 1000) {
-                  borderColor = "#f5c542"; // yellow for about to end
-                }
-              }
-              return (
-                <Animated.View
-                  key={item.id}
+            ) : userGames.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setEditMode(!editMode)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text
                   style={{
-                    opacity: opacityAnims[index] || new Animated.Value(1),
-                    transform: [
-                      {
-                        translateY:
-                          translateYAnims[index] || new Animated.Value(0),
-                      },
-                    ],
+                    color: editMode
+                      ? theme.colors.primary
+                      : theme.colors.onSurfaceVariant,
+                    fontSize: 13,
+                    fontFamily: "Rubik_500Medium",
+                    opacity: editMode ? 1 : 0.5,
                   }}
                 >
-                  <ReanimatedSwipeable
-                    ref={(ref) => {
-                      swipeableRefs.current[item.id] = ref;
+                  {editMode ? "Done" : "Edit"}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Primary action buttons */}
+          <View
+            style={{
+              flexDirection: "row",
+              marginHorizontal: 10,
+              marginTop: 4,
+              marginBottom: 22,
+              gap: 5,
+              backgroundColor: theme.dark
+                ? "rgba(255,255,255,0.04)"
+                : "rgba(0,0,0,0.03)",
+              borderRadius: 14,
+              padding: 5,
+            }}
+          >
+            {[
+              {
+                label: "Create",
+                icon: "add-circle-outline",
+                onPress: () => navigation.navigate("CreateSquareScreen"),
+              },
+              {
+                label: "Join Game",
+                icon: "vpn-key",
+                onPress: () => setVisible(true),
+              },
+              {
+                label: "Browse",
+                icon: "public",
+                onPress: () => navigation.navigate("BrowsePublicSquaresScreen"),
+              },
+            ].map(({ label, icon, onPress }) => {
+              const isPrimary = label === "Create";
+              return (
+                <View
+                  key={label}
+                  style={{ flex: 1, opacity: isPrimary ? 1 : 0.7 }}
+                >
+                  <ScalePressable
+                    onPress={onPress}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      minHeight: 44,
+                      borderRadius: 12,
+                      backgroundColor: isPrimary
+                        ? theme.dark
+                          ? "rgba(108,99,255,0.11)"
+                          : "rgba(108,99,255,0.07)"
+                        : theme.colors.surface,
+                      borderWidth: isPrimary ? 1.5 : 1,
+                      borderColor: isPrimary
+                        ? theme.dark
+                          ? "rgba(108,99,255,0.35)"
+                          : "rgba(108,99,255,0.25)"
+                        : theme.dark
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(0,0,0,0.07)",
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 2 },
+                      shadowOpacity: theme.dark ? 0.3 : 0.08,
+                      shadowRadius: 4,
+                      elevation: 2,
                     }}
-                    renderRightActions={() => renderRightActions(item, isOwner)}
-                    overshootRight={false}
-                    friction={2}
                   >
-                    <TouchableOpacity
-                      style={[
-                        styles.gameCard,
-                        {
-                          backgroundColor: theme.colors.surface,
-                          borderLeftColor: borderColor,
-                          borderColor: borderColor,
-                        },
-                      ]}
-                      onPress={() => {
-                        if (editMode) {
-                          setConfirmModal({ visible: true, item, isOwner });
-                        } else {
-                          navigation.navigate("SquareScreen", {
-                            gridId: item.id,
-                            inputTitle: item.title,
-                            username: item.username,
-                            deadline: item.deadline,
-                            eventId: item.eventId,
-                            disableAnimation: true,
-                            pricePerSquare: item.price_per_square || 0,
-                            league: item.league || "NFL",
-                          });
-                        }
+                    <MaterialIcons
+                      name={icon as any}
+                      size={16}
+                      color={theme.colors.primary}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: isPrimary ? "700" : "600",
+                        fontFamily: "Rubik_600SemiBold",
+                        color: isPrimary
+                          ? theme.colors.primary
+                          : theme.colors.onBackground,
                       }}
                     >
-                      <View
-                        style={{ flexDirection: "row", alignItems: "center" }}
-                      >
-                        {editMode && (
-                          <MaterialIcons
-                            name="remove-circle"
-                            size={24}
-                            color={isOwner ? "#f44336" : "#FF9800"}
-                            style={{ marginRight: 12 }}
-                          />
-                        )}
-                        <View style={{ flex: 1 }}>
-                          {/* Title row */}
+                      {label}
+                    </Text>
+                  </ScalePressable>
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={{ paddingHorizontal: 5 }}>
+            {isInitialLoading ? (
+              /* ── Skeleton game cards — layout mirrors live gameCard exactly ── */
+              [0, 1, 2].map((i) => {
+                const skBg2 = theme.dark ? "#2b2b2d" : "#e8e8f0";
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.gameCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderLeftColor: theme.colors.primary,
+                        borderColor: theme.dark
+                          ? "rgba(255,255,255,0.07)"
+                          : "rgba(0,0,0,0.07)",
+                        marginBottom: 6,
+                      },
+                    ]}
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={{ flex: 1 }}>
+                        {/* Title row: title bar + status chip placeholder — marginBottom 3 */}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            marginBottom: 3,
+                          }}
+                        >
                           <View
                             style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              marginBottom: 4,
+                              flex: 1,
+                              height: 15,
+                              borderRadius: 5,
+                              marginRight: 6,
+                              backgroundColor: skBg2,
                             }}
-                          >
-                            <Text
-                              numberOfLines={1}
-                              ellipsizeMode="tail"
+                          />
+                          <View
+                            style={{
+                              width: 52,
+                              height: 18,
+                              borderRadius: 6,
+                              backgroundColor: skBg2,
+                            }}
+                          />
+                        </View>
+                        {/* Teams row — fontSize 13 → height 13, marginBottom 6 */}
+                        <View
+                          style={{
+                            width: "62%",
+                            height: 13,
+                            borderRadius: 4,
+                            marginBottom: 6,
+                            backgroundColor: skBg2,
+                          }}
+                        />
+                        {/* Stats row — 3 icon+text pairs, gap 16, marginBottom 6 */}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 16,
+                            marginBottom: 6,
+                          }}
+                        >
+                          <View style={{ width: 32, height: 12, borderRadius: 4, backgroundColor: skBg2 }} />
+                          <View style={{ width: 48, height: 12, borderRadius: 4, backgroundColor: skBg2, opacity: 0.6 }} />
+                          <View style={{ width: 36, height: 12, borderRadius: 4, backgroundColor: skBg2, opacity: 0.6 }} />
+                        </View>
+                        {/* Fill bar — height 4, borderRadius 2 */}
+                        <View
+                          style={{
+                            height: 4,
+                            borderRadius: 2,
+                            backgroundColor: theme.dark ? "#333" : "#e8e8e8",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: "45%",
+                              height: "100%",
+                              borderRadius: 2,
+                              backgroundColor: skBg2,
+                            }}
+                          />
+                        </View>
+                        {/* Countdown — marginTop 6 */}
+                        <View
+                          style={{
+                            width: "40%",
+                            height: 12,
+                            borderRadius: 4,
+                            marginTop: 6,
+                            backgroundColor: skBg2,
+                          }}
+                        />
+                      </View>
+                      {/* Chevron placeholder */}
+                      <View
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: 4,
+                          marginLeft: 8,
+                          backgroundColor: skBg2,
+                          opacity: 0.5,
+                        }}
+                      />
+                    </View>
+                  </View>
+                );
+              })
+            ) : userGames.length === 0 ? (
+              <Text
+                style={{
+                  textAlign: "center",
+                  fontSize: 14,
+                  color: theme.colors.onSurfaceVariant,
+                  marginTop: 10,
+                  fontStyle: "italic",
+                }}
+              >
+                You haven’t joined or created any games yet.
+              </Text>
+            ) : (
+              userGames.map((item, index) => {
+                const deadline = item.deadline
+                  ? new Date(item.deadline).getTime()
+                  : null;
+                const nowMs = Date.now();
+                const isOwner = item.created_by === userId;
+
+                const gameStatus = deriveGameStatus({
+                  deadline: item.deadline,
+                  game_completed: item.game_completed,
+                  event_id: item.event_id,
+                  league: item.league,
+                });
+
+                const STATUS_COLORS: Record<string, string> = {
+                  completed: "#4CAF50",   // green
+                  live: "#FF9800",        // orange
+                  finalizing: "#7E57C2",  // muted purple — "waiting on confirmation"
+                  upcoming: deadline && deadline - nowMs < 24 * 60 * 60 * 1000
+                    ? "#f5c542"           // yellow: deadline soon
+                    : theme.colors.primary,
+                };
+                const borderColor = STATUS_COLORS[gameStatus] ?? theme.colors.primary;
+
+                const STATUS_LABELS: Record<string, string | null> = {
+                  completed: "Completed",
+                  live: "In Progress",
+                  finalizing: "Awaiting Final Score",
+                  upcoming: deadline && deadline - nowMs < 24 * 60 * 60 * 1000
+                    ? "Starts Soon"
+                    : null,
+                };
+                const statusLabel = STATUS_LABELS[gameStatus] ?? null;
+
+                const isPublic = item.is_public;
+                return (
+                  <Animated.View
+                    key={item.id}
+                    style={{
+                      opacity: opacityAnims[index] || new Animated.Value(1),
+                      transform: [
+                        {
+                          translateY:
+                            translateYAnims[index] || new Animated.Value(0),
+                        },
+                      ],
+                    }}
+                  >
+                    <ReanimatedSwipeable
+                      ref={(ref) => {
+                        swipeableRefs.current[item.id] = ref;
+                      }}
+                      renderRightActions={() =>
+                        renderRightActions(item, isOwner)
+                      }
+                      overshootRight={false}
+                      friction={2}
+                    >
+                      <ScalePressable
+                        style={[
+                          styles.gameCard,
+                          {
+                            backgroundColor: theme.colors.surface,
+                            borderLeftColor: borderColor,
+                            borderColor: theme.dark
+                              ? "rgba(255,255,255,0.07)"
+                              : "rgba(0,0,0,0.07)",
+                          },
+                        ]}
+                        onPress={() => {
+                          if (editMode) {
+                            setConfirmModal({ visible: true, item, isOwner });
+                          } else {
+                            navigation.navigate("SquareScreen", {
+                              gridId: item.id,
+                              inputTitle: item.title,
+                              username: item.username,
+                              deadline: item.deadline,
+                              eventId: item.eventId,
+                              disableAnimation: true,
+                              pricePerSquare: item.price_per_square || 0,
+                              league: item.league || "NFL",
+                            });
+                          }
+                        }}
+                      >
+                        <View
+                          style={{ flexDirection: "row", alignItems: "center" }}
+                        >
+                          {editMode && (
+                            <MaterialIcons
+                              name="remove-circle"
+                              size={24}
+                              color={isOwner ? "#f44336" : "#FF9800"}
+                              style={{ marginRight: 12 }}
+                            />
+                          )}
+                          <View style={{ flex: 1 }}>
+                            {/* Title row */}
+                            <View
                               style={{
-                                fontSize: 16,
-                                fontWeight: "600",
-                                color: theme.colors.onBackground,
-                                fontFamily: "SoraBold",
-                                flex: 1,
-                                marginRight: 8,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                marginBottom: 3,
                               }}
                             >
-                              {item.title}
-                            </Text>
-                            {item.is_public && (
-                              <View
-                                style={[
-                                  styles.cardBadge,
-                                  {
-                                    backgroundColor: theme.dark
-                                      ? "rgba(108,99,255,0.2)"
-                                      : "rgba(108,99,255,0.1)",
-                                  },
-                                ]}
-                              >
-                                <MaterialIcons
-                                  name="public"
-                                  size={12}
-                                  color={theme.colors.primary}
-                                />
-                                <Text
-                                  style={{
-                                    fontSize: 10,
-                                    color: theme.colors.primary,
-                                    fontFamily: "Rubik_500Medium",
-                                    marginLeft: 2,
-                                  }}
-                                >
-                                  Public
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-
-                          {/* Teams row */}
-                          {(item.team1_full_name || item.team1) &&
-                            (item.team2_full_name || item.team2) && (
                               <Text
                                 numberOfLines={1}
+                                ellipsizeMode="tail"
                                 style={{
-                                  fontSize: 13,
-                                  color: theme.colors.onSurfaceVariant,
-                                  fontFamily: "Rubik_500Medium",
-                                  marginBottom: 6,
+                                  fontSize: 15,
+                                  fontWeight: "600",
+                                  color: theme.colors.onBackground,
+                                  fontFamily: "SoraBold",
+                                  flex: 1,
+                                  marginRight: 6,
                                 }}
                               >
-                                {item.team1_full_name || item.team1} vs{" "}
-                                {item.team2_full_name || item.team2}
+                                {item.title}
                               </Text>
-                            )}
+                              {/* Status chip */}
+                              {statusLabel && (
+                                <View
+                                  style={{
+                                    paddingHorizontal: 7,
+                                    paddingVertical: 2,
+                                    borderRadius: 6,
+                                    backgroundColor: `${borderColor}22`,
+                                    marginRight: isPublic ? 6 : 0,
+                                  }}
+                                >
+                                  <Text
+                                    style={{
+                                      fontSize: 10,
+                                      fontFamily: "Rubik_600SemiBold",
+                                      color: borderColor,
+                                      letterSpacing: 0.2,
+                                    }}
+                                  >
+                                    {statusLabel}
+                                  </Text>
+                                </View>
+                              )}
+                              {isPublic && (
+                                <View
+                                  style={[
+                                    styles.cardBadge,
+                                    {
+                                      backgroundColor: theme.dark
+                                        ? "rgba(108,99,255,0.2)"
+                                        : "rgba(108,99,255,0.1)",
+                                    },
+                                  ]}
+                                >
+                                  <MaterialIcons
+                                    name="public"
+                                    size={12}
+                                    color={theme.colors.primary}
+                                  />
+                                  <Text
+                                    style={{
+                                      fontSize: 10,
+                                      color: theme.colors.primary,
+                                      fontFamily: "Rubik_500Medium",
+                                      marginLeft: 2,
+                                    }}
+                                  >
+                                    Public
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
 
-                          {/* Stats row */}
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 12,
-                              marginBottom: 6,
-                            }}
-                          >
+                            {/* Teams row */}
+                            {(item.team1_full_name || item.team1) &&
+                              (item.team2_full_name || item.team2) && (
+                                <Text
+                                  numberOfLines={1}
+                                  style={{
+                                    fontSize: 13,
+                                    color: theme.colors.onSurfaceVariant,
+                                    fontFamily: "Rubik_500Medium",
+                                    marginBottom: 6,
+                                  }}
+                                >
+                                  {item.team1_full_name || item.team1} vs{" "}
+                                  {item.team2_full_name || item.team2}
+                                </Text>
+                              )}
+
+                            {/* Stats row */}
                             <View
                               style={{
                                 flexDirection: "row",
                                 alignItems: "center",
-                                gap: 3,
+                                gap: 16,
+                                marginBottom: 6,
                               }}
                             >
-                              <MaterialIcons
-                                name="people"
-                                size={14}
-                                color={theme.colors.onSurfaceVariant}
-                              />
-                              <Text
-                                style={{
-                                  fontSize: 12,
-                                  color: theme.colors.onSurfaceVariant,
-                                  fontFamily: "Rubik_400Regular",
-                                }}
-                              >
-                                {item.players?.length || 0}
-                              </Text>
-                            </View>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: 3,
-                              }}
-                            >
-                              <MaterialIcons
-                                name="grid-on"
-                                size={14}
-                                color={theme.colors.onSurfaceVariant}
-                              />
-                              <Text
-                                style={{
-                                  fontSize: 12,
-                                  color: theme.colors.onSurfaceVariant,
-                                  fontFamily: "Rubik_400Regular",
-                                }}
-                              >
-                                {Math.round(
-                                  ((item.selections?.length || 0) / 100) * 100,
-                                )}
-                                % filled
-                              </Text>
-                            </View>
-                            {item.league ? (
+                              {/* Player count — primary signal */}
                               <View
                                 style={{
                                   flexDirection: "row",
@@ -1088,15 +1491,7 @@ const HomeScreen = () => {
                                 }}
                               >
                                 <MaterialIcons
-                                  name={
-                                    ["nba", "ncaab"].includes(
-                                      item.league?.toLowerCase(),
-                                    )
-                                      ? "sports-basketball"
-                                      : item.league?.toLowerCase() === "custom"
-                                        ? "edit"
-                                        : "sports-football"
-                                  }
+                                  name="people"
                                   size={14}
                                   color={theme.colors.onSurfaceVariant}
                                 />
@@ -1104,80 +1499,148 @@ const HomeScreen = () => {
                                   style={{
                                     fontSize: 12,
                                     color: theme.colors.onSurfaceVariant,
+                                    fontFamily: "Rubik_500Medium",
+                                  }}
+                                >
+                                  {item.players?.length || 0}
+                                </Text>
+                              </View>
+                              {/* % filled — secondary */}
+                              <View
+                                style={{
+                                  flexDirection: "row",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  opacity: 0.55,
+                                }}
+                              >
+                                <MaterialIcons
+                                  name="grid-on"
+                                  size={13}
+                                  color={theme.colors.onSurfaceVariant}
+                                />
+                                <Text
+                                  style={{
+                                    fontSize: 11,
+                                    color: theme.colors.onSurfaceVariant,
                                     fontFamily: "Rubik_400Regular",
                                   }}
                                 >
-                                  {item.league?.toUpperCase()}
+                                  {Math.round(
+                                    ((item.selections?.length || 0) / 100) *
+                                      100,
+                                  )}
+                                  % filled
                                 </Text>
                               </View>
-                            ) : null}
-                          </View>
-
-                          {/* Fill bar */}
-                          {(() => {
-                            const totalSelections =
-                              item.selections?.length || 0;
-                            const maxSquares =
-                              item.max_selection && item.max_selection < 100
-                                ? item.max_selection *
-                                  (item.players?.length || 1)
-                                : 100;
-                            const fillPct = Math.min(totalSelections / 100, 1);
-                            return (
-                              <View
-                                style={{
-                                  height: 4,
-                                  borderRadius: 2,
-                                  backgroundColor: theme.dark
-                                    ? "#333"
-                                    : "#e8e8e8",
-                                  overflow: "hidden",
-                                }}
-                              >
+                              {/* League — secondary */}
+                              {item.league ? (
                                 <View
                                   style={{
-                                    height: "100%",
-                                    width: `${fillPct * 100}%`,
-                                    borderRadius: 2,
-                                    backgroundColor: borderColor,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    opacity: 0.55,
                                   }}
-                                />
-                              </View>
-                            );
-                          })()}
+                                >
+                                  <MaterialIcons
+                                    name={
+                                      ["nba", "ncaab"].includes(
+                                        item.league?.toLowerCase(),
+                                      )
+                                        ? "sports-basketball"
+                                        : item.league?.toLowerCase() ===
+                                            "custom"
+                                          ? "edit"
+                                          : "sports-football"
+                                    }
+                                    size={13}
+                                    color={theme.colors.onSurfaceVariant}
+                                  />
+                                  <Text
+                                    style={{
+                                      fontSize: 11,
+                                      color: theme.colors.onSurfaceVariant,
+                                      fontFamily: "Rubik_400Regular",
+                                    }}
+                                  >
+                                    {item.league?.toUpperCase()}
+                                  </Text>
+                                </View>
+                              ) : null}
+                            </View>
 
-                          {/* Countdown */}
-                          <Text
-                            style={{
-                              fontSize: 12,
-                              color: borderColor,
-                              fontFamily: "Rubik_500Medium",
-                              marginTop: 6,
-                            }}
-                          >
-                            {formatCountdown(
-                              item.deadline,
-                              item.game_completed,
-                            )}
-                          </Text>
+                            {/* Fill bar */}
+                            {(() => {
+                              const totalSelections =
+                                item.selections?.length || 0;
+                              const maxSquares =
+                                item.max_selection && item.max_selection < 100
+                                  ? item.max_selection *
+                                    (item.players?.length || 1)
+                                  : 100;
+                              const fillPct = Math.min(
+                                totalSelections / 100,
+                                1,
+                              );
+                              return (
+                                <View
+                                  style={{
+                                    height: 4,
+                                    borderRadius: 2,
+                                    backgroundColor: theme.dark
+                                      ? "#333"
+                                      : "#e8e8e8",
+                                    overflow: "hidden",
+                                  }}
+                                >
+                                  <View
+                                    style={{
+                                      height: "100%",
+                                      width: `${fillPct * 100}%`,
+                                      borderRadius: 2,
+                                      backgroundColor: borderColor,
+                                    }}
+                                  />
+                                </View>
+                              );
+                            })()}
+
+                            {/* Countdown */}
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                color: borderColor,
+                                fontFamily: "Rubik_500Medium",
+                                marginTop: 6,
+                              }}
+                            >
+                              {formatCountdown(
+                                item.deadline,
+                                item.game_completed,
+                                item.league,
+                                item.event_id,
+                              )}
+                            </Text>
+                          </View>
+
+                          {!editMode && (
+                            <MaterialIcons
+                              name="chevron-right"
+                              size={24}
+                              color={theme.colors.onSurfaceVariant}
+                              style={{ marginLeft: 8 }}
+                            />
+                          )}
                         </View>
-
-                        {!editMode && (
-                          <MaterialIcons
-                            name="chevron-right"
-                            size={24}
-                            color={theme.colors.onSurfaceVariant}
-                            style={{ marginLeft: 8 }}
-                          />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  </ReanimatedSwipeable>
-                </Animated.View>
-              );
-            })}
-          </ScrollView>
-        )}
+                      </ScalePressable>
+                    </ReanimatedSwipeable>
+                  </Animated.View>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
 
         <JoinSessionModal
           visible={visible}
@@ -1312,7 +1775,8 @@ const styles = StyleSheet.create({
   welcomeHeader: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
+    paddingTop: 4,
+    paddingBottom: 4,
     paddingHorizontal: 16,
   },
   welcomeIconWrap: {
@@ -1323,51 +1787,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 8,
   },
-  actionRow: {
-    flexDirection: "row",
-    paddingHorizontal: 10,
-    gap: 10,
-    marginBottom: 8,
-  },
-  actionCard: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  actionIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 6,
-  },
-  actionCardTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    fontFamily: "Rubik_600SemiBold",
-  },
   featuredCard: {
     marginHorizontal: 10,
-    marginBottom: 24,
-    marginTop: 4,
-    padding: 18,
-    borderRadius: 16,
-    borderWidth: 2,
+    marginBottom: 0,
+    marginTop: 2,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1.5,
     borderLeftWidth: 5,
-    borderColor: "rgba(108,99,255,0.2)",
+    borderColor: "rgba(108,99,255,0.22)",
     borderLeftColor: "#6C63FF",
     shadowColor: "#6C63FF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 8,
   },
   featuredHeader: {
     marginBottom: 8,
@@ -1379,16 +1813,16 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   featuredMatchup: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
     fontFamily: "Rubik_600SemiBold",
-    marginBottom: 4,
+    marginBottom: 6,
   },
   featuredCountdown: {
     fontSize: 12,
     fontWeight: "600",
     fontFamily: "Rubik_600SemiBold",
-    marginBottom: 12,
+    marginBottom: 6,
   },
   featuredPromo: {
     fontSize: 12,
@@ -1397,18 +1831,15 @@ const styles = StyleSheet.create({
   },
   featuredButton: {
     alignSelf: "flex-start",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#6C63FF",
-    backgroundColor: "rgba(108,99,255,0.08)",
   },
   featuredButtonText: {
     fontSize: 13,
     fontWeight: "700",
     fontFamily: "Rubik_600SemiBold",
-    textTransform: "uppercase",
+    letterSpacing: 0.3,
   },
   cardBadge: {
     flexDirection: "row",
@@ -1418,18 +1849,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   gameCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 0,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 6,
     borderWidth: 1,
-    borderLeftWidth: 5,
+    borderLeftWidth: 4,
     borderLeftColor: colors.primary,
-    borderColor: "rgba(94, 96, 206, 0.4)",
+    borderColor: "rgba(0,0,0,0.07)",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   swipeAction: {
     justifyContent: "center",
@@ -1474,5 +1905,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "flex-end",
     gap: 12,
+  },
+  seeMoreChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  seeMoreText: {
+    fontSize: 13,
+    fontFamily: "Rubik_500Medium",
   },
 });

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   Text,
   StyleSheet,
@@ -6,6 +6,7 @@ import {
   View,
   ScrollView,
   RefreshControl,
+  Dimensions,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { useTheme } from "react-native-paper";
@@ -15,6 +16,13 @@ import SkeletonLoader from "../components/SkeletonLoader";
 import { supabase } from "../lib/supabase";
 import Toast from "react-native-toast-message";
 import { getToastConfig } from "../components/ToastConfig";
+
+// Grid math: ScrollView has paddingHorizontal 10, gap between 2 cards is 10
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const GRID_PADDING = 10;
+const GRID_GAP = 10;
+const CARD_WIDTH = (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP) / 2;
+const CARD_MIN_HEIGHT = 200;
 
 type BadgeDefinition = {
   type: string;
@@ -69,103 +77,140 @@ const RARITY_COLORS: Record<string, string> = {
 const BadgesScreen = () => {
   const theme = useTheme();
 
+  // Cached data — never cleared between fetches
   const [earnedBadges, setEarnedBadges] = useState<string[]>([]);
   const [earnedDates, setEarnedDates] = useState<Record<string, string>>({});
   const [activeBadge, setActiveBadge] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ wins: 0, games: 0, sweeps: 0, credits: 0 });
+
+  // Loading state: only show skeleton before any data has arrived
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>("all");
-  // Progress stats for locked badges
-  const [stats, setStats] = useState({ wins: 0, games: 0, sweeps: 0, credits: 0 });
+
+  // Request guard: only the most recent fetch may apply its result
+  const fetchIdRef = useRef(0);
+  // Prevents re-fetching on every focus once data is loaded
+  const hasFetchedOnce = useRef(false);
 
   const gradientColors = theme.dark
     ? (["#121212", "#1d1d1d", "#2b2b2d"] as const)
     : (["#fdfcf9", "#e0e7ff"] as const);
 
-  const fetchBadges = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+  const fetchBadges = async (isBackground: boolean) => {
+    const myFetchId = ++fetchIdRef.current;
+    console.log(`[Badges] fetch start id=${myFetchId} background=${isBackground}`);
 
-    // Fetch badges
-    const { data, error } = await supabase
-      .from("badges")
-      .select("badge_type, earned_at")
-      .eq("user_id", user.id);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        console.log(`[Badges] fetch ${myFetchId} — no user, skipping`);
+        return;
+      }
 
-    if (error) {
-      console.error("Error fetching badges:", error);
-      return;
+      // Fetch badges
+      const { data, error } = await supabase
+        .from("badges")
+        .select("badge_type, earned_at")
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error(`[Badges] fetch ${myFetchId} error:`, error);
+        // Keep existing cached data — do not clear on error
+        return;
+      }
+
+      if (myFetchId !== fetchIdRef.current) {
+        console.log(`[Badges] fetch ${myFetchId} ignored — stale (current=${fetchIdRef.current})`);
+        return;
+      }
+
+      const types = (data || []).map((b) => b.badge_type);
+
+      const dates: Record<string, string> = {};
+      (data || []).forEach((b) => {
+        const d = new Date(b.earned_at);
+        const now = new Date();
+        const diffMs = now.getTime() - d.getTime();
+        const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+        if (diffDays === 0) dates[b.badge_type] = "today";
+        else if (diffDays === 1) dates[b.badge_type] = "yesterday";
+        else if (diffDays < 7) dates[b.badge_type] = `${diffDays} days ago`;
+        else dates[b.badge_type] = d.toLocaleDateString();
+      });
+
+      // Fetch active badge from user profile
+      const { data: profile } = await supabase
+        .from("users")
+        .select("active_badge")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (myFetchId !== fetchIdRef.current) {
+        console.log(`[Badges] fetch ${myFetchId} ignored after profile (stale)`);
+        return;
+      }
+
+      // Fetch progress stats
+      const { data: lbData } = await supabase
+        .from("leaderboard_stats")
+        .select("quarters_won")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const { count: gameCount } = await supabase
+        .from("squares")
+        .select("id", { count: "exact", head: true })
+        .contains("player_ids", [user.id]);
+
+      // Count sweeps: games where user won all 4 quarters
+      const { data: gamesWithWinners } = await supabase
+        .from("squares")
+        .select("quarter_winners, players")
+        .contains("player_ids", [user.id])
+        .not("quarter_winners", "is", null);
+
+      let sweepCount = 0;
+      (gamesWithWinners || []).forEach((game) => {
+        if (!game.quarter_winners || !Array.isArray(game.quarter_winners)) return;
+        const playerEntry = game.players?.find((p: any) => p.userId === user.id);
+        if (!playerEntry) return;
+        const userWins = game.quarter_winners.filter(
+          (qw: any) => qw.username?.trim() === playerEntry.username?.trim() && qw.username !== "No Winner"
+        );
+        if (userWins.length >= 4) sweepCount++;
+      });
+
+      // Credits earned
+      const { count: creditCount } = await supabase
+        .from("square_credits")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+
+      if (myFetchId !== fetchIdRef.current) {
+        console.log(`[Badges] fetch ${myFetchId} ignored after stats (stale)`);
+        return;
+      }
+
+      console.log(`[Badges] fetch ${myFetchId} applied — ${types.length} earned badges`);
+
+      setEarnedBadges(types);
+      setEarnedDates(dates);
+      setActiveBadge(profile?.active_badge || null);
+      setStats({
+        wins: lbData?.quarters_won || 0,
+        games: gameCount || 0,
+        sweeps: sweepCount,
+        credits: creditCount || 0,
+      });
+      setDataLoaded(true);
+    } catch (err) {
+      console.error(`[Badges] fetch ${fetchIdRef.current} threw:`, err);
+      // Do not clear cached data on unexpected error
     }
-
-    const types = (data || []).map((b) => b.badge_type);
-    setEarnedBadges(types);
-
-    const dates: Record<string, string> = {};
-    (data || []).forEach((b) => {
-      const d = new Date(b.earned_at);
-      const now = new Date();
-      const diffMs = now.getTime() - d.getTime();
-      const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
-
-      if (diffDays === 0) dates[b.badge_type] = "today";
-      else if (diffDays === 1) dates[b.badge_type] = "yesterday";
-      else if (diffDays < 7) dates[b.badge_type] = `${diffDays} days ago`;
-      else dates[b.badge_type] = d.toLocaleDateString();
-    });
-    setEarnedDates(dates);
-
-    // Fetch active badge from user profile
-    const { data: profile } = await supabase
-      .from("users")
-      .select("active_badge")
-      .eq("id", user.id)
-      .maybeSingle();
-    setActiveBadge(profile?.active_badge || null);
-
-    // Fetch progress stats
-    const { data: lbData } = await supabase
-      .from("leaderboard_stats")
-      .select("quarters_won")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    const { count: gameCount } = await supabase
-      .from("squares")
-      .select("id", { count: "exact", head: true })
-      .contains("player_ids", [user.id]);
-
-    // Count sweeps: games where user won all 4 quarters
-    const { data: gamesWithWinners } = await supabase
-      .from("squares")
-      .select("quarter_winners, players")
-      .contains("player_ids", [user.id])
-      .not("quarter_winners", "is", null);
-
-    let sweepCount = 0;
-    (gamesWithWinners || []).forEach((game) => {
-      if (!game.quarter_winners || !Array.isArray(game.quarter_winners)) return;
-      const playerEntry = game.players?.find((p: any) => p.userId === user.id);
-      if (!playerEntry) return;
-      const userWins = game.quarter_winners.filter(
-        (qw: any) => qw.username?.trim() === playerEntry.username?.trim() && qw.username !== "No Winner"
-      );
-      if (userWins.length >= 4) sweepCount++;
-    });
-
-    // Credits earned
-    const { count: creditCount } = await supabase
-      .from("square_credits")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id);
-
-    setStats({
-      wins: lbData?.quarters_won || 0,
-      games: gameCount || 0,
-      sweeps: sweepCount,
-      credits: creditCount || 0,
-    });
   };
 
   const toggleActiveBadge = async (badgeType: string) => {
@@ -197,27 +242,27 @@ const BadgesScreen = () => {
 
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      fetchBadges().finally(() => setLoading(false));
+      if (!hasFetchedOnce.current) {
+        // First entry — fetch and show skeleton until data arrives
+        hasFetchedOnce.current = true;
+        fetchBadges(false);
+      } else {
+        // Subsequent focus — refresh silently in background, keep existing data visible
+        console.log("[Badges] re-focused — background refresh");
+        fetchBadges(true);
+      }
     }, []),
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchBadges();
+    await fetchBadges(true);
     setRefreshing(false);
   };
 
   const earnedCount = earnedBadges.length;
   const totalCount = BADGE_DEFINITIONS.length;
   const lockedCount = totalCount - earnedCount;
-
-  // Recently earned (badges earned in last 7 days)
-  const recentlyEarned = BADGE_DEFINITIONS.filter((b) => {
-    if (!earnedBadges.includes(b.type)) return false;
-    const dateStr = earnedDates[b.type];
-    return dateStr === "today" || dateStr === "yesterday" || dateStr?.includes("days ago");
-  });
 
   const RARITY_ORDER: Record<string, number> = { Common: 0, Rare: 1, Epic: 2, Legendary: 3 };
 
@@ -249,8 +294,9 @@ const BadgesScreen = () => {
     return (
       <TouchableOpacity
         key={badge.type}
-        activeOpacity={isEarned ? 0.7 : 1}
+        disabled={!isEarned}
         onPress={() => isEarned && toggleActiveBadge(badge.type)}
+        activeOpacity={isEarned ? 0.85 : 1}
         style={[
           styles.badgeCard,
           {
@@ -264,7 +310,7 @@ const BadgesScreen = () => {
           },
         ]}
       >
-        {/* Active indicator */}
+        {/* Active indicator — absolute, does not affect flow */}
         {isActive && (
           <View style={[styles.activeChip, { backgroundColor: theme.colors.primary }]}>
             <MaterialIcons name="check" size={10} color="#fff" />
@@ -272,61 +318,62 @@ const BadgesScreen = () => {
           </View>
         )}
 
-        {/* Badge icon with lock overlay for locked */}
-        <View style={{ position: "relative", marginBottom: 8 }}>
-          <Text style={[styles.badgeIcon, !isEarned && { opacity: 0.25 }]}>
-            {badge.icon}
+        {/* Top content: icon + title + description */}
+        <View style={styles.cardTop}>
+          <View style={{ position: "relative", marginBottom: 8 }}>
+            <Text style={[styles.badgeIcon, !isEarned && { opacity: 0.25 }]}>
+              {badge.icon}
+            </Text>
+            {!isEarned && (
+              <View style={styles.lockOverlay}>
+                <MaterialIcons name="lock" size={20} color={theme.dark ? "#aaa" : "#888"} />
+              </View>
+            )}
+          </View>
+
+          <Text
+            style={[styles.badgeName, { color: theme.colors.onBackground }]}
+            numberOfLines={2}
+          >
+            {badge.name}
           </Text>
-          {!isEarned && (
-            <View style={styles.lockOverlay}>
-              <MaterialIcons name="lock" size={20} color={theme.dark ? "#aaa" : "#888"} />
-            </View>
-          )}
+          <Text
+            style={[styles.badgeDesc, { color: theme.colors.onSurfaceVariant }]}
+            numberOfLines={2}
+          >
+            {badge.description}
+          </Text>
         </View>
 
-        <Text
-          style={[styles.badgeName, { color: theme.colors.onBackground }]}
-          numberOfLines={1}
-        >
-          {badge.name}
-        </Text>
-        <Text
-          style={[styles.badgeDesc, { color: theme.colors.onSurfaceVariant }]}
-          numberOfLines={2}
-        >
-          {badge.description}
-        </Text>
-
-        {/* Progress bar for locked badges */}
-        {!isEarned && progress && (
-          <View style={{ width: "100%", marginBottom: 6 }}>
-            <Text style={{ fontSize: 10, fontFamily: "Rubik_500Medium", color: theme.colors.onSurfaceVariant, textAlign: "center", marginBottom: 3 }}>
-              {progress.current}/{progress.target}
-            </Text>
-            <View style={[styles.progressBar, { backgroundColor: theme.dark ? "#333" : "#e0e0e0" }]}>
-              <View
-                style={{
-                  height: "100%",
-                  width: `${Math.min((progress.current / progress.target) * 100, 100)}%`,
-                  backgroundColor: RARITY_COLORS[badge.rarity],
-                  borderRadius: 3,
-                }}
-              />
+        {/* Bottom footer: progress (optional) + rarity pill — always present */}
+        <View style={styles.cardFooter}>
+          {!isEarned && progress && (
+            <View style={styles.progressSection}>
+              <Text style={[styles.progressText, { color: theme.colors.onSurfaceVariant }]}>
+                {progress.current}/{progress.target}
+              </Text>
+              <View style={[styles.progressBar, { backgroundColor: theme.dark ? "#333" : "#e0e0e0" }]}>
+                <View
+                  style={{
+                    height: "100%",
+                    width: `${Math.min((progress.current / progress.target) * 100, 100)}%`,
+                    backgroundColor: RARITY_COLORS[badge.rarity],
+                    borderRadius: 3,
+                  }}
+                />
+              </View>
             </View>
-          </View>
-        )}
-
-        <View
-          style={[
-            styles.rarityBadge,
-            { backgroundColor: RARITY_COLORS[badge.rarity] + "20" },
-          ]}
-        >
-          <Text
-            style={[styles.rarityText, { color: RARITY_COLORS[badge.rarity] }]}
+          )}
+          <View
+            style={[
+              styles.rarityBadge,
+              { backgroundColor: RARITY_COLORS[badge.rarity] + "20" },
+            ]}
           >
-            {badge.rarity}
-          </Text>
+            <Text style={[styles.rarityText, { color: RARITY_COLORS[badge.rarity] }]}>
+              {badge.rarity}
+            </Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -357,43 +404,46 @@ const BadgesScreen = () => {
         </LinearGradient>
 
         {/* Filter Tabs */}
-        <View style={styles.filterRow}>
+        <View style={[styles.segmentedControl, { backgroundColor: theme.dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)" }]}>
           {(
             [
               { key: "all", label: "All" },
               { key: "earned", label: `Earned (${earnedCount})` },
               { key: "locked", label: `Locked (${lockedCount})` },
             ] as const
-          ).map((f) => (
-            <TouchableOpacity
-              key={f.key}
-              style={[
-                styles.filterTab,
-                filter === f.key && {
-                  backgroundColor: theme.colors.primary,
-                },
-              ]}
-              onPress={() => setFilter(f.key)}
-            >
-              <Text
+          ).map((f) => {
+            const isActive = filter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
                 style={[
-                  styles.filterTabText,
-                  {
-                    color:
-                      filter === f.key
-                        ? "#fff"
-                        : theme.colors.onSurfaceVariant,
-                  },
+                  styles.segment,
+                  { backgroundColor: isActive ? theme.colors.primary : "transparent" },
                 ]}
+                onPress={() => setFilter(f.key)}
+                activeOpacity={0.8}
               >
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.segmentText,
+                    {
+                      color: isActive ? "#fff" : theme.colors.onSurfaceVariant,
+                      opacity: isActive ? 1 : 0.65,
+                    },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {loading ? (
-          <SkeletonLoader variant="badgeGrid" />
+        {!dataLoaded ? (
+          <View style={{ flex: 1 }}>
+            <SkeletonLoader variant="badgeGrid" />
+          </View>
         ) : (
           <ScrollView
             contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 10 }}
@@ -403,10 +453,20 @@ const BadgesScreen = () => {
           >
             {/* All Badges */}
             <View style={styles.badgeGrid}>
-              {filteredBadges.map((badge) => {
-                const isEarned = earnedBadges.includes(badge.type);
-                return renderBadgeCard(badge, isEarned);
-              })}
+              {(() => {
+                const rows: BadgeDefinition[][] = [];
+                for (let i = 0; i < filteredBadges.length; i += 2) {
+                  rows.push(filteredBadges.slice(i, i + 2));
+                }
+                return rows.map((row, rowIndex) => (
+                  <View key={rowIndex} style={styles.badgeRow}>
+                    {row.map((badge) => {
+                      const isEarned = earnedBadges.includes(badge.type);
+                      return renderBadgeCard(badge, isEarned);
+                    })}
+                  </View>
+                ));
+              })()}
             </View>
           </ScrollView>
         )}
@@ -420,46 +480,47 @@ export default BadgesScreen;
 
 const styles = StyleSheet.create({
   progressHeader: {
-    paddingVertical: 20,
+    paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
     marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 16,
+    marginTop: 10,
+    borderRadius: 14,
   },
   progressLabel: {
     color: "rgba(255,255,255,0.8)",
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Rubik_500Medium",
   },
   progressValue: {
     color: "#fff",
-    fontSize: 36,
+    fontSize: 32,
     fontWeight: "700",
     fontFamily: "SoraBold",
-    marginVertical: 4,
+    marginVertical: 2,
   },
   progressSubtext: {
     color: "rgba(255,255,255,0.7)",
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Rubik_400Regular",
   },
-  filterRow: {
+  segmentedControl: {
     flexDirection: "row",
     marginHorizontal: 16,
     marginTop: 12,
     marginBottom: 8,
-    borderRadius: 24,
-    overflow: "hidden",
-    backgroundColor: "rgba(0,0,0,0.08)",
+    borderRadius: 10,
+    padding: 3,
   },
-  filterTab: {
+  segment: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 9,
     alignItems: "center",
-    borderRadius: 24,
+    justifyContent: "center",
+    borderRadius: 8,
+    minHeight: 38,
   },
-  filterTabText: {
+  segmentText: {
     fontSize: 13,
     fontWeight: "600",
     fontFamily: "Rubik_600SemiBold",
@@ -483,21 +544,34 @@ const styles = StyleSheet.create({
     fontFamily: "Rubik_500Medium",
   },
   badgeGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
     marginTop: 4,
   },
+  badgeRow: {
+    flexDirection: "row",
+    gap: GRID_GAP,
+    marginBottom: GRID_GAP,
+  },
   badgeCard: {
-    width: "47%",
+    width: CARD_WIDTH,
+    minHeight: CARD_MIN_HEIGHT,
     borderRadius: 12,
     padding: 14,
-    alignItems: "center",
-    marginBottom: 4,
+    paddingBottom: 12,
     position: "relative",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  cardTop: {
+    alignItems: "center",
+    width: "100%",
+  },
+  cardFooter: {
+    alignItems: "center",
+    width: "100%",
+    marginTop: 8,
   },
   badgeIcon: {
-    fontSize: 36,
+    fontSize: 38,
   },
   lockOverlay: {
     position: "absolute",
@@ -530,14 +604,26 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontFamily: "Rubik_600SemiBold",
     textAlign: "center",
-    marginBottom: 4,
+    marginBottom: 5,
+    lineHeight: 18,
   },
   badgeDesc: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Rubik_400Regular",
     textAlign: "center",
+    marginBottom: 0,
+    lineHeight: 15,
+    opacity: 0.75,
+  },
+  progressSection: {
+    width: "100%",
     marginBottom: 8,
-    lineHeight: 16,
+  },
+  progressText: {
+    fontSize: 10,
+    fontFamily: "Rubik_500Medium",
+    textAlign: "center",
+    marginBottom: 4,
   },
   progressBar: {
     height: 4,
@@ -547,7 +633,7 @@ const styles = StyleSheet.create({
   },
   rarityBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 10,
   },
   rarityText: {

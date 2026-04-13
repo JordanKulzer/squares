@@ -28,6 +28,7 @@ interface PremiumUpgradeModalProps {
   onDismiss: () => void;
   feature?: string;
   context?: "square_limit" | "premium_features";
+  source?: string;
 }
 
 const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
@@ -35,6 +36,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
   onDismiss,
   feature = "premium features",
   context = "premium_features",
+  source: _source,
 }) => {
   const theme = useTheme();
   const { refreshPremiumStatus } = usePremium();
@@ -45,6 +47,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [purchasingExtra, setPurchasingExtra] = useState(false);
   const [purchasingSub, setPurchasingSub] = useState(false);
+  const [restoringPremium, setRestoringPremium] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const starSpin = useRef(new Animated.Value(0)).current;
@@ -196,25 +199,25 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
       return;
     }
 
-    setLoading(true);
+    setRestoringPremium(true);
     const restored = await iapService.restorePurchases();
     if (restored) {
       await refreshPremiumStatus();
       Toast.show({
         type: "success",
-        text1: "Purchases restored!",
+        text1: "Premium restored",
         position: "bottom",
       });
       onDismiss();
     } else {
       Toast.show({
         type: "info",
-        text1: "No purchases found",
-        text2: "No previous purchases to restore",
+        text1: "No premium subscription found",
+        text2: "Only active subscriptions can be restored",
         position: "bottom",
       });
     }
-    setLoading(false);
+    setRestoringPremium(false);
   };
 
   const isDark = theme.dark;
@@ -238,11 +241,11 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
         styles.optionCard,
         {
           backgroundColor: isDark
-            ? "rgba(94, 96, 206, 0.1)"
-            : "rgba(94, 96, 206, 0.05)",
+            ? "rgba(94, 96, 206, 0.06)"
+            : "rgba(94, 96, 206, 0.03)",
           borderColor: isDark
-            ? "rgba(94, 96, 206, 0.3)"
-            : "rgba(94, 96, 206, 0.2)",
+            ? "rgba(94, 96, 206, 0.18)"
+            : "rgba(94, 96, 206, 0.12)",
         },
       ]}
     >
@@ -284,6 +287,14 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
           )}
         </View>
       </View>
+      <Text
+        style={[
+          styles.clarityNote,
+          { color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)" },
+        ]}
+      >
+        One-time purchase. Does not restore.
+      </Text>
     </TouchableOpacity>
   );
 
@@ -325,7 +336,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
             <Text
               style={[
                 styles.benefitChipText,
-                { color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)" },
+                { color: isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.65)" },
               ]}
             >
               {b.text}
@@ -333,6 +344,14 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
           </View>
         ))}
       </View>
+      <Text
+        style={[
+          styles.clarityNote,
+          { color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)", textAlign: "center", marginTop: 10 },
+        ]}
+      >
+        Subscription restores automatically when you sign in.
+      </Text>
     </View>
   );
 
@@ -342,6 +361,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
         visible={visible}
         onDismiss={onDismiss}
         contentContainerStyle={styles.modalOuter}
+        style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
       >
         <Animated.View
           style={[
@@ -411,7 +431,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                     <View
                       style={[
                         styles.dividerLine,
-                        { backgroundColor: isDark ? "#333" : "#e0e0e0" },
+                        { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
                       ]}
                     />
                     <Text
@@ -419,8 +439,8 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                         styles.dividerText,
                         {
                           color: isDark
-                            ? "rgba(255,255,255,0.3)"
-                            : "rgba(0,0,0,0.3)",
+                            ? "rgba(255,255,255,0.18)"
+                            : "rgba(0,0,0,0.18)",
                         },
                       ]}
                     >
@@ -429,7 +449,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                     <View
                       style={[
                         styles.dividerLine,
-                        { backgroundColor: isDark ? "#333" : "#e0e0e0" },
+                        { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
                       ]}
                     />
                   </View>
@@ -442,7 +462,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                     <View
                       style={[
                         styles.dividerLine,
-                        { backgroundColor: isDark ? "#333" : "#e0e0e0" },
+                        { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
                       ]}
                     />
                     <Text
@@ -450,8 +470,8 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                         styles.dividerText,
                         {
                           color: isDark
-                            ? "rgba(255,255,255,0.3)"
-                            : "rgba(0,0,0,0.3)",
+                            ? "rgba(255,255,255,0.18)"
+                            : "rgba(0,0,0,0.18)",
                         },
                       ]}
                     >
@@ -460,7 +480,7 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
                     <View
                       style={[
                         styles.dividerLine,
-                        { backgroundColor: isDark ? "#333" : "#e0e0e0" },
+                        { backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)" },
                       ]}
                     />
                   </View>
@@ -471,20 +491,25 @@ const PremiumUpgradeModal: React.FC<PremiumUpgradeModalProps> = ({
               {/* Restore */}
               <TouchableOpacity
                 onPress={handleRestore}
-                style={styles.restoreButton}
+                disabled={restoringPremium}
+                style={[styles.restoreButton, restoringPremium && { opacity: 0.5 }]}
               >
-                <Text
-                  style={[
-                    styles.restoreText,
-                    {
-                      color: isDark
-                        ? "rgba(255,255,255,0.5)"
-                        : "rgba(0,0,0,0.4)",
-                    },
-                  ]}
-                >
-                  Restore Purchases
-                </Text>
+                {restoringPremium ? (
+                  <ActivityIndicator size="small" color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)"} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.restoreText,
+                      {
+                        color: isDark
+                          ? "rgba(255,255,255,0.5)"
+                          : "rgba(0,0,0,0.4)",
+                      },
+                    ]}
+                  >
+                    Restore Premium
+                  </Text>
+                )}
               </TouchableOpacity>
             </ScrollView>
           )}
@@ -614,13 +639,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderRadius: 16,
     gap: 8,
   },
   subButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#fff",
   },
   benefitsList: {
@@ -642,6 +667,12 @@ const styles = StyleSheet.create({
   benefitChipText: {
     fontSize: 12,
     fontWeight: "500",
+  },
+  // Clarity notes
+  clarityNote: {
+    fontSize: 11,
+    marginTop: 8,
+    fontStyle: "italic",
   },
   // Restore
   restoreButton: {

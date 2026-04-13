@@ -126,10 +126,22 @@ export const getPendingInvites = async (): Promise<GameInviteWithSender[]> => {
 
     const profileMap = new Map(profiles?.map((p) => [p.id, p]) || []);
 
+    // Get game metadata (team1, team2, league) for each invite's grid_id
+    const gridIds = [...new Set(invites.map((i) => i.grid_id))];
+    const { data: squares } = await supabase
+      .from("squares")
+      .select("id, team1, team2, league")
+      .in("id", gridIds);
+
+    const squareMap = new Map(squares?.map((s) => [s.id, s]) || []);
+
     return invites.map((invite) => ({
       ...invite,
       sender_username: profileMap.get(invite.sender_id)?.username || null,
       sender_email: profileMap.get(invite.sender_id)?.email || null,
+      team1: squareMap.get(invite.grid_id)?.team1 || null,
+      team2: squareMap.get(invite.grid_id)?.team2 || null,
+      league: squareMap.get(invite.grid_id)?.league || null,
     }));
   } catch (err) {
     console.error("getPendingInvites error:", err);

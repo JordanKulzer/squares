@@ -14,4 +14,7 @@ export interface GameInvite {
 export interface GameInviteWithSender extends GameInvite {
   sender_username: string | null;
   sender_email: string | null;
+  team1: string | null;
+  team2: string | null;
+  league: string | null;
 }
